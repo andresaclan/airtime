@@ -1,0 +1,276 @@
+@import 'tailwindcss';
+
+/* Dark mode variant */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ========================================
+   Design Tokens / CSS Variables
+   ======================================== */
+
+:root {
+	color-scheme: light;
+
+	/* Backgrounds */
+	--at-bg: 0 0% 96%;
+	--at-bg-2: 0 0% 92%;
+	--at-bg-muted: 0 0% 92%;
+
+	/* Foregrounds */
+	--at-fg: 0 0% 8%;
+	--at-fg-muted: 0 0% 40%;
+
+	/* Surfaces & Borders */
+	--at-border: 0 0% 78%;
+	--at-surface: 0 0% 100%;
+	--at-surface-2: 0 0% 94%;
+
+	/* Accent & Semantic Colors */
+	--at-accent: 220 90% 56%;
+	--at-accent-2: 220 85% 45%;
+	--at-success: 142 76% 36%;
+	--at-warning: 38 92% 50%;
+	--at-error: 0 84% 60%;
+
+	/* Shadow */
+	--at-shadow: 0 0% 0%;
+}
+
+:root.dark {
+	color-scheme: dark;
+
+	/* Backgrounds */
+	--at-bg: 0 0% 8%;
+	--at-bg-2: 0 0% 12%;
+	--at-bg-muted: 0 0% 14%;
+
+	/* Foregrounds */
+	--at-fg: 0 0% 96%;
+	--at-fg-muted: 0 0% 60%;
+
+	/* Surfaces & Borders */
+	--at-border: 0 0% 22%;
+	--at-surface: 0 0% 12%;
+	--at-surface-2: 0 0% 16%;
+
+	/* Accent colors stay similar but slightly brighter for dark mode */
+	--at-accent: 220 90% 60%;
+	--at-accent-2: 220 85% 50%;
+	--at-success: 142 76% 46%;
+	--at-warning: 38 92% 55%;
+	--at-error: 0 84% 65%;
+
+	/* Shadow */
+	--at-shadow: 0 0% 0%;
+}
+
+/* ========================================
+   Base Styles
+   ======================================== */
+
+html {
+	-webkit-tap-highlight-color: transparent;
+}
+
+body {
+	font-family: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+	text-rendering: geometricPrecision;
+	background: hsl(var(--at-bg));
+	color: hsl(var(--at-fg));
+}
+
+/* Selection */
+::selection {
+	background: color-mix(in oklab, hsl(var(--at-accent)) 22%, transparent);
+}
+
+/* Focus states */
+:focus-visible {
+	outline: 2px solid color-mix(in oklab, hsl(var(--at-accent)) 85%, white);
+	outline-offset: 2px;
+	border-radius: 0;
+}
+
+/* ========================================
+   Component Classes
+   ======================================== */
+
+/* Buttons */
+.at-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 10px 16px;
+	border-radius: 0;
+	border: 1px solid hsl(var(--at-border));
+	background: hsl(var(--at-surface));
+	color: hsl(var(--at-fg));
+	font-weight: 600;
+	font-size: 13px;
+	transition:
+		background 120ms ease,
+		border-color 120ms ease,
+		transform 120ms ease;
+	cursor: pointer;
+}
+
+.at-btn:hover:not(:disabled) {
+	border-color: hsl(var(--at-fg));
+	background: hsl(var(--at-surface-2));
+}
+
+.at-btn:active:not(:disabled) {
+	transform: translateY(1px);
+}
+
+.at-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.at-btn-primary {
+	background: hsl(var(--at-accent));
+	border-color: hsl(var(--at-accent));
+	color: white;
+}
+
+.at-btn-primary:hover:not(:disabled) {
+	background: hsl(var(--at-accent-2));
+	border-color: hsl(var(--at-accent-2));
+}
+
+.at-btn-icon {
+	padding: 10px;
+	width: 44px;
+	height: 44px;
+}
+
+.at-btn-icon-sm {
+	padding: 6px;
+	width: 32px;
+	height: 32px;
+}
+
+.at-btn-icon-lg {
+	padding: 12px;
+	width: 52px;
+	height: 52px;
+}
+
+/* Cards / Surfaces */
+.at-card {
+	border: 1px solid hsl(var(--at-border));
+	background: hsl(var(--at-surface));
+	border-radius: 0;
+}
+
+.at-card-hover {
+	transition:
+		transform 120ms ease,
+		border-color 120ms ease;
+}
+
+.at-card-hover:hover {
+	transform: translateY(-3px);
+	border-color: color-mix(in oklab, hsl(var(--at-accent)) 30%, hsl(var(--at-border)));
+}
+
+/* Inputs */
+.at-input {
+	width: 100%;
+	padding: 12px 16px;
+	border-radius: 0;
+	border: 1px solid hsl(var(--at-border));
+	background: hsl(var(--at-surface));
+	color: hsl(var(--at-fg));
+	transition: border-color 120ms ease;
+}
+
+.at-input:focus {
+	outline: none;
+	border-color: hsl(var(--at-accent));
+}
+
+.at-input::placeholder {
+	color: hsl(var(--at-fg-muted) / 0.5);
+}
+
+/* Badges */
+.at-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	border: 1px solid hsl(var(--at-border));
+	background: hsl(var(--at-surface));
+	font-size: 12px;
+	font-weight: 600;
+	border-radius: 0;
+}
+
+.at-badge-accent {
+	border-color: hsl(var(--at-accent));
+	color: hsl(var(--at-accent));
+}
+
+.at-badge-success {
+	border-color: hsl(var(--at-success));
+	color: hsl(var(--at-success));
+}
+
+.at-badge-warning {
+	border-color: hsl(var(--at-warning));
+	color: hsl(var(--at-warning));
+}
+
+.at-badge-error {
+	border-color: hsl(var(--at-error));
+	color: hsl(var(--at-error));
+}
+
+/* ========================================
+   Animations
+   ======================================== */
+
+.at-reveal {
+	animation: at-enter 220ms ease-out both;
+	animation-delay: var(--delay, 0ms);
+}
+
+@keyframes at-enter {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.at-reveal {
+		animation: none;
+	}
+}
+
+/* ========================================
+   Utilities
+   ======================================== */
+
+.at-text-muted {
+	color: hsl(var(--at-fg-muted));
+}
+
+.at-border {
+	border-color: hsl(var(--at-border));
+}
+
+/* Safe area padding for mobile devices */
+.pb-safe {
+	padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.pt-safe {
+	padding-top: env(safe-area-inset-top, 0);
+}
