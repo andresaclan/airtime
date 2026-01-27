@@ -213,7 +213,7 @@
 	<button
 		onclick={stepFrameBack}
 		disabled={!videoElement || currentTime <= 0}
-		class="at-btn at-btn-icon-sm"
+		class="at-btn at-btn-icon-sm touch-manipulation"
 		aria-label="Previous frame"
 		title="Previous frame (< or Shift+Left)"
 	>
@@ -226,7 +226,7 @@
 	<button
 		onclick={togglePlayPause}
 		disabled={!videoElement}
-		class="at-btn at-btn-primary at-btn-icon"
+		class="at-btn at-btn-primary at-btn-icon touch-manipulation"
 		aria-label={isPlaying ? 'Pause' : 'Play'}
 		title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
 	>
@@ -255,7 +255,7 @@
 	<button
 		onclick={stepFrameForward}
 		disabled={!videoElement || currentTime >= duration}
-		class="at-btn at-btn-icon-sm"
+		class="at-btn at-btn-icon-sm touch-manipulation"
 		aria-label="Next frame"
 		title="Next frame (> or Shift+Right)"
 	>
@@ -273,7 +273,7 @@
 		<button
 			onclick={toggleMute}
 			disabled={!videoElement}
-			class="at-btn at-btn-icon-sm"
+			class="at-btn at-btn-icon-sm touch-manipulation"
 			aria-label={isMuted ? 'Unmute' : 'Mute'}
 			title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
 		>

@@ -43,7 +43,7 @@
 	<!-- Toggle Timing Mode Button -->
 	<button
 		onclick={onToggleTiming}
-		class="at-btn at-btn-icon-sm {timingModeEnabled ? 'at-btn-primary' : ''}"
+		class="at-btn at-btn-icon-sm touch-manipulation {timingModeEnabled ? 'at-btn-primary' : ''}"
 		aria-label={timingModeEnabled ? 'Disable timing mode' : 'Enable timing mode'}
 		title="Toggle timing mode (T)"
 	>
@@ -65,7 +65,7 @@
 		<!-- Mark In Button -->
 		<button
 			onclick={onMarkIn}
-			class="at-btn {inPoint !== null ? 'at-btn-in' : ''}"
+			class="at-btn touch-manipulation {inPoint !== null ? 'at-btn-in' : ''}"
 			style="padding: 4px 10px;"
 			aria-label="Mark in point"
 			title="Mark in point (I)"
@@ -76,7 +76,7 @@
 		<!-- Mark Out Button -->
 		<button
 			onclick={onMarkOut}
-			class="at-btn {outPoint !== null ? 'at-btn-out' : ''}"
+			class="at-btn touch-manipulation {outPoint !== null ? 'at-btn-out' : ''}"
 			style="padding: 4px 10px;"
 			aria-label="Mark out point"
 			title="Mark out point (O)"
@@ -87,7 +87,7 @@
 		<!-- Clear Button -->
 		<button
 			onclick={onClear}
-			class="at-btn at-btn-icon-sm"
+			class="at-btn at-btn-icon-sm touch-manipulation"
 			disabled={inPoint === null && outPoint === null}
 			aria-label="Clear in/out points"
 			title="Clear in/out points"
@@ -120,7 +120,7 @@
 			<!-- View Details Button -->
 			<button
 				onclick={onViewDetails}
-				class="at-btn at-btn-icon-sm"
+				class="at-btn at-btn-icon-sm touch-manipulation"
 				aria-label="View timing details with thumbnails"
 				title="View timing details"
 			>
