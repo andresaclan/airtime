@@ -152,45 +152,49 @@
 			hsl(var(--at-border)) var(--progress),
 			hsl(var(--at-border)) 100%
 		);
-		border-radius: 0;
-		transition: height 120ms ease;
+		border-radius: 4px;
+		transition: height 150ms ease;
 	}
 
 	.scrubber::-webkit-slider-thumb {
 		appearance: none;
-		width: 16px;
-		height: 16px;
-		border-radius: 0;
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
 		background: hsl(var(--at-accent));
 		cursor: pointer;
-		border: 1px solid hsl(var(--at-fg));
-		box-shadow: 0 2px 4px hsl(var(--at-shadow) / 0.3);
+		border: 3px solid white;
+		box-shadow: 0 2px 8px hsl(var(--at-shadow) / 0.3);
 		transition:
-			transform 120ms ease,
-			background 120ms ease;
+			transform 150ms ease,
+			box-shadow 150ms ease;
 	}
 
 	.scrubber::-webkit-slider-thumb:hover {
-		background: hsl(var(--at-accent-2));
-		transform: scale(1.1);
+		transform: scale(1.15);
+		box-shadow: 0 4px 12px hsl(var(--at-shadow) / 0.4);
+	}
+
+	.scrubber::-webkit-slider-thumb:active {
+		transform: scale(1.05);
 	}
 
 	.scrubber::-moz-range-thumb {
-		width: 16px;
-		height: 16px;
-		border-radius: 0;
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
 		background: hsl(var(--at-accent));
 		cursor: pointer;
-		border: 1px solid hsl(var(--at-fg));
-		box-shadow: 0 2px 4px hsl(var(--at-shadow) / 0.3);
+		border: 3px solid white;
+		box-shadow: 0 2px 8px hsl(var(--at-shadow) / 0.3);
 		transition:
-			transform 120ms ease,
-			background 120ms ease;
+			transform 150ms ease,
+			box-shadow 150ms ease;
 	}
 
 	.scrubber::-moz-range-thumb:hover {
-		background: hsl(var(--at-accent-2));
-		transform: scale(1.1);
+		transform: scale(1.15);
+		box-shadow: 0 4px 12px hsl(var(--at-shadow) / 0.4);
 	}
 
 	/* Increase touch target on mobile */
@@ -200,21 +204,20 @@
 		}
 
 		.scrubber::-webkit-slider-thumb {
-			width: 24px;
-			height: 24px;
+			width: 28px;
+			height: 28px;
 		}
 
 		.scrubber::-moz-range-thumb {
-			width: 24px;
-			height: 24px;
+			width: 28px;
+			height: 28px;
 		}
 	}
 
 	/* Range highlight between in/out points */
 	.range-highlight {
-		background: hsl(var(--at-accent) / 0.3);
-		border-top: 2px solid hsl(var(--at-accent));
-		border-bottom: 2px solid hsl(var(--at-accent));
+		background: hsl(var(--at-accent) / 0.25);
+		border-radius: 4px;
 		z-index: 1;
 	}
 
@@ -229,11 +232,12 @@
 
 	.marker-line {
 		position: absolute;
-		top: -8px;
+		top: -10px;
 		left: 50%;
 		transform: translateX(-50%);
-		width: 2px;
-		height: 24px;
+		width: 3px;
+		height: 28px;
+		border-radius: 2px;
 	}
 
 	.marker-in .marker-line {
@@ -246,14 +250,15 @@
 
 	.marker-label {
 		position: absolute;
-		top: -22px;
+		top: -26px;
 		left: 50%;
 		transform: translateX(-50%);
-		font-size: 9px;
+		font-size: 10px;
 		font-weight: 700;
-		padding: 2px 6px;
+		padding: 3px 8px;
 		background: hsl(var(--at-surface));
 		border: 1px solid;
+		border-radius: 6px;
 		white-space: nowrap;
 		text-transform: uppercase;
 		letter-spacing: 0.5px;

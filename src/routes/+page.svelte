@@ -162,22 +162,21 @@
 >
 	<!-- Header -->
 	<header
-		class="at-reveal flex shrink-0 items-center justify-between border-b px-4 py-2"
-		style="border-color: hsl(var(--at-border)); background: hsl(var(--at-surface))"
+		class="at-reveal flex shrink-0 items-center justify-between px-4 py-3"
+		style="background: hsl(var(--at-bg))"
 	>
-		<h1 class="text-sm font-semibold" style="color: hsl(var(--at-fg))">AIRTIME</h1>
-		<div class="flex items-center gap-1">
+		<h1 class="text-base font-bold tracking-tight" style="color: hsl(var(--at-fg))">AIRTIME</h1>
+		<div class="flex items-center gap-2">
 			<!-- Open file button -->
 			<button
 				onclick={openFilePicker}
-				class="at-btn at-btn-icon"
-				style="width: 36px; height: 36px; padding: 8px;"
+				class="at-btn at-btn-icon at-btn-ghost"
 				aria-label="Open video file"
 				title="Open video file (or drag & drop)"
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
-					class="h-4 w-4"
+					class="h-5 w-5"
 					viewBox="0 0 24 24"
 					fill="none"
 					stroke="currentColor"
@@ -191,15 +190,14 @@
 			<!-- Dark mode toggle -->
 			<button
 				onclick={toggleDarkMode}
-				class="at-btn at-btn-icon"
-				style="width: 36px; height: 36px; padding: 8px;"
+				class="at-btn at-btn-icon at-btn-ghost"
 				aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
 				title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
 			>
 				{#if isDarkMode}
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
-						class="h-4 w-4"
+						class="h-5 w-5"
 						viewBox="0 0 24 24"
 						fill="currentColor"
 					>
@@ -214,7 +212,7 @@
 				{:else}
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
-						class="h-4 w-4"
+						class="h-5 w-5"
 						viewBox="0 0 24 24"
 						fill="currentColor"
 					>
@@ -226,37 +224,42 @@
 	</header>
 
 	<!-- Video Display Area -->
-	<div class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+	<div class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-4">
 		{#if !videoSrc}
 			<!-- Empty state with drop zone -->
 			<button
 				onclick={openFilePicker}
-				class="at-reveal flex h-full w-full flex-col items-center justify-center gap-4 border-2 border-dashed transition-all duration-150"
+				class="at-reveal at-card flex h-full w-full max-w-md flex-col items-center justify-center gap-5 border-2 border-dashed p-8 transition-all duration-200"
 				style="--delay: 90ms; border-color: {isDragging
 					? 'hsl(var(--at-accent))'
 					: 'hsl(var(--at-border))'}; background: {isDragging
-					? 'hsl(var(--at-accent) / 0.1)'
-					: 'transparent'}"
+					? 'hsl(var(--at-accent) / 0.08)'
+					: 'hsl(var(--at-surface))'}"
 			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="at-text-muted h-16 w-16"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
+				<div
+					class="flex h-20 w-20 items-center justify-center rounded-2xl"
+					style="background: hsl(var(--at-accent) / 0.1)"
 				>
-					<path
-						stroke-linecap="square"
-						stroke-linejoin="miter"
-						stroke-width="1.5"
-						d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-					/>
-				</svg>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-10 w-10"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="hsl(var(--at-accent))"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="1.5"
+							d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+						/>
+					</svg>
+				</div>
 				<div class="text-center">
-					<p class="text-lg" style="color: hsl(var(--at-fg))">
-						{isDragging ? 'Drop video here' : 'Tap to select a video'}
+					<p class="text-lg font-semibold" style="color: hsl(var(--at-fg))">
+						{isDragging ? 'Drop video here' : 'Select a video'}
 					</p>
-					<p class="at-text-muted mt-1 text-sm">or drag and drop</p>
+					<p class="at-text-muted mt-2 text-sm">Tap to browse or drag & drop</p>
 				</div>
 			</button>
 		{:else}
@@ -274,33 +277,41 @@
 			<!-- Drag overlay when video is loaded -->
 			{#if isDragging}
 				<div
-					class="absolute inset-0 flex items-center justify-center"
-					style="background: hsl(var(--at-accent) / 0.3)"
+					class="absolute inset-0 flex items-center justify-center backdrop-blur-sm"
+					style="background: hsl(var(--at-accent) / 0.2)"
 				>
-					<p class="text-xl font-semibold" style="color: hsl(var(--at-fg))">
-						Drop to replace video
-					</p>
+					<div
+						class="rounded-2xl px-6 py-4"
+						style="background: hsl(var(--at-surface)); box-shadow: 0 8px 32px hsl(var(--at-shadow) / 0.2)"
+					>
+						<p class="text-lg font-semibold" style="color: hsl(var(--at-fg))">
+							Drop to replace video
+						</p>
+					</div>
 				</div>
 			{/if}
 		{/if}
 	</div>
 
 	<!-- Controls Section -->
-	<div
-		class="pb-safe shrink-0 border-t"
-		style="border-color: hsl(var(--at-border)); background: hsl(var(--at-surface))"
-	>
+	<div class="at-bottom-sheet pb-safe shrink-0" style="background: hsl(var(--at-surface))">
+		<!-- Bottom sheet handle -->
+		<div class="at-bottom-sheet-handle"></div>
+
 		{#if videoSrc}
 			<!-- Video filename and time display -->
-			<div class="at-reveal flex items-center justify-center gap-3 px-4 pt-2" style="--delay: 0ms">
-				<span class="at-text-muted truncate text-xs font-medium" style="max-width: 40%">
+			<div
+				class="at-reveal flex items-center justify-center gap-3 px-4 pt-1 pb-2"
+				style="--delay: 0ms"
+			>
+				<span class="at-text-muted truncate text-xs font-medium" style="max-width: 35%">
 					{videoFileName}
 				</span>
 				<span class="at-text-muted text-xs">|</span>
-				<span class="font-mono text-xs" style="color: hsl(var(--at-fg))">
+				<span class="font-mono text-sm font-medium" style="color: hsl(var(--at-fg))">
 					{formatTime(currentTime)} / {formatTime(duration)}
 				</span>
-				<span class="at-badge at-badge-accent text-xs" style="padding: 2px 6px; font-size: 10px;">
+				<span class="at-badge at-badge-accent">
 					{frameRate}fps
 				</span>
 			</div>

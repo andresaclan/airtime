@@ -127,11 +127,18 @@
 		aria-label="Timing details"
 		tabindex="-1"
 	>
-		<div class="drawer-container">
+		<div class="drawer-container at-bottom-sheet">
+			<!-- Drawer handle -->
+			<div class="at-bottom-sheet-handle"></div>
+
 			<!-- Drawer header -->
 			<div class="drawer-header">
 				<h2 class="drawer-title">Timing Details</h2>
-				<button class="at-btn at-btn-icon close-btn" onclick={onClose} aria-label="Close drawer">
+				<button
+					class="at-btn at-btn-icon at-btn-ghost close-btn"
+					onclick={onClose}
+					aria-label="Close drawer"
+				>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						class="h-5 w-5"
@@ -139,6 +146,7 @@
 						fill="none"
 						stroke="currentColor"
 						stroke-width="2"
+						stroke-linecap="round"
 					>
 						<line x1="18" y1="6" x2="6" y2="18" />
 						<line x1="6" y1="6" x2="18" y2="18" />
@@ -230,12 +238,13 @@
 	.drawer-backdrop {
 		position: fixed;
 		inset: 0;
-		background: hsl(0 0% 0% / 0.6);
+		background: hsl(0 0% 0% / 0.5);
+		backdrop-filter: blur(4px);
 		z-index: 100;
 		display: flex;
 		align-items: flex-end;
 		justify-content: center;
-		animation: fadeIn 150ms ease-out;
+		animation: fadeIn 200ms ease-out;
 	}
 
 	@keyframes fadeIn {
@@ -250,12 +259,9 @@
 	.drawer-container {
 		width: 100%;
 		max-width: 600px;
-		max-height: 80vh;
-		background: hsl(var(--at-surface));
-		border: 1px solid hsl(var(--at-border));
-		border-bottom: none;
-		padding: 20px;
-		animation: slideUp 200ms ease-out;
+		max-height: 85vh;
+		padding: 8px 24px 24px;
+		animation: slideUp 250ms cubic-bezier(0.32, 0.72, 0, 1);
 		overflow-y: auto;
 	}
 
@@ -272,35 +278,34 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 20px;
+		margin-bottom: 24px;
+		padding-top: 8px;
 	}
 
 	.drawer-title {
-		font-size: 16px;
+		font-size: 18px;
 		font-weight: 700;
 		color: hsl(var(--at-fg));
 		margin: 0;
 	}
 
 	.close-btn {
-		width: 36px;
-		height: 36px;
-		padding: 6px;
+		margin-right: -8px;
 	}
 
 	.thumbnails-row {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 16px;
-		margin-bottom: 20px;
+		gap: 20px;
+		margin-bottom: 24px;
 	}
 
 	.thumbnail-card {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 8px;
+		gap: 10px;
 		flex: 1;
 		max-width: 200px;
 	}
@@ -310,8 +315,9 @@
 		font-weight: 700;
 		letter-spacing: 1px;
 		text-transform: uppercase;
-		padding: 4px 12px;
+		padding: 5px 14px;
 		border: 1px solid;
+		border-radius: 20px;
 	}
 
 	.thumbnail-in .thumbnail-label {
@@ -331,11 +337,13 @@
 		aspect-ratio: 16 / 9;
 		background: hsl(var(--at-bg));
 		border: 2px solid hsl(var(--at-border));
+		border-radius: 12px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		opacity: 0.5;
 		transition: opacity 200ms ease;
+		overflow: hidden;
 	}
 
 	.thumbnail-wrapper.thumbnail-ready {
@@ -358,12 +366,12 @@
 
 	.thumbnail-placeholder {
 		color: hsl(var(--at-fg-muted));
-		font-size: 12px;
+		font-size: 13px;
 	}
 
 	.thumbnail-time {
 		font-family: ui-monospace, monospace;
-		font-size: 14px;
+		font-size: 15px;
 		font-weight: 600;
 		color: hsl(var(--at-fg));
 	}
@@ -372,9 +380,9 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 8px;
-		padding: 0 8px;
-		min-width: 80px;
+		gap: 10px;
+		padding: 0 12px;
+		min-width: 90px;
 	}
 
 	.diff-arrow {
@@ -385,7 +393,7 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 4px;
+		gap: 6px;
 	}
 
 	.diff-stat {
@@ -397,13 +405,13 @@
 
 	.diff-value {
 		font-family: ui-monospace, monospace;
-		font-size: 18px;
+		font-size: 20px;
 		font-weight: 700;
 		color: hsl(var(--at-accent));
 	}
 
 	.diff-label {
-		font-size: 10px;
+		font-size: 11px;
 		font-weight: 600;
 		color: hsl(var(--at-fg-muted));
 		text-transform: uppercase;
@@ -412,43 +420,50 @@
 
 	.diff-placeholder {
 		text-align: center;
-		font-size: 12px;
+		font-size: 13px;
 	}
 
 	.shortcuts-hint {
 		display: flex;
 		justify-content: center;
-		gap: 20px;
-		padding-top: 16px;
+		gap: 24px;
+		padding-top: 20px;
 		border-top: 1px solid hsl(var(--at-border));
-		font-size: 12px;
+		font-size: 13px;
 		color: hsl(var(--at-fg-muted));
 	}
 
 	.shortcuts-hint kbd {
 		display: inline-block;
-		padding: 2px 6px;
+		padding: 4px 8px;
 		font-family: ui-monospace, monospace;
 		font-size: 11px;
+		font-weight: 600;
 		background: hsl(var(--at-bg));
 		border: 1px solid hsl(var(--at-border));
-		margin-right: 4px;
+		border-radius: 6px;
+		margin-right: 6px;
 	}
 
 	/* Responsive: stack on very small screens */
 	@media (max-width: 480px) {
+		.drawer-container {
+			padding: 8px 16px 20px;
+		}
+
 		.thumbnails-row {
 			flex-direction: column;
-			gap: 20px;
+			gap: 24px;
 		}
 
 		.thumbnail-card {
-			max-width: 160px;
+			max-width: 180px;
 		}
 
 		.difference-indicator {
 			flex-direction: row;
-			gap: 16px;
+			gap: 20px;
+			padding: 8px 0;
 		}
 
 		.diff-arrow {
@@ -457,6 +472,11 @@
 
 		.diff-stats {
 			flex-direction: row;
+			gap: 20px;
+		}
+
+		.shortcuts-hint {
+			flex-wrap: wrap;
 			gap: 16px;
 		}
 	}

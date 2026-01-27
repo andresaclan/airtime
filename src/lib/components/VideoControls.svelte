@@ -208,79 +208,89 @@
 
 <svelte:window onkeydown={handleKeyDown} />
 
-<div class="at-reveal flex items-center justify-center gap-4 px-4 py-2" style="--delay: 60ms">
-	<!-- Frame Back Button -->
-	<button
-		onclick={stepFrameBack}
-		disabled={!videoElement || currentTime <= 0}
-		class="at-btn at-btn-icon-sm touch-manipulation"
-		aria-label="Previous frame"
-		title="Previous frame (< or Shift+Left)"
-	>
-		<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-			<path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
-		</svg>
-	</button>
-
-	<!-- Play/Pause Button -->
-	<button
-		onclick={togglePlayPause}
-		disabled={!videoElement}
-		class="at-btn at-btn-primary at-btn-icon touch-manipulation"
-		aria-label={isPlaying ? 'Pause' : 'Play'}
-		title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
-	>
-		{#if isPlaying}
+<div class="at-reveal flex flex-col gap-3 px-4 py-3" style="--delay: 60ms">
+	<!-- Main playback controls row -->
+	<div class="flex items-center justify-center gap-3">
+		<!-- Frame Back Button -->
+		<button
+			onclick={stepFrameBack}
+			disabled={!videoElement || currentTime <= 0}
+			class="at-btn at-btn-icon at-btn-ghost touch-manipulation"
+			aria-label="Previous frame"
+			title="Previous frame (< or Shift+Left)"
+		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
 				class="h-5 w-5"
 				viewBox="0 0 24 24"
 				fill="currentColor"
 			>
-				<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+				<path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
 			</svg>
-		{:else}
+		</button>
+
+		<!-- Play/Pause Button - Large and prominent -->
+		<button
+			onclick={togglePlayPause}
+			disabled={!videoElement}
+			class="at-btn at-btn-primary at-btn-icon-xl touch-manipulation"
+			aria-label={isPlaying ? 'Pause' : 'Play'}
+			title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+		>
+			{#if isPlaying}
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-7 w-7"
+					viewBox="0 0 24 24"
+					fill="currentColor"
+				>
+					<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+				</svg>
+			{:else}
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-7 w-7"
+					viewBox="0 0 24 24"
+					fill="currentColor"
+				>
+					<path d="M8 5v14l11-7z" />
+				</svg>
+			{/if}
+		</button>
+
+		<!-- Frame Forward Button -->
+		<button
+			onclick={stepFrameForward}
+			disabled={!videoElement || currentTime >= duration}
+			class="at-btn at-btn-icon at-btn-ghost touch-manipulation"
+			aria-label="Next frame"
+			title="Next frame (> or Shift+Right)"
+		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
 				class="h-5 w-5"
 				viewBox="0 0 24 24"
 				fill="currentColor"
 			>
-				<path d="M8 5v14l11-7z" />
+				<path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
 			</svg>
-		{/if}
-	</button>
+		</button>
+	</div>
 
-	<!-- Frame Forward Button -->
-	<button
-		onclick={stepFrameForward}
-		disabled={!videoElement || currentTime >= duration}
-		class="at-btn at-btn-icon-sm touch-manipulation"
-		aria-label="Next frame"
-		title="Next frame (> or Shift+Right)"
-	>
-		<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-			<path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
-		</svg>
-	</button>
-
-	<!-- Divider -->
-	<div class="h-6 w-px" style="background: hsl(var(--at-border))"></div>
-
-	<!-- Volume Controls -->
-	<div class="flex items-center gap-1">
+	<!-- Volume controls row -->
+	<div class="flex items-center justify-center gap-2">
 		<!-- Mute Button -->
 		<button
 			onclick={toggleMute}
 			disabled={!videoElement}
-			class="at-btn at-btn-icon-sm touch-manipulation"
+			class="at-btn at-btn-icon-sm at-btn-ghost touch-manipulation"
 			aria-label={isMuted ? 'Unmute' : 'Mute'}
 			title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
 		>
 			{#if isMuted || volume === 0}
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
-					class="h-4 w-4"
+					class="h-5 w-5"
 					viewBox="0 0 24 24"
 					fill="currentColor"
 				>
@@ -291,7 +301,7 @@
 			{:else if volume < 0.5}
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
-					class="h-4 w-4"
+					class="h-5 w-5"
 					viewBox="0 0 24 24"
 					fill="currentColor"
 				>
@@ -300,7 +310,7 @@
 			{:else}
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
-					class="h-4 w-4"
+					class="h-5 w-5"
 					viewBox="0 0 24 24"
 					fill="currentColor"
 				>
@@ -320,13 +330,16 @@
 			value={isMuted ? 0 : volume}
 			oninput={handleVolumeInput}
 			disabled={!videoElement}
-			class="volume-slider h-1 w-16 cursor-pointer appearance-none disabled:cursor-not-allowed disabled:opacity-50"
+			class="volume-slider h-2 w-28 cursor-pointer appearance-none rounded-full disabled:cursor-not-allowed disabled:opacity-40"
 			style="--volume: {volumePercent}%"
 			aria-label="Volume"
 			aria-valuemin={0}
 			aria-valuemax={100}
 			aria-valuenow={volumePercent}
 		/>
+
+		<!-- Volume percentage -->
+		<span class="at-text-muted w-10 text-xs font-medium">{volumePercent}%</span>
 	</div>
 </div>
 
@@ -339,41 +352,46 @@
 			hsl(var(--at-border)) var(--volume),
 			hsl(var(--at-border)) 100%
 		);
-		border-radius: 0;
 	}
 
 	.volume-slider::-webkit-slider-thumb {
 		appearance: none;
-		width: 12px;
-		height: 12px;
-		border-radius: 0;
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
 		background: hsl(var(--at-accent));
 		cursor: pointer;
-		border: 1px solid hsl(var(--at-fg));
+		border: 2px solid white;
+		box-shadow: 0 2px 6px hsl(var(--at-shadow) / 0.3);
 		transition:
-			transform 120ms ease,
-			background 120ms ease;
+			transform 150ms ease,
+			box-shadow 150ms ease;
 	}
 
 	.volume-slider::-webkit-slider-thumb:hover {
-		background: hsl(var(--at-accent-2));
-		transform: scale(1.1);
+		transform: scale(1.15);
+		box-shadow: 0 3px 10px hsl(var(--at-shadow) / 0.4);
+	}
+
+	.volume-slider::-webkit-slider-thumb:active {
+		transform: scale(1.05);
 	}
 
 	.volume-slider::-moz-range-thumb {
-		width: 12px;
-		height: 12px;
-		border-radius: 0;
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
 		background: hsl(var(--at-accent));
 		cursor: pointer;
-		border: 1px solid hsl(var(--at-fg));
+		border: 2px solid white;
+		box-shadow: 0 2px 6px hsl(var(--at-shadow) / 0.3);
 		transition:
-			transform 120ms ease,
-			background 120ms ease;
+			transform 150ms ease,
+			box-shadow 150ms ease;
 	}
 
 	.volume-slider::-moz-range-thumb:hover {
-		background: hsl(var(--at-accent-2));
-		transform: scale(1.1);
+		transform: scale(1.15);
+		box-shadow: 0 3px 10px hsl(var(--at-shadow) / 0.4);
 	}
 </style>
