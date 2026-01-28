@@ -190,7 +190,10 @@
 	}
 </script>
 
-<div class="relative flex w-full items-center justify-center" style="background: hsl(0 0% 5%);">
+<div
+	class="relative flex h-full w-full items-center justify-center"
+	style="background: hsl(0 0% 5%);"
+>
 	{#if videoSrc}
 		<video
 			bind:this={videoElement}
@@ -201,7 +204,7 @@
 			onplay={handlePlay}
 			onpause={handlePause}
 			onvolumechange={handleVolumeChange}
-			class="max-h-full max-w-full"
+			class="max-h-full max-w-full object-contain"
 			playsinline
 			preload="metadata"
 		>
