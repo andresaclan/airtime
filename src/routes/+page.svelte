@@ -162,21 +162,21 @@
 >
 	<!-- Header -->
 	<header
-		class="at-reveal flex shrink-0 items-center justify-between px-4 py-3"
+		class="at-reveal flex shrink-0 items-center justify-between px-3 py-1.5"
 		style="background: hsl(var(--at-bg))"
 	>
-		<h1 class="text-base font-bold tracking-tight" style="color: hsl(var(--at-fg))">AIRTIME</h1>
-		<div class="flex items-center gap-2">
+		<h1 class="text-sm font-bold tracking-tight" style="color: hsl(var(--at-fg))">AIRTIME</h1>
+		<div class="flex items-center gap-1">
 			<!-- Open file button -->
 			<button
 				onclick={openFilePicker}
-				class="at-btn at-btn-icon at-btn-ghost"
+				class="at-btn at-btn-icon-sm at-btn-ghost"
 				aria-label="Open video file"
 				title="Open video file (or drag & drop)"
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
+					class="h-4 w-4"
 					viewBox="0 0 24 24"
 					fill="none"
 					stroke="currentColor"
@@ -190,14 +190,14 @@
 			<!-- Dark mode toggle -->
 			<button
 				onclick={toggleDarkMode}
-				class="at-btn at-btn-icon at-btn-ghost"
+				class="at-btn at-btn-icon-sm at-btn-ghost"
 				aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
 				title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
 			>
 				{#if isDarkMode}
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
+						class="h-4 w-4"
 						viewBox="0 0 24 24"
 						fill="currentColor"
 					>
@@ -212,7 +212,7 @@
 				{:else}
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
+						class="h-4 w-4"
 						viewBox="0 0 24 24"
 						fill="currentColor"
 					>
