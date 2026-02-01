@@ -26,6 +26,11 @@
 	let outPoint: number | null = $state(null);
 	let timingDrawerOpen = $state(false);
 
+	// Zoom state
+	let zoomLevel = $state(1);
+	let videoViewerRef: { resetZoom: () => void; zoomIn: () => void; zoomOut: () => void } | null =
+		$state(null);
+
 	// Initialize dark mode from system preference
 	$effect(() => {
 		if (browser) {
@@ -71,6 +76,9 @@
 		inPoint = null;
 		outPoint = null;
 		timingDrawerOpen = false;
+
+		// Reset zoom on new video
+		zoomLevel = 1;
 	}
 
 	// Timing mode functions
@@ -264,6 +272,7 @@
 			</button>
 		{:else}
 			<VideoViewer
+				bind:this={videoViewerRef}
 				bind:videoElement
 				{videoSrc}
 				bind:isPlaying
@@ -272,6 +281,7 @@
 				bind:frameRate
 				bind:volume
 				bind:isMuted
+				bind:zoomLevel
 			/>
 
 			<!-- Drag overlay when video is loaded -->
