@@ -241,7 +241,6 @@
 
 	function handleTouchStart(event: TouchEvent) {
 		if (event.touches.length === 2) {
-			event.preventDefault();
 			initialPinchDistance = getTouchDistance(event.touches);
 			initialZoomOnPinch = zoomLevel;
 			lastTouchCenter = getTouchCenter(event.touches);
@@ -253,7 +252,6 @@
 
 	function handleTouchMove(event: TouchEvent) {
 		if (event.touches.length === 2 && initialPinchDistance > 0) {
-			event.preventDefault();
 			const currentDistance = getTouchDistance(event.touches);
 			const scale = currentDistance / initialPinchDistance;
 			const newZoom = initialZoomOnPinch * scale;
@@ -271,7 +269,6 @@
 			panY = newPan.y;
 			lastTouchCenter = center;
 		} else if (event.touches.length === 1 && isPanning && containerRef) {
-			event.preventDefault();
 			const rect = containerRef.getBoundingClientRect();
 			const deltaX = ((event.touches[0].clientX - lastPanPoint.x) / rect.width) * 100;
 			const deltaY = ((event.touches[0].clientY - lastPanPoint.y) / rect.height) * 100;
@@ -298,7 +295,6 @@
 	function handleDoubleTap(event: TouchEvent) {
 		const now = Date.now();
 		if (now - lastTapTime < 300 && event.touches.length === 1) {
-			event.preventDefault();
 			if (zoomLevel > 1) {
 				resetZoom();
 			} else {
@@ -415,15 +411,19 @@
 <div
 	bind:this={containerRef}
 	class="relative flex h-full w-full items-center justify-center"
-	style="background: hsl(0 0% 5%); overflow: hidden;"
+	style="background: hsl(0 0% 5%); overflow: hidden; touch-action: none;"
 	onwheel={handleWheel}
 	onmousedown={handleMouseDown}
 	ondblclick={handleDoubleClick}
 	ontouchstart={(e) => {
+		e.preventDefault();
 		handleDoubleTap(e);
 		handleTouchStart(e);
 	}}
-	ontouchmove={handleTouchMove}
+	ontouchmove={(e) => {
+		e.preventDefault();
+		handleTouchMove(e);
+	}}
 	ontouchend={handleTouchEnd}
 	role="application"
 	aria-label="Video viewer with zoom controls"
