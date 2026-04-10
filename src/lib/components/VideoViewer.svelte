@@ -1,10 +1,5 @@
 <script lang="ts">
-	// Extend HTMLVideoElement to include requestVideoFrameCallback
-	interface VideoElementWithFrameCallback extends HTMLVideoElement {
-		requestVideoFrameCallback(
-			callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
-		): number;
-	}
+	import { detectPlaybackFrameRate } from '$lib/video/frameRate';
 
 	interface Props {
 		videoElement?: HTMLVideoElement | null;
@@ -12,7 +7,9 @@
 		isPlaying: boolean;
 		currentTime: number;
 		duration: number;
+		sourceFrameRate?: number | null;
 		frameRate: number;
+		playbackFrameRate?: number | null;
 		volume: number;
 		isMuted: boolean;
 		zoomLevel?: number;
@@ -31,7 +28,9 @@
 		isPlaying = $bindable(false),
 		currentTime = $bindable(0),
 		duration = $bindable(0),
+		sourceFrameRate = null,
 		frameRate = $bindable(30),
+		playbackFrameRate = $bindable(null),
 		volume = $bindable(1),
 		isMuted = $bindable(false),
 		zoomLevel = $bindable(1),
@@ -44,10 +43,7 @@
 		onZoomChange
 	}: Props = $props();
 
-	let frameCount = $state(0);
-	let lastFrameTime = $state(0);
-	let framesForDetection: number[] = $state([]);
-	let volumeBeforeMute = $state(1);
+	let detectionRunId = $state(0);
 
 	// Zoom and pan state
 	const MIN_ZOOM = 1;
@@ -102,6 +98,9 @@
 		onPlayStateChange?.(false);
 	}
 
+	let seekTimeout: number | null = $state(null);
+	let lastHandledSeekTime = $state(-1);
+
 	function handleVolumeChange() {
 		if (videoElement) {
 			volume = videoElement.volume;
@@ -111,16 +110,57 @@
 		}
 	}
 
+	function keepDecoderWarm() {
+		if (!videoElement || isPlaying) return;
+
+		videoElement.playbackRate = 0.0001;
+		videoElement.play().catch(() => {});
+	}
+
+	function handleSeeked() {
+		if (videoElement) {
+			const seekedTime = videoElement.currentTime;
+			if (Math.abs(seekedTime - currentTime) > 0.00005) {
+				currentTime = seekedTime;
+				onTimeUpdate?.(seekedTime);
+			}
+			lastHandledSeekTime = seekedTime;
+		}
+
+		if (seekTimeout) {
+			clearTimeout(seekTimeout);
+			seekTimeout = null;
+		}
+		if (!isPlaying) {
+			keepDecoderWarm();
+		}
+	}
+
 	function handleLoadedMetadata() {
 		if (videoElement) {
 			duration = videoElement.duration;
+			currentTime = videoElement.currentTime;
+			lastHandledSeekTime = currentTime;
 			onDurationChange?.(duration);
-			// Start frame rate detection
-			detectFrameRate();
+			void detectFrameRate();
 			// Reset zoom on new video
 			resetZoom();
+			// Start keeping decoder warm
+			keepDecoderWarm();
 		}
 	}
+
+	$effect(() => {
+		if (sourceFrameRate && sourceFrameRate > 0) {
+			frameRate = sourceFrameRate;
+		}
+	});
+
+	$effect(() => {
+		if (videoSrc === null) {
+			playbackFrameRate = null;
+		}
+	});
 
 	// Zoom helper functions
 	function clampZoom(zoom: number): number {
@@ -319,81 +359,62 @@
 		}
 	}
 
-	function detectFrameRate() {
-		if (!videoElement || !('requestVideoFrameCallback' in HTMLVideoElement.prototype)) {
-			frameRate = 30;
-			onFrameRateDetected?.(30);
-			return;
-		}
+	async function detectFrameRate() {
+		if (!videoElement) return;
 
-		frameCount = 0;
-		lastFrameTime = 0;
-		framesForDetection = [];
-
-		const detectCallback = (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
-			if (frameCount === 0) {
-				lastFrameTime = metadata.mediaTime;
-			} else {
-				const delta = metadata.mediaTime - lastFrameTime;
-				if (delta > 0) {
-					framesForDetection.push(1 / delta);
-				}
-				lastFrameTime = metadata.mediaTime;
-			}
-
-			frameCount++;
-
-			if (frameCount < 12 && videoElement) {
-				(videoElement as VideoElementWithFrameCallback).requestVideoFrameCallback(detectCallback);
-			} else if (framesForDetection.length > 0) {
-				const sorted = [...framesForDetection].sort((a, b) => a - b);
-				const median = sorted[Math.floor(sorted.length / 2)];
-
-				const commonRates = [23.976, 24, 25, 29.97, 30, 50, 59.94, 60, 90, 100, 120, 144, 240];
-
-				const threshold = 0.01;
-				const closestCommon = commonRates.find(
-					(rate) => Math.abs(rate - median) / median < threshold
-				);
-
-				const detectedRate = closestCommon ?? Math.round(median * 100) / 100;
-
-				frameRate = detectedRate;
-				onFrameRateDetected?.(detectedRate);
-			}
-		};
-
-		const wasPlaying = !videoElement.paused;
+		const runId = ++detectionRunId;
+		const wasPaused = videoElement.paused;
 		const originalTime = videoElement.currentTime;
 		const originalMuted = videoElement.muted;
+		const originalPlaybackRate = videoElement.playbackRate;
 
-		if (!wasPlaying) {
-			videoElement.muted = true;
-			const playPromise = videoElement.play();
-			if (playPromise) {
-				playPromise
-					.then(() => {
-						(videoElement as VideoElementWithFrameCallback).requestVideoFrameCallback(
-							detectCallback
-						);
-						setTimeout(() => {
-							if (videoElement && !wasPlaying) {
-								videoElement.pause();
-								videoElement.currentTime = originalTime;
-								videoElement.muted = originalMuted;
-							}
-						}, 500);
-					})
-					.catch(() => {
-						frameRate = 30;
-						onFrameRateDetected?.(30);
-						if (videoElement) {
-							videoElement.muted = originalMuted;
-						}
-					});
+		try {
+			if (wasPaused) {
+				videoElement.muted = true;
+				videoElement.playbackRate = 1;
+				await videoElement.play();
+				await new Promise((resolve) => setTimeout(resolve, 200));
 			}
-		} else {
-			(videoElement as VideoElementWithFrameCallback).requestVideoFrameCallback(detectCallback);
+
+			const result = await detectPlaybackFrameRate(videoElement, {
+				maxMs: 2600,
+				minSamples: 40
+			});
+
+			if (runId !== detectionRunId) return;
+
+			playbackFrameRate = result.fps;
+
+			if (sourceFrameRate && sourceFrameRate > 0) {
+				frameRate = sourceFrameRate;
+				onFrameRateDetected?.(sourceFrameRate);
+			} else if (result.fps) {
+				frameRate = result.fps;
+				onFrameRateDetected?.(result.fps);
+			} else {
+				frameRate = 30;
+				onFrameRateDetected?.(30);
+			}
+		} catch {
+			if (runId !== detectionRunId) return;
+			playbackFrameRate = null;
+			if (sourceFrameRate && sourceFrameRate > 0) {
+				frameRate = sourceFrameRate;
+				onFrameRateDetected?.(sourceFrameRate);
+			} else {
+				frameRate = 30;
+				onFrameRateDetected?.(30);
+			}
+		} finally {
+			if (wasPaused && videoElement) {
+				videoElement.pause();
+				videoElement.currentTime = originalTime;
+			}
+
+			if (videoElement) {
+				videoElement.muted = originalMuted;
+				videoElement.playbackRate = originalPlaybackRate;
+			}
 		}
 	}
 
@@ -438,6 +459,7 @@
 			onplay={handlePlay}
 			onpause={handlePause}
 			onvolumechange={handleVolumeChange}
+			onseeked={handleSeeked}
 			class="max-h-full max-w-full object-contain"
 			style="{transformStyle} transform-origin: center center; cursor: {zoomLevel > 1
 				? isPanning
@@ -445,7 +467,7 @@
 					: 'grab'
 				: 'default'};"
 			playsinline
-			preload="metadata"
+			preload="auto"
 			draggable="false"
 		>
 			<track kind="captions" />

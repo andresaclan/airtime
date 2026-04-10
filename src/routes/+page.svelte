@@ -5,6 +5,7 @@
 	import VideoControls from '$lib/components/VideoControls.svelte';
 	import TimingControls from '$lib/components/TimingControls.svelte';
 	import TimingDrawer from '$lib/components/TimingDrawer.svelte';
+	import { detectSourceFrameRateFromFile } from '$lib/video/frameRate';
 
 	let videoElement: HTMLVideoElement | null = $state(null);
 	let videoSrc: string | null = $state(null);
@@ -13,6 +14,8 @@
 	let currentTime = $state(0);
 	let duration = $state(0);
 	let frameRate = $state(30);
+	let sourceFrameRate: number | null = $state(null);
+	let playbackFrameRate: number | null = $state(null);
 	let volume = $state(1);
 	let isMuted = $state(false);
 	let isScrubbing = $state(false);
@@ -30,6 +33,7 @@
 	let zoomLevel = $state(1);
 	let videoViewerRef: { resetZoom: () => void; zoomIn: () => void; zoomOut: () => void } | null =
 		$state(null);
+	let activeVideoLoadId = $state(0);
 
 	// Initialize dark mode from system preference
 	$effect(() => {
@@ -54,12 +58,22 @@
 	function handleFileSelect(event: Event) {
 		const target = event.target as HTMLInputElement;
 		const file = target.files?.[0];
-		if (file) {
+		if (file && isLikelyVideoFile(file)) {
 			loadVideoFile(file);
 		}
+		target.value = '';
+	}
+
+	function isLikelyVideoFile(file: File): boolean {
+		if (file.type.startsWith('video/')) return true;
+		const lowerName = file.name.toLowerCase();
+		return /\.(mp4|m4v|mov|webm|mkv|avi|wmv|flv|m4p|mpg|mpeg|3gp|ogv)$/.test(lowerName);
 	}
 
 	function loadVideoFile(file: File) {
+		activeVideoLoadId += 1;
+		const loadId = activeVideoLoadId;
+
 		// Revoke previous URL to free memory
 		if (videoSrc) {
 			URL.revokeObjectURL(videoSrc);
@@ -70,6 +84,8 @@
 		currentTime = 0;
 		duration = 0;
 		frameRate = 30;
+		sourceFrameRate = null;
+		playbackFrameRate = null;
 
 		// Reset timing state on new video
 		timingModeEnabled = false;
@@ -79,6 +95,19 @@
 
 		// Reset zoom on new video
 		zoomLevel = 1;
+
+		void detectSourceFrameRateFromFile(file)
+			.then((detectedFps) => {
+				if (loadId !== activeVideoLoadId) return;
+				sourceFrameRate = detectedFps;
+				if (detectedFps) {
+					frameRate = detectedFps;
+				}
+			})
+			.catch(() => {
+				if (loadId !== activeVideoLoadId) return;
+				sourceFrameRate = null;
+			});
 	}
 
 	// Timing mode functions
@@ -118,24 +147,50 @@
 		event.preventDefault();
 		isDragging = false;
 
-		const file = event.dataTransfer?.files?.[0];
-		if (file && file.type.startsWith('video/')) {
+		const files = Array.from(event.dataTransfer?.files ?? []);
+		const file = files.find((candidate) => isLikelyVideoFile(candidate));
+		if (file) {
 			loadVideoFile(file);
 		}
 	}
 
 	function handleDragOver(event: DragEvent) {
 		event.preventDefault();
+		if (event.dataTransfer) {
+			event.dataTransfer.dropEffect = 'copy';
+		}
 		isDragging = true;
+	}
+
+	function handleDragEnter(event: DragEvent) {
+		event.preventDefault();
+		if ((event.dataTransfer?.types ?? []).includes('Files')) {
+			isDragging = true;
+		}
 	}
 
 	function handleDragLeave(event: DragEvent) {
 		event.preventDefault();
-		isDragging = false;
+		if (event.clientX <= 0 && event.clientY <= 0) {
+			isDragging = false;
+		}
+	}
+
+	function preventWindowDropDefaults(event: DragEvent) {
+		event.preventDefault();
 	}
 
 	function openFilePicker() {
-		fileInputRef?.click();
+		if (!fileInputRef) return;
+		if ('showPicker' in HTMLInputElement.prototype) {
+			try {
+				fileInputRef.showPicker();
+				return;
+			} catch {
+				// Fall back to click for browsers that block showPicker.
+			}
+		}
+		fileInputRef.click();
 	}
 
 	function formatTime(seconds: number): string {
@@ -160,14 +215,14 @@
 	/>
 </svelte:head>
 
-<div
-	class="flex h-dvh flex-col"
-	style="background: hsl(var(--at-bg))"
-	ondrop={handleDrop}
+<svelte:window
 	ondragover={handleDragOver}
+	ondrop={handleDrop}
+	ondragenter={handleDragEnter}
 	ondragleave={handleDragLeave}
-	role="application"
->
+/>
+
+<div class="flex h-dvh flex-col" style="background: hsl(var(--at-bg))" role="application">
 	<!-- Header -->
 	<header
 		class="at-reveal flex shrink-0 items-center justify-between px-3 py-1.5"
@@ -278,7 +333,9 @@
 				bind:isPlaying
 				bind:currentTime
 				bind:duration
+				{sourceFrameRate}
 				bind:frameRate
+				bind:playbackFrameRate
 				bind:volume
 				bind:isMuted
 				bind:zoomLevel
@@ -321,9 +378,8 @@
 				<span class="font-mono text-sm font-medium" style="color: hsl(var(--at-fg))">
 					{formatTime(currentTime)} / {formatTime(duration)}
 				</span>
-				<span class="at-badge at-badge-accent">
-					{frameRate}fps
-				</span>
+				<span class="at-badge at-badge-accent">src: {sourceFrameRate ?? frameRate}fps</span>
+				<span class="at-badge">play: {playbackFrameRate ?? '--'}fps</span>
 			</div>
 		{/if}
 
@@ -372,11 +428,12 @@
 
 	<!-- Hidden file input -->
 	<input
+		id="video-file-input"
 		bind:this={fileInputRef}
 		type="file"
 		accept="video/*"
 		onchange={handleFileSelect}
-		class="hidden"
+		class="sr-only"
 	/>
 
 	<!-- Timing Drawer -->
