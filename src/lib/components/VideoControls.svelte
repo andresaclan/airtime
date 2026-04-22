@@ -203,8 +203,8 @@
 
 <div class="at-reveal px-4 py-3" style="--delay: 60ms">
 	<!-- Main playback controls row -->
-	<div class="relative flex items-center justify-center">
-		<div class="absolute left-0 flex w-32 items-center gap-2">
+	<div class="controls-wrap">
+		<div class="volume-wrap">
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
 				class="h-4 w-4 shrink-0"
@@ -222,18 +222,18 @@
 				value={volume}
 				oninput={handleVolumeInput}
 				disabled={!videoElement}
-				class="volume-slider h-1.5 w-20 appearance-none"
+				class="volume-slider h-1.5 appearance-none"
 				style="--volume-progress: {volume * 100}%"
 				aria-label="Volume"
 				title="Volume"
 			/>
-			<span class="w-8 text-right text-xs tabular-nums" style="color: hsl(var(--at-fg-muted))">
+			<span class="volume-label text-right text-xs tabular-nums" style="color: hsl(var(--at-fg-muted))">
 				{Math.round(volume * 100)}%
 			</span>
 		</div>
 
 		<!-- Centered playback controls -->
-		<div class="flex items-center gap-3">
+		<div class="playback-wrap">
 			<!-- Frame Back Button -->
 			<button
 				onclick={stepFrameBack}
@@ -304,6 +304,9 @@
 
 <style>
 	.volume-slider {
+		width: clamp(72px, 18vw, 136px);
+		flex: 1 1 auto;
+		min-width: 72px;
 		background: linear-gradient(
 			to right,
 			hsl(var(--at-accent)) 0%,
@@ -335,5 +338,66 @@
 
 	.volume-slider:disabled {
 		opacity: 0.45;
+	}
+
+	.controls-wrap {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 14px;
+		width: 100%;
+		flex-wrap: wrap;
+	}
+
+	.playback-wrap {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 12px;
+		flex: 0 0 auto;
+	}
+
+	.volume-wrap {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+		flex: 0 1 260px;
+	}
+
+	.volume-label {
+		width: 36px;
+		flex: 0 0 auto;
+	}
+
+	@media (max-width: 700px) {
+		.controls-wrap {
+			gap: 10px;
+		}
+
+		.playback-wrap {
+			order: 1;
+			width: 100%;
+		}
+
+		.volume-wrap {
+			order: 2;
+			width: min(100%, 320px);
+			flex: 1 1 auto;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.playback-wrap {
+			gap: 8px;
+		}
+
+		.volume-wrap {
+			gap: 6px;
+		}
+
+		.volume-label {
+			display: none;
+		}
 	}
 </style>

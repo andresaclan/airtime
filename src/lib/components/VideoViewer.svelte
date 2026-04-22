@@ -113,8 +113,23 @@
 	function keepDecoderWarm() {
 		if (!videoElement || isPlaying) return;
 
+		const previousPlaybackRate = videoElement.playbackRate;
 		videoElement.playbackRate = 0.0001;
-		videoElement.play().catch(() => {});
+
+		videoElement
+			.play()
+			.then(() => {
+				if (!videoElement || isPlaying) return;
+				videoElement.pause();
+			})
+			.catch(() => {
+				// Ignore autoplay blocking and fall back to normal playback behavior.
+			})
+			.finally(() => {
+				if (videoElement) {
+					videoElement.playbackRate = previousPlaybackRate;
+				}
+			});
 	}
 
 	function handleSeeked() {
