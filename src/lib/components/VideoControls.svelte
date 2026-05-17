@@ -39,16 +39,12 @@
 		onMarkOut
 	} = $props<Props>();
 
-	// Calculate frame duration
 	let frameDuration = $derived(1 / frameRate);
 	const FRAME_EPSILON = 0.0001;
-
-	// Store volume before muting to restore later
 	let volumeBeforeMute = $state(1);
 
 	function togglePlayPause() {
 		if (!videoElement) return;
-
 		if (isPlaying) {
 			videoElement.pause();
 			onPause?.();
@@ -60,20 +56,13 @@
 
 	function getSteppedTime(direction: 1 | -1): number {
 		if (!videoElement) return currentTime;
-
-		const safeDuration =
-			Number.isFinite(duration) && duration > 0 ? duration : videoElement.duration || 0;
+		const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : videoElement.duration || 0;
 		if (!Number.isFinite(safeDuration) || safeDuration <= 0) return 0;
-
 		const safeFrameRate = Number.isFinite(frameRate) && frameRate > 0 ? frameRate : 30;
-		const step = 1 / safeFrameRate;
-
 		let frameIndex = Math.round(videoElement.currentTime * safeFrameRate);
 		frameIndex += direction;
-
 		const maxFrameIndex = Math.floor(safeDuration * safeFrameRate);
 		frameIndex = Math.max(0, Math.min(maxFrameIndex, frameIndex));
-
 		const targetTime = frameIndex / safeFrameRate;
 		return Math.min(safeDuration, Math.max(0, targetTime));
 	}
@@ -94,15 +83,12 @@
 
 	function toggleMute() {
 		if (!videoElement) return;
-
 		if (isMuted) {
-			// Unmute and restore previous volume
 			isMuted = false;
 			volume = volumeBeforeMute > 0 ? volumeBeforeMute : 1;
 			videoElement.muted = false;
 			videoElement.volume = volume;
 		} else {
-			// Mute and store current volume
 			volumeBeforeMute = volume;
 			isMuted = true;
 			videoElement.muted = true;
@@ -112,22 +98,17 @@
 
 	function handleVolumeInput(event: Event) {
 		if (!videoElement) return;
-
 		const target = event.target as HTMLInputElement;
 		const newVolume = Number.parseFloat(target.value);
 		const clampedVolume = Math.min(1, Math.max(0, newVolume));
-
 		volume = clampedVolume;
 		videoElement.volume = clampedVolume;
-
 		const nextMuted = clampedVolume === 0;
 		isMuted = nextMuted;
 		videoElement.muted = nextMuted;
-
 		if (clampedVolume > 0) {
 			volumeBeforeMute = clampedVolume;
 		}
-
 		onVolumeChange?.(clampedVolume);
 		onMutedChange?.(nextMuted);
 	}
@@ -180,224 +161,242 @@
 				onVolumeChange?.(newVolume);
 			}
 		} else if (event.key === 't' || event.key === 'T') {
-			// Toggle timing mode
 			event.preventDefault();
 			onToggleTiming?.();
-		} else if (event.key === 'i' || event.key === 'I') {
-			// Mark in point (only when timing mode is enabled)
-			if (timingModeEnabled) {
-				event.preventDefault();
-				onMarkIn?.();
-			}
-		} else if (event.key === 'o' || event.key === 'O') {
-			// Mark out point (only when timing mode is enabled)
-			if (timingModeEnabled) {
-				event.preventDefault();
-				onMarkOut?.();
-			}
+		} else if ((event.key === 'i' || event.key === 'I') && timingModeEnabled) {
+			event.preventDefault();
+			onMarkIn?.();
+		} else if ((event.key === 'o' || event.key === 'O') && timingModeEnabled) {
+			event.preventDefault();
+			onMarkOut?.();
 		}
 	}
 </script>
 
 <svelte:window onkeydown={handleKeyDown} />
 
-<div class="at-reveal px-4 py-3" style="--delay: 60ms">
-	<!-- Main playback controls row -->
-	<div class="controls-wrap">
-		<div class="volume-wrap">
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="h-4 w-4 shrink-0"
-				viewBox="0 0 24 24"
-				fill="currentColor"
-				style="color: hsl(var(--at-fg-muted))"
-			>
-				<path d="M7 9v6h4l5 5V4l-5 5H7z" />
+<div class="playback-section">
+	<!-- Left: Volume -->
+	<div class="volume-section">
+		<button
+			onclick={toggleMute}
+			class="frame-btn"
+			disabled={!videoElement}
+			aria-label={isMuted ? 'Unmute' : 'Mute'}
+		>
+			{#if isMuted || volume === 0}
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
+				</svg>
+			{:else if volume < 0.5}
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M7 9v6h4l5 5V4l-5 5H7z" />
+				</svg>
+			{:else}
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+				</svg>
+			{/if}
+		</button>
+		<input
+			type="range"
+			min="0"
+			max="1"
+			step="0.01"
+			value={volume}
+			oninput={handleVolumeInput}
+			disabled={!videoElement}
+			class="volume-slider"
+			style="--volume-progress: {volume * 100}%"
+			aria-label="Volume"
+		/>
+	</div>
+
+	<!-- Center: Playback controls -->
+	<div class="playback-controls">
+		<button
+			onclick={stepFrameBack}
+			disabled={!videoElement || currentTime <= FRAME_EPSILON}
+			class="frame-btn"
+			aria-label="Previous frame"
+			title="Previous frame"
+		>
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+				<path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
 			</svg>
-			<input
-				type="range"
-				min="0"
-				max="1"
-				step="0.01"
-				value={volume}
-				oninput={handleVolumeInput}
-				disabled={!videoElement}
-				class="volume-slider h-1.5 appearance-none"
-				style="--volume-progress: {volume * 100}%"
-				aria-label="Volume"
-				title="Volume"
-			/>
-			<span class="volume-label text-right text-xs tabular-nums" style="color: hsl(var(--at-fg-muted))">
-				{Math.round(volume * 100)}%
-			</span>
-		</div>
+		</button>
 
-		<!-- Centered playback controls -->
-		<div class="playback-wrap">
-			<!-- Frame Back Button -->
-			<button
-				onclick={stepFrameBack}
-				disabled={!videoElement || currentTime <= FRAME_EPSILON}
-				class="at-btn at-btn-icon at-btn-ghost touch-manipulation"
-				aria-label="Previous frame"
-				title="Previous frame (< or Shift+Left)"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
-					viewBox="0 0 24 24"
-					fill="currentColor"
-				>
-					<path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+		<button
+			onclick={togglePlayPause}
+			disabled={!videoElement}
+			class="play-btn"
+			aria-label={isPlaying ? 'Pause' : 'Play'}
+		>
+			{#if isPlaying}
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
 				</svg>
-			</button>
-
-			<!-- Play/Pause Button - Large and prominent -->
-			<button
-				onclick={togglePlayPause}
-				disabled={!videoElement}
-				class="at-btn at-btn-primary at-btn-icon-xl touch-manipulation"
-				aria-label={isPlaying ? 'Pause' : 'Play'}
-				title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
-			>
-				{#if isPlaying}
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-7 w-7"
-						viewBox="0 0 24 24"
-						fill="currentColor"
-					>
-						<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-					</svg>
-				{:else}
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-7 w-7"
-						viewBox="0 0 24 24"
-						fill="currentColor"
-					>
-						<path d="M8 5v14l11-7z" />
-					</svg>
-				{/if}
-			</button>
-
-			<!-- Frame Forward Button -->
-			<button
-				onclick={stepFrameForward}
-				disabled={!videoElement || (duration > 0 && currentTime >= duration - FRAME_EPSILON)}
-				class="at-btn at-btn-icon at-btn-ghost touch-manipulation"
-				aria-label="Next frame"
-				title="Next frame (> or Shift+Right)"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
-					viewBox="0 0 24 24"
-					fill="currentColor"
-				>
-					<path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+			{:else}
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M8 5v14l11-7z" />
 				</svg>
-			</button>
-		</div>
+			{/if}
+		</button>
+
+		<button
+			onclick={stepFrameForward}
+			disabled={!videoElement || (duration > 0 && currentTime >= duration - FRAME_EPSILON)}
+			class="frame-btn"
+			aria-label="Next frame"
+			title="Next frame"
+		>
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+				<path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+			</svg>
+		</button>
+	</div>
+
+	<!-- Right: Spacer to balance -->
+	<div class="volume-section opacity-0 pointer-events-none">
+		<button class="frame-btn" disabled><span class="h-5 w-5"></span></button>
+		<input type="range" class="volume-slider" disabled />
 	</div>
 </div>
 
 <style>
+	.playback-section {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 0 4px;
+	}
+
+	.volume-section {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 120px;
+	}
+
 	.volume-slider {
-		width: clamp(72px, 18vw, 136px);
-		flex: 1 1 auto;
-		min-width: 72px;
+		width: 80px;
+		height: 4px;
+		appearance: none;
 		background: linear-gradient(
 			to right,
-			hsl(var(--at-accent)) 0%,
-			hsl(var(--at-accent)) var(--volume-progress),
+			hsl(var(--at-fg-secondary)) 0%,
+			hsl(var(--at-fg-secondary)) var(--volume-progress),
 			hsl(var(--at-border)) var(--volume-progress),
 			hsl(var(--at-border)) 100%
 		);
-		border-radius: 4px;
+		border-radius: 2px;
+		cursor: pointer;
 	}
 
 	.volume-slider::-webkit-slider-thumb {
 		appearance: none;
-		width: 14px;
-		height: 14px;
-		border-radius: 9999px;
-		border: 2px solid white;
-		background: hsl(var(--at-accent));
-		box-shadow: 0 2px 6px hsl(var(--at-shadow) / 0.35);
+		width: 12px;
+		height: 12px;
+		background: hsl(var(--at-fg));
+		border-radius: 50%;
+		cursor: pointer;
+		transition: transform 150ms ease;
+	}
+
+	.volume-slider::-webkit-slider-thumb:hover {
+		transform: scale(1.2);
 	}
 
 	.volume-slider::-moz-range-thumb {
-		width: 14px;
-		height: 14px;
-		border-radius: 9999px;
-		border: 2px solid white;
-		background: hsl(var(--at-accent));
-		box-shadow: 0 2px 6px hsl(var(--at-shadow) / 0.35);
+		width: 12px;
+		height: 12px;
+		background: hsl(var(--at-fg));
+		border-radius: 50%;
+		border: none;
+		cursor: pointer;
 	}
 
 	.volume-slider:disabled {
-		opacity: 0.45;
+		opacity: 0.3;
+		cursor: not-allowed;
 	}
 
-	.controls-wrap {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 14px;
-		width: 100%;
-		flex-wrap: wrap;
-	}
-
-	.playback-wrap {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 12px;
-		flex: 0 0 auto;
-	}
-
-	.volume-wrap {
+	.playback-controls {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		min-width: 0;
-		flex: 0 1 260px;
 	}
 
-	.volume-label {
-		width: 36px;
-		flex: 0 0 auto;
+	.frame-btn {
+		width: 40px;
+		height: 40px;
+		border-radius: 10px;
+		background: transparent;
+		border: none;
+		color: hsl(var(--at-fg-secondary));
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		transition: all 150ms ease;
 	}
 
-	@media (max-width: 700px) {
-		.controls-wrap {
-			gap: 10px;
-		}
+	.frame-btn:hover:not(:disabled) {
+		background: hsl(var(--at-fg) / 0.1);
+		color: hsl(var(--at-fg));
+	}
 
-		.playback-wrap {
-			order: 1;
-			width: 100%;
-		}
+	.frame-btn:active:not(:disabled) {
+		transform: scale(0.95);
+	}
 
-		.volume-wrap {
-			order: 2;
-			width: min(100%, 320px);
-			flex: 1 1 auto;
-		}
+	.frame-btn:disabled {
+		opacity: 0.3;
+		cursor: not-allowed;
+	}
+
+	.play-btn {
+		width: 56px;
+		height: 56px;
+		border-radius: 50%;
+		background: hsl(var(--at-accent));
+		border: none;
+		color: white;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
+		box-shadow: 0 0 24px hsl(var(--at-accent) / 0.4);
+	}
+
+	.play-btn:hover:not(:disabled) {
+		transform: scale(1.08);
+		box-shadow: 0 0 32px hsl(var(--at-accent) / 0.5);
+	}
+
+	.play-btn:active:not(:disabled) {
+		transform: scale(0.95);
+	}
+
+	.play-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+		box-shadow: none;
 	}
 
 	@media (max-width: 480px) {
-		.playback-wrap {
-			gap: 8px;
+		.volume-section {
+			min-width: auto;
 		}
 
-		.volume-wrap {
-			gap: 6px;
-		}
-
-		.volume-label {
+		.volume-slider {
 			display: none;
+		}
+
+		.playback-section {
+			justify-content: center;
 		}
 	}
 </style>

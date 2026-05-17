@@ -26,251 +26,226 @@
 	} = $props<Props>();
 
 	let wasPlayingBeforeScrub = $state(false);
-	let scrubberRef: HTMLInputElement | null = $state(null);
+	let trackRef: HTMLDivElement | null = $state(null);
+	let isDragging = $state(false);
 
-	// Calculate progress percentage for styling
 	let progressPercent = $derived(duration > 0 ? (currentTime / duration) * 100 : 0);
+	let inPointPercent = $derived(inPoint !== null && duration > 0 ? (inPoint / duration) * 100 : null);
+	let outPointPercent = $derived(outPoint !== null && duration > 0 ? (outPoint / duration) * 100 : null);
 
-	// Calculate in/out point positions as percentages
-	let inPointPercent = $derived(
-		inPoint !== null && duration > 0 ? (inPoint / duration) * 100 : null
-	);
-	let outPointPercent = $derived(
-		outPoint !== null && duration > 0 ? (outPoint / duration) * 100 : null
-	);
+	function getTimeFromPosition(clientX: number): number {
+		if (!trackRef || duration <= 0) return 0;
+		const rect = trackRef.getBoundingClientRect();
+		const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+		return percent * duration;
+	}
 
-	function handleScrubStart() {
-		if (!videoElement) return;
-
+	function handlePointerDown(event: PointerEvent) {
+		if (!videoElement || !trackRef) return;
+		
+		event.preventDefault();
+		trackRef.setPointerCapture(event.pointerId);
+		
 		isScrubbing = true;
+		isDragging = true;
 		wasPlayingBeforeScrub = !videoElement.paused;
 
 		if (wasPlayingBeforeScrub) {
 			videoElement.pause();
 		}
 
+		const newTime = getTimeFromPosition(event.clientX);
+		videoElement.currentTime = newTime;
 		onScrubStart?.();
-	}
-
-	function handleScrubbing(event: Event) {
-		const target = event.target as HTMLInputElement;
-		const newTime = parseFloat(target.value);
-
-		if (videoElement) {
-			videoElement.currentTime = newTime;
-		}
-
 		onSeek?.(newTime);
 	}
 
-	function handleScrubEnd() {
-		if (!videoElement) return;
+	function handlePointerMove(event: PointerEvent) {
+		if (!isDragging || !videoElement) return;
+		
+		const newTime = getTimeFromPosition(event.clientX);
+		videoElement.currentTime = newTime;
+		onSeek?.(newTime);
+	}
 
+	function handlePointerUp(event: PointerEvent) {
+		if (!isDragging) return;
+		
+		trackRef?.releasePointerCapture(event.pointerId);
+		isDragging = false;
 		isScrubbing = false;
 
-		if (wasPlayingBeforeScrub) {
+		if (wasPlayingBeforeScrub && videoElement) {
 			videoElement.play();
 		}
 
 		onScrubEnd?.();
 	}
-
-	function handleKeyDown(event: KeyboardEvent) {
-		if (!videoElement || !duration) return;
-
-		const step = duration / 100; // 1% of video duration
-
-		if (event.key === 'ArrowLeft') {
-			event.preventDefault();
-			const newTime = Math.max(0, videoElement.currentTime - step);
-			videoElement.currentTime = newTime;
-			onSeek?.(newTime);
-		} else if (event.key === 'ArrowRight') {
-			event.preventDefault();
-			const newTime = Math.min(duration, videoElement.currentTime + step);
-			videoElement.currentTime = newTime;
-			onSeek?.(newTime);
-		}
-	}
 </script>
 
-<div class="w-full px-4 py-3">
-	<div class="relative">
-		<!-- Range highlight overlay (when timing mode is enabled with both points set) -->
+<div class="timeline-container">
+	<div 
+		bind:this={trackRef}
+		class="timeline-track"
+		class:active={isDragging}
+		onpointerdown={handlePointerDown}
+		onpointermove={handlePointerMove}
+		onpointerup={handlePointerUp}
+		onpointercancel={handlePointerUp}
+		role="slider"
+		aria-label="Video timeline"
+		aria-valuemin={0}
+		aria-valuemax={duration}
+		aria-valuenow={currentTime}
+		tabindex="0"
+	>
+		<!-- Range highlight between in/out points -->
 		{#if timingModeEnabled && inPointPercent !== null && outPointPercent !== null}
-			<div
-				class="range-highlight pointer-events-none absolute top-1/2 h-1.5 -translate-y-1/2"
+			<div 
+				class="timeline-range"
 				style="left: {inPointPercent}%; width: {outPointPercent - inPointPercent}%;"
 			></div>
 		{/if}
 
-		<input
-			bind:this={scrubberRef}
-			type="range"
-			min="0"
-			max={duration || 0}
-			step="0.001"
-			value={currentTime}
-			oninput={handleScrubbing}
-			onmousedown={handleScrubStart}
-			ontouchstart={handleScrubStart}
-			onmouseup={handleScrubEnd}
-			ontouchend={handleScrubEnd}
-			onkeydown={handleKeyDown}
-			class="scrubber h-1.5 w-full cursor-pointer appearance-none"
-			style="--progress: {progressPercent}%"
-			aria-label="Video timeline"
-			aria-valuemin={0}
-			aria-valuemax={duration}
-			aria-valuenow={currentTime}
-		/>
+		<!-- Progress fill -->
+		<div class="timeline-progress" style="width: {progressPercent}%;"></div>
+
+		<!-- Playhead thumb -->
+		<div class="timeline-thumb" style="left: {progressPercent}%;"></div>
 
 		<!-- In point marker -->
 		{#if timingModeEnabled && inPointPercent !== null}
-			<div class="marker marker-in" style="left: {inPointPercent}%;">
-				<div class="marker-line"></div>
-				<div class="marker-label">In</div>
+			<div class="timeline-marker timeline-marker-in" style="left: {inPointPercent}%;">
+				<div class="timeline-marker-line"></div>
+				<span class="timeline-marker-label">I</span>
 			</div>
 		{/if}
 
 		<!-- Out point marker -->
 		{#if timingModeEnabled && outPointPercent !== null}
-			<div class="marker marker-out" style="left: {outPointPercent}%;">
-				<div class="marker-line"></div>
-				<div class="marker-label">Out</div>
+			<div class="timeline-marker timeline-marker-out" style="left: {outPointPercent}%;">
+				<div class="timeline-marker-line"></div>
+				<span class="timeline-marker-label">O</span>
 			</div>
 		{/if}
 	</div>
 </div>
 
 <style>
-	.scrubber {
-		background: linear-gradient(
-			to right,
-			hsl(var(--at-accent)) 0%,
-			hsl(var(--at-accent)) var(--progress),
-			hsl(var(--at-border)) var(--progress),
-			hsl(var(--at-border)) 100%
-		);
-		border-radius: 4px;
+	.timeline-container {
+		padding: 16px 0 8px;
+		touch-action: none;
+	}
+
+	.timeline-track {
+		position: relative;
+		height: 6px;
+		background: hsl(var(--at-border));
+		border-radius: 3px;
+		cursor: pointer;
 		transition: height 150ms ease;
 	}
 
-	.scrubber::-webkit-slider-thumb {
-		appearance: none;
-		width: 20px;
-		height: 20px;
-		border-radius: 50%;
-		background: hsl(var(--at-accent));
-		cursor: pointer;
-		border: 3px solid white;
-		box-shadow: 0 2px 8px hsl(var(--at-shadow) / 0.3);
-		transition:
-			transform 150ms ease,
-			box-shadow 150ms ease;
+	.timeline-track:hover,
+	.timeline-track.active {
+		height: 8px;
 	}
 
-	.scrubber::-webkit-slider-thumb:hover {
-		transform: scale(1.15);
-		box-shadow: 0 4px 12px hsl(var(--at-shadow) / 0.4);
-	}
-
-	.scrubber::-webkit-slider-thumb:active {
-		transform: scale(1.05);
-	}
-
-	.scrubber::-moz-range-thumb {
-		width: 20px;
-		height: 20px;
-		border-radius: 50%;
-		background: hsl(var(--at-accent));
-		cursor: pointer;
-		border: 3px solid white;
-		box-shadow: 0 2px 8px hsl(var(--at-shadow) / 0.3);
-		transition:
-			transform 150ms ease,
-			box-shadow 150ms ease;
-	}
-
-	.scrubber::-moz-range-thumb:hover {
-		transform: scale(1.15);
-		box-shadow: 0 4px 12px hsl(var(--at-shadow) / 0.4);
-	}
-
-	/* Increase touch target on mobile */
-	@media (pointer: coarse) {
-		.scrubber {
-			height: 8px;
-		}
-
-		.scrubber::-webkit-slider-thumb {
-			width: 28px;
-			height: 28px;
-		}
-
-		.scrubber::-moz-range-thumb {
-			width: 28px;
-			height: 28px;
-		}
-	}
-
-	/* Range highlight between in/out points */
-	.range-highlight {
-		background: hsl(var(--at-accent) / 0.25);
-		border-radius: 4px;
-		z-index: 1;
-	}
-
-	/* Marker styles */
-	.marker {
+	.timeline-progress {
 		position: absolute;
-		top: 50%;
-		transform: translateX(-50%);
-		z-index: 10;
+		left: 0;
+		top: 0;
+		height: 100%;
+		background: hsl(var(--at-accent));
+		border-radius: 3px;
 		pointer-events: none;
 	}
 
-	.marker-line {
+	.timeline-thumb {
 		position: absolute;
-		top: -10px;
-		left: 50%;
-		transform: translateX(-50%);
+		top: 50%;
+		width: 18px;
+		height: 18px;
+		background: hsl(var(--at-accent));
+		border: 3px solid white;
+		border-radius: 50%;
+		transform: translate(-50%, -50%);
+		box-shadow: 0 2px 8px hsl(var(--at-shadow) / 0.5);
+		pointer-events: none;
+		transition: transform 150ms ease, box-shadow 150ms ease;
+	}
+
+	.timeline-track:hover .timeline-thumb,
+	.timeline-track.active .timeline-thumb {
+		transform: translate(-50%, -50%) scale(1.15);
+		box-shadow: 0 0 16px hsl(var(--at-accent) / 0.5);
+	}
+
+	.timeline-range {
+		position: absolute;
+		top: 0;
+		height: 100%;
+		background: hsl(var(--at-accent) / 0.25);
+		border-radius: 3px;
+		pointer-events: none;
+	}
+
+	.timeline-marker {
+		position: absolute;
+		top: 50%;
+		transform: translateX(-50%) translateY(-50%);
+		z-index: 5;
+		pointer-events: none;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.timeline-marker-line {
 		width: 3px;
-		height: 28px;
+		height: 24px;
 		border-radius: 2px;
 	}
 
-	.marker-in .marker-line {
-		background: hsl(var(--at-success));
+	.timeline-marker-in .timeline-marker-line {
+		background: hsl(var(--at-in));
+		box-shadow: 0 0 10px hsl(var(--at-in) / 0.6);
 	}
 
-	.marker-out .marker-line {
-		background: hsl(var(--at-error));
+	.timeline-marker-out .timeline-marker-line {
+		background: hsl(var(--at-out));
+		box-shadow: 0 0 10px hsl(var(--at-out) / 0.6);
 	}
 
-	.marker-label {
+	.timeline-marker-label {
 		position: absolute;
-		top: -26px;
-		left: 50%;
-		transform: translateX(-50%);
-		font-size: 10px;
+		top: -20px;
+		font-size: 9px;
 		font-weight: 700;
-		padding: 3px 8px;
-		background: hsl(var(--at-surface));
-		border: 1px solid;
-		border-radius: 6px;
-		white-space: nowrap;
-		text-transform: uppercase;
+		padding: 2px 6px;
+		border-radius: 4px;
 		letter-spacing: 0.5px;
 	}
 
-	.marker-in .marker-label {
-		color: hsl(var(--at-success));
-		border-color: hsl(var(--at-success));
+	.timeline-marker-in .timeline-marker-label {
+		background: hsl(var(--at-in));
+		color: white;
 	}
 
-	.marker-out .marker-label {
-		color: hsl(var(--at-error));
-		border-color: hsl(var(--at-error));
+	.timeline-marker-out .timeline-marker-label {
+		background: hsl(var(--at-out));
+		color: white;
+	}
+
+	/* Touch-friendly sizing */
+	@media (pointer: coarse) {
+		.timeline-track {
+			height: 8px;
+		}
+
+		.timeline-thumb {
+			width: 24px;
+			height: 24px;
+		}
 	}
 </style>

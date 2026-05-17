@@ -17,13 +17,11 @@
 		onClose
 	} = $props<Props>();
 
-	// Canvas refs for thumbnails
 	let inThumbnailCanvas: HTMLCanvasElement | null = $state(null);
 	let outThumbnailCanvas: HTMLCanvasElement | null = $state(null);
 	let inThumbnailReady = $state(false);
 	let outThumbnailReady = $state(false);
 
-	// Calculate frame count and duration
 	let frameCount = $derived(
 		inPoint !== null && outPoint !== null ? Math.round((outPoint - inPoint) * frameRate) : null
 	);
@@ -32,20 +30,16 @@
 		inPoint !== null && outPoint !== null ? (outPoint - inPoint) * 1000 : null
 	);
 
-	// Format time with frame number (MM:SS:ff)
 	function formatTimeWithFrames(seconds: number, fps: number): string {
 		if (!isFinite(seconds) || isNaN(seconds)) return '00:00:00';
-
 		const totalFrames = Math.round(seconds * fps);
 		const frameInSecond = totalFrames % Math.round(fps);
 		const totalSeconds = Math.floor(seconds);
 		const mins = Math.floor(totalSeconds / 60);
 		const secs = totalSeconds % 60;
-
 		return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${frameInSecond.toString().padStart(2, '0')}`;
 	}
 
-	// Generate thumbnail when in/out points change
 	$effect(() => {
 		if (inPoint !== null && videoElement && inThumbnailCanvas && isOpen) {
 			inThumbnailReady = false;
@@ -91,12 +85,10 @@
 			const ctx = canvas.getContext('2d');
 			if (ctx && tempVideo.videoWidth > 0 && tempVideo.videoHeight > 0) {
 				const aspectRatio = tempVideo.videoWidth / tempVideo.videoHeight;
-				const canvasWidth = 200;
+				const canvasWidth = 240;
 				const canvasHeight = Math.round(canvasWidth / aspectRatio);
-
 				canvas.width = canvasWidth;
 				canvas.height = canvasHeight;
-
 				ctx.drawImage(tempVideo, 0, 0, canvasWidth, canvasHeight);
 			}
 		} catch (error) {
@@ -114,7 +106,7 @@
 	}
 
 	function handleKeyDown(event: KeyboardEvent) {
-		if (event.key === 'Escape') {
+		if (event.key === 'Escape' && isOpen) {
 			onClose?.();
 		}
 	}
@@ -122,57 +114,41 @@
 
 <svelte:window onkeydown={handleKeyDown} />
 
-<!-- Drawer backdrop and container -->
 {#if isOpen}
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<div
 		class="drawer-backdrop"
 		onclick={handleBackdropClick}
-		onkeydown={(e) => e.key === 'Escape' && onClose?.()}
 		role="dialog"
 		aria-modal="true"
 		aria-label="Timing details"
 		tabindex="-1"
 	>
-		<div class="drawer-container at-bottom-sheet">
-			<!-- Drawer handle -->
-			<div class="at-bottom-sheet-handle"></div>
+		<div class="drawer-content pb-safe">
+			<!-- Handle -->
+			<div class="drawer-handle"></div>
 
-			<!-- Drawer header -->
+			<!-- Header -->
 			<div class="drawer-header">
 				<h2 class="drawer-title">Timing Details</h2>
-				<button
-					class="at-btn at-btn-icon at-btn-ghost close-btn"
-					onclick={onClose}
-					aria-label="Close drawer"
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						stroke-linecap="round"
-					>
+				<button class="close-btn" onclick={onClose} aria-label="Close">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<line x1="18" y1="6" x2="6" y2="18" />
 						<line x1="6" y1="6" x2="18" y2="18" />
 					</svg>
 				</button>
 			</div>
 
-			<!-- Thumbnail comparison -->
-			<div class="thumbnails-row">
-				<!-- In point thumbnail -->
-				<div class="thumbnail-card thumbnail-in">
-					<div class="thumbnail-label">IN</div>
-					<div class="thumbnail-wrapper" class:thumbnail-ready={inThumbnailReady}>
+			<!-- Thumbnails -->
+			<div class="thumbnails">
+				<!-- In point -->
+				<div class="thumbnail-card">
+					<div class="thumbnail-badge thumbnail-badge-in">IN</div>
+					<div class="thumbnail-frame" class:ready={inThumbnailReady}>
 						{#if inPoint !== null}
-							<canvas bind:this={inThumbnailCanvas} class="thumbnail-canvas"></canvas>
+							<canvas bind:this={inThumbnailCanvas}></canvas>
 						{:else}
-							<div class="thumbnail-placeholder">
-								<span>Not set</span>
-							</div>
+							<span class="thumbnail-empty">Not set</span>
 						{/if}
 					</div>
 					<div class="thumbnail-time">
@@ -180,49 +156,36 @@
 					</div>
 				</div>
 
-				<!-- Arrow / difference indicator -->
-				<div class="difference-indicator">
+				<!-- Arrow and stats -->
+				<div class="stats-center">
 					{#if frameCount !== null && durationMs !== null}
-						<div class="diff-arrow">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-6 w-6"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<line x1="5" y1="12" x2="19" y2="12" />
-								<polyline points="12 5 19 12 12 19" />
-							</svg>
-						</div>
-						<div class="diff-stats">
-							<div class="diff-stat">
-								<span class="diff-value">{frameCount}</span>
-								<span class="diff-label">frames</span>
+						<svg class="stats-arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<line x1="5" y1="12" x2="19" y2="12" />
+							<polyline points="12 5 19 12 12 19" />
+						</svg>
+						<div class="stats-values">
+							<div class="stat-item">
+								<span class="stat-value">{frameCount}</span>
+								<span class="stat-label">frames</span>
 							</div>
-							<div class="diff-stat">
-								<span class="diff-value">{durationMs.toFixed(1)}</span>
-								<span class="diff-label">ms</span>
+							<div class="stat-item">
+								<span class="stat-value">{durationMs.toFixed(1)}</span>
+								<span class="stat-label">ms</span>
 							</div>
 						</div>
 					{:else}
-						<div class="diff-placeholder">
-							<span class="at-text-muted">Set both points</span>
-						</div>
+						<span class="stats-empty">Set both points to see duration</span>
 					{/if}
 				</div>
 
-				<!-- Out point thumbnail -->
-				<div class="thumbnail-card thumbnail-out">
-					<div class="thumbnail-label">OUT</div>
-					<div class="thumbnail-wrapper" class:thumbnail-ready={outThumbnailReady}>
+				<!-- Out point -->
+				<div class="thumbnail-card">
+					<div class="thumbnail-badge thumbnail-badge-out">OUT</div>
+					<div class="thumbnail-frame" class:ready={outThumbnailReady}>
 						{#if outPoint !== null}
-							<canvas bind:this={outThumbnailCanvas} class="thumbnail-canvas"></canvas>
+							<canvas bind:this={outThumbnailCanvas}></canvas>
 						{:else}
-							<div class="thumbnail-placeholder">
-								<span>Not set</span>
-							</div>
+							<span class="thumbnail-empty">Not set</span>
 						{/if}
 					</div>
 					<div class="thumbnail-time">
@@ -231,11 +194,11 @@
 				</div>
 			</div>
 
-			<!-- Keyboard shortcuts hint -->
-			<div class="shortcuts-hint">
-				<span><kbd>I</kbd> Mark In</span>
-				<span><kbd>O</kbd> Mark Out</span>
-				<span><kbd>Esc</kbd> Close</span>
+			<!-- Keyboard hints -->
+			<div class="hints">
+				<span class="hint"><kbd>I</kbd> Mark In</span>
+				<span class="hint"><kbd>O</kbd> Mark Out</span>
+				<span class="hint"><kbd>Esc</kbd> Close</span>
 			</div>
 		</div>
 	</div>
@@ -245,8 +208,8 @@
 	.drawer-backdrop {
 		position: fixed;
 		inset: 0;
-		background: hsl(0 0% 0% / 0.5);
-		backdrop-filter: blur(4px);
+		background: hsl(var(--at-bg) / 0.85);
+		backdrop-filter: blur(12px);
 		z-index: 100;
 		display: flex;
 		align-items: flex-end;
@@ -255,30 +218,32 @@
 	}
 
 	@keyframes fadeIn {
-		from {
-			opacity: 0;
-		}
-		to {
-			opacity: 1;
-		}
+		from { opacity: 0; }
+		to { opacity: 1; }
 	}
 
-	.drawer-container {
+	.drawer-content {
 		width: 100%;
-		max-width: 600px;
+		max-width: 560px;
 		max-height: 85vh;
-		padding: 8px 24px 24px;
-		animation: slideUp 250ms cubic-bezier(0.32, 0.72, 0, 1);
+		background: hsl(var(--at-bg-elevated));
+		border-radius: 24px 24px 0 0;
+		padding: 8px 24px 28px;
+		animation: slideUp 300ms cubic-bezier(0.32, 0.72, 0, 1);
 		overflow-y: auto;
 	}
 
 	@keyframes slideUp {
-		from {
-			transform: translateY(100%);
-		}
-		to {
-			transform: translateY(0);
-		}
+		from { transform: translateY(100%); }
+		to { transform: translateY(0); }
+	}
+
+	.drawer-handle {
+		width: 40px;
+		height: 4px;
+		background: hsl(var(--at-fg) / 0.15);
+		border-radius: 2px;
+		margin: 0 auto 12px;
 	}
 
 	.drawer-header {
@@ -286,7 +251,6 @@
 		align-items: center;
 		justify-content: space-between;
 		margin-bottom: 24px;
-		padding-top: 8px;
 	}
 
 	.drawer-title {
@@ -297,10 +261,25 @@
 	}
 
 	.close-btn {
-		margin-right: -8px;
+		width: 36px;
+		height: 36px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
+		border: none;
+		color: hsl(var(--at-fg-muted));
+		cursor: pointer;
+		border-radius: 10px;
+		transition: all 150ms ease;
 	}
 
-	.thumbnails-row {
+	.close-btn:hover {
+		background: hsl(var(--at-fg) / 0.08);
+		color: hsl(var(--at-fg));
+	}
+
+	.thumbnails {
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -314,32 +293,28 @@
 		align-items: center;
 		gap: 10px;
 		flex: 1;
-		max-width: 200px;
+		max-width: 180px;
 	}
 
-	.thumbnail-label {
-		font-size: 11px;
+	.thumbnail-badge {
+		font-size: 10px;
 		font-weight: 700;
 		letter-spacing: 1px;
-		text-transform: uppercase;
-		padding: 5px 14px;
-		border: 1px solid;
-		border-radius: 20px;
+		padding: 4px 12px;
+		border-radius: 100px;
 	}
 
-	.thumbnail-in .thumbnail-label {
-		color: hsl(var(--at-success));
-		border-color: hsl(var(--at-success));
-		background: hsl(var(--at-success) / 0.1);
+	.thumbnail-badge-in {
+		background: hsl(var(--at-in) / 0.15);
+		color: hsl(var(--at-in));
 	}
 
-	.thumbnail-out .thumbnail-label {
-		color: hsl(var(--at-error));
-		border-color: hsl(var(--at-error));
-		background: hsl(var(--at-error) / 0.1);
+	.thumbnail-badge-out {
+		background: hsl(var(--at-out) / 0.15);
+		color: hsl(var(--at-out));
 	}
 
-	.thumbnail-wrapper {
+	.thumbnail-frame {
 		width: 100%;
 		aspect-ratio: 16 / 9;
 		background: hsl(var(--at-bg));
@@ -348,143 +323,146 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		overflow: hidden;
 		opacity: 0.5;
 		transition: opacity 200ms ease;
-		overflow: hidden;
 	}
 
-	.thumbnail-wrapper.thumbnail-ready {
+	.thumbnail-frame.ready {
 		opacity: 1;
 	}
 
-	.thumbnail-in .thumbnail-wrapper {
-		border-color: hsl(var(--at-success));
+	.thumbnail-card:first-child .thumbnail-frame {
+		border-color: hsl(var(--at-in) / 0.5);
 	}
 
-	.thumbnail-out .thumbnail-wrapper {
-		border-color: hsl(var(--at-error));
+	.thumbnail-card:last-child .thumbnail-frame {
+		border-color: hsl(var(--at-out) / 0.5);
 	}
 
-	.thumbnail-canvas {
+	.thumbnail-frame canvas {
 		width: 100%;
 		height: 100%;
 		object-fit: contain;
 	}
 
-	.thumbnail-placeholder {
+	.thumbnail-empty {
+		font-size: 12px;
 		color: hsl(var(--at-fg-muted));
-		font-size: 13px;
 	}
 
 	.thumbnail-time {
-		font-family: ui-monospace, monospace;
-		font-size: 15px;
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 14px;
 		font-weight: 600;
 		color: hsl(var(--at-fg));
 	}
 
-	.difference-indicator {
+	.stats-center {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 10px;
+		gap: 12px;
 		padding: 0 12px;
-		min-width: 90px;
+		min-width: 80px;
 	}
 
-	.diff-arrow {
+	.stats-arrow {
+		width: 24px;
+		height: 24px;
 		color: hsl(var(--at-accent));
 	}
 
-	.diff-stats {
+	.stats-values {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
 	}
 
-	.diff-stat {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
+	.stat-item {
 		text-align: center;
 	}
 
-	.diff-value {
-		font-family: ui-monospace, monospace;
-		font-size: 20px;
+	.stat-value {
+		display: block;
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 22px;
 		font-weight: 700;
 		color: hsl(var(--at-accent));
+		line-height: 1;
 	}
 
-	.diff-label {
-		font-size: 11px;
+	.stat-label {
+		font-size: 10px;
 		font-weight: 600;
-		color: hsl(var(--at-fg-muted));
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
-	}
-
-	.diff-placeholder {
-		text-align: center;
-		font-size: 13px;
-	}
-
-	.shortcuts-hint {
-		display: flex;
-		justify-content: center;
-		gap: 24px;
-		padding-top: 20px;
-		border-top: 1px solid hsl(var(--at-border));
-		font-size: 13px;
 		color: hsl(var(--at-fg-muted));
 	}
 
-	.shortcuts-hint kbd {
+	.stats-empty {
+		font-size: 12px;
+		color: hsl(var(--at-fg-muted));
+		text-align: center;
+	}
+
+	.hints {
+		display: flex;
+		justify-content: center;
+		gap: 20px;
+		padding-top: 20px;
+		border-top: 1px solid hsl(var(--at-border));
+	}
+
+	.hint {
+		font-size: 12px;
+		color: hsl(var(--at-fg-muted));
+	}
+
+	.hint kbd {
 		display: inline-block;
-		padding: 4px 8px;
-		font-family: ui-monospace, monospace;
-		font-size: 11px;
+		padding: 3px 7px;
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 10px;
 		font-weight: 600;
-		background: hsl(var(--at-bg));
+		background: hsl(var(--at-surface));
 		border: 1px solid hsl(var(--at-border));
-		border-radius: 6px;
+		border-radius: 5px;
 		margin-right: 6px;
 	}
 
-	/* Responsive: stack on very small screens */
 	@media (max-width: 480px) {
-		.drawer-container {
-			padding: 8px 16px 20px;
+		.drawer-content {
+			padding: 8px 16px 24px;
 		}
 
-		.thumbnails-row {
+		.thumbnails {
 			flex-direction: column;
-			gap: 24px;
+			gap: 16px;
 		}
 
 		.thumbnail-card {
-			max-width: 180px;
+			max-width: 200px;
 		}
 
-		.difference-indicator {
+		.stats-center {
 			flex-direction: row;
 			gap: 20px;
-			padding: 8px 0;
 		}
 
-		.diff-arrow {
+		.stats-arrow {
 			transform: rotate(90deg);
 		}
 
-		.diff-stats {
+		.stats-values {
 			flex-direction: row;
 			gap: 20px;
 		}
 
-		.shortcuts-hint {
+		.hints {
 			flex-wrap: wrap;
-			gap: 16px;
+			gap: 12px;
 		}
 	}
 </style>

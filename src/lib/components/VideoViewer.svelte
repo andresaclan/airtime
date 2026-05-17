@@ -455,7 +455,7 @@
 <div
 	bind:this={containerRef}
 	class="relative flex h-full w-full items-center justify-center"
-	style="background: hsl(0 0% 5%); overflow: hidden; touch-action: none;"
+	style="background: hsl(220 20% 4%); overflow: hidden; touch-action: none;"
 	onwheel={handleWheel}
 	onmousedown={handleMouseDown}
 	ondblclick={handleDoubleClick}
@@ -502,12 +502,13 @@
 		<!-- Zoom indicator -->
 		{#if zoomLevel > 1}
 			<div
-				class="absolute top-3 left-3 z-10 flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium backdrop-blur-sm"
-				style="background: hsl(0 0% 0% / 0.6); color: white;"
+				class="absolute top-4 left-4 z-10 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
+				style="background: hsl(var(--at-bg-elevated) / 0.9); backdrop-filter: blur(8px); color: hsl(var(--at-fg)); border: 1px solid hsl(var(--at-border));"
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="h-4 w-4"
+					style="color: hsl(var(--at-accent));"
 					viewBox="0 0 24 24"
 					fill="none"
 					stroke="currentColor"
@@ -520,15 +521,16 @@
 					<path d="M11 8v6" />
 					<path d="M8 11h6" />
 				</svg>
-				<span>{Math.round(zoomLevel * 100)}%</span>
+				<span class="font-mono">{Math.round(zoomLevel * 100)}%</span>
 				<button
 					onclick={(e) => {
 						e.stopPropagation();
 						resetZoom();
 					}}
-					class="ml-1 rounded p-1 transition-colors hover:bg-white/20"
+					class="ml-1 rounded-md p-1.5 transition-colors"
+					style="background: hsl(var(--at-fg) / 0.1);"
 					aria-label="Reset zoom"
-					title="Reset zoom (double-click video)"
+					title="Reset zoom"
 				>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
