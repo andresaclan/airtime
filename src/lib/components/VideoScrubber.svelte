@@ -23,7 +23,7 @@
 		onScrubStart,
 		onScrubEnd,
 		onSeek
-	}: Props = $props();
+	} = $props<Props>();
 
 	let wasPlayingBeforeScrub = $state(false);
 	let scrubberRef: HTMLInputElement | null = $state(null);

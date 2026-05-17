@@ -23,7 +23,7 @@
 		onMarkOut,
 		onClear,
 		onViewDetails
-	}: Props = $props();
+	} = $props<Props>();
 
 	// Calculate frame count between in and out points
 	let frameCount = $derived(
