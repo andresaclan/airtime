@@ -19,6 +19,7 @@
 		onMarkOut?: () => void;
 	}
 
+	let props: Props = $props();
 	let {
 		isPlaying,
 		currentTime,
@@ -37,7 +38,7 @@
 		onToggleTiming,
 		onMarkIn,
 		onMarkOut
-	}: Props = $props();
+	} = $derived(props);
 
 	// Calculate frame duration
 	let frameDuration = $derived(1 / frameRate);
