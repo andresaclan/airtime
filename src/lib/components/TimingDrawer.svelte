@@ -110,12 +110,17 @@
 			onClose?.();
 		}
 	}
+
+	function handleBackdropKeyDown(event: KeyboardEvent) {
+		if (event.key === 'Enter' || event.key === ' ') {
+			handleBackdropClick(event as unknown as MouseEvent);
+		}
+	}
 </script>
 
 <svelte:window onkeydown={handleKeyDown} />
 
 {#if isOpen}
-	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<div
 		class="drawer-backdrop"
 		onclick={handleBackdropClick}
@@ -123,6 +128,7 @@
 		aria-modal="true"
 		aria-label="Timing details"
 		tabindex="-1"
+		onkeydown={handleBackdropKeyDown}
 	>
 		<div class="drawer-content pb-safe">
 			<!-- Handle -->

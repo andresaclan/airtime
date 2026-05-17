@@ -278,6 +278,19 @@
 	<div class="control-bar pb-safe shrink-0">
 		<div class="control-bar-inner">
 			{#if videoSrc}
+				<div class="mb-3 flex items-center justify-between gap-3">
+					<span class="truncate text-xs font-medium text-[hsl(var(--at-fg-muted))]">
+						{videoFileName}
+					</span>
+					<button
+						onclick={openFilePicker}
+						class="at-btn at-btn-ghost"
+						aria-label="Replace video file"
+						title="Replace video file"
+					>
+						Replace
+					</button>
+				</div>
 				<!-- Timeline/Scrubber -->
 				<VideoScrubber
 					{currentTime}

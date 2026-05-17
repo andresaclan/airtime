@@ -258,7 +258,9 @@
 
 	<!-- Right: Spacer to balance -->
 	<div class="volume-section opacity-0 pointer-events-none">
-		<button class="frame-btn" disabled><span class="h-5 w-5"></span></button>
+		<button class="frame-btn" disabled aria-label="Placeholder" title="Placeholder">
+			<span class="h-5 w-5"></span>
+		</button>
 		<input type="range" class="volume-slider" disabled />
 	</div>
 </div>
