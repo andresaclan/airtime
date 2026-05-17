@@ -8,7 +8,8 @@
 		onClose?: () => void;
 	}
 
-	let { isOpen, inPoint, outPoint, frameRate, videoElement, onClose }: Props = $props();
+	let props: Props = $props();
+	let { isOpen, inPoint, outPoint, frameRate, videoElement, onClose } = $derived(props);
 
 	// Canvas refs for thumbnails
 	let inThumbnailCanvas: HTMLCanvasElement | null = $state(null);
