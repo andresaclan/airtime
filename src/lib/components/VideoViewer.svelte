@@ -399,13 +399,9 @@
 				const sorted = [...framesForDetection].sort((a, b) => a - b);
 				const median = sorted[Math.floor(sorted.length / 2)];
 
-				const commonRates = [23.976, 24, 25, 29.97, 30, 50, 59.94, 60, 90, 100, 120, 144, 240];
-				const threshold = 0.01;
-				const closestCommon = commonRates.find(
-					(rate) => Math.abs(rate - median) / median < threshold
-				);
-
-				const detectedRate = closestCommon ?? Math.round(median * 100) / 100;
+				const ratioTo120 = Math.abs(120 - median) / 120;
+				const detectedRate =
+					ratioTo120 <= 0.1 ? 120 : Math.round(median * 100) / 100;
 				applyDetectedFrameRate(detectedRate);
 			}
 		};

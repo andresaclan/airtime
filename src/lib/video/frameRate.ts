@@ -1,4 +1,6 @@
 const COMMON_FRAME_RATES = [23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60, 90, 100, 119.88, 120];
+const FRAME_RATE_120 = 120;
+const FRAME_RATE_120_CLAMP_RATIO = 0.1;
 
 const ISO_BMFF_VIDEO_HANDLER = 'vide';
 const ISO_BMFF_CONTAINER_TYPES = new Set([
@@ -153,6 +155,11 @@ function snapToCommonFrameRate(
 	fps: number,
 	thresholdRatio = 0.01
 ): { fps: number; snapped: boolean } {
+	const ratioTo120 = Math.abs(FRAME_RATE_120 - fps) / FRAME_RATE_120;
+	if (ratioTo120 <= FRAME_RATE_120_CLAMP_RATIO) {
+		return { fps: FRAME_RATE_120, snapped: true };
+	}
+
 	const closest = COMMON_FRAME_RATES.reduce(
 		(best, candidate) => {
 			const ratioDiff = Math.abs(candidate - fps) / fps;
@@ -169,6 +176,13 @@ function snapToCommonFrameRate(
 	}
 
 	return { fps: Math.round(fps * 100) / 100, snapped: false };
+}
+
+export function normalizeFrameRateForControls(fps: number | null): number | null {
+	if (fps === null) return null;
+	const valid = sanitizeFrameRate(fps);
+	if (!valid) return null;
+	return snapToCommonFrameRate(valid, 0.015).fps;
 }
 
 function median(values: number[]): number {
@@ -313,7 +327,7 @@ export async function detectPlaybackFrameRate(
 	const maxMs = options.maxMs ?? 2500;
 	const minSamples = options.minSamples ?? 45;
 
-	const displayRefreshRate = await detectDisplayRefreshRate();
+	const displayRefreshRate = normalizeFrameRateForControls(await detectDisplayRefreshRate());
 
 	if (!('requestVideoFrameCallback' in HTMLVideoElement.prototype)) {
 		return {
@@ -410,7 +424,7 @@ export async function detectPlaybackFrameRate(
 	const snapped = snapToCommonFrameRate(medianFps, 0.015);
 
 	return {
-		fps: snapped.fps,
+		fps: normalizeFrameRateForControls(snapped.fps),
 		confidence,
 		sampleCount: filtered.length,
 		jitter,
