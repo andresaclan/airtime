@@ -825,11 +825,21 @@ body {
 	padding: 8px 16px max(8px, env(safe-area-inset-bottom));
 }
 
+.full-controls.is-hidden {
+	visibility: hidden;
+	pointer-events: none;
+}
+
 .minimal-controls {
+	visibility: hidden;
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
 	gap: 12px;
+}
+
+.minimal-controls.is-visible {
+	visibility: visible;
 }
 
 .minimal-timing-values {
