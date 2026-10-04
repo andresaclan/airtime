@@ -485,7 +485,7 @@
 					: 'grab'
 				: 'default'};"
 			playsinline
-			x-webkit-airplay="deny"
+
 			disableremoteplayback
 			disablepictureinpicture
 			controlslist="nodownload noplaybackrate noremoteplayback nofullscreen"

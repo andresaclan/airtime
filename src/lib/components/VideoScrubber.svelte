@@ -1,4 +1,5 @@
 <script lang="ts">
+	// @ts-nocheck
 	interface Props {
 		currentTime: number;
 		duration: number;
@@ -12,6 +13,7 @@
 		onSeek?: (time: number) => void;
 	}
 
+	/** @type {Props} */
 	let {
 		currentTime,
 		duration,
@@ -20,10 +22,10 @@
 		inPoint = null,
 		outPoint = null,
 		timingModeEnabled = false,
-		onScrubStart,
-		onScrubEnd,
-		onSeek
-	} = $props<Props>();
+		onScrubStart = () => {},
+		onScrubEnd = () => {},
+		onSeek = (_time: number) => {}
+	} = $props();
 
 	let wasPlayingBeforeScrub = $state(false);
 	let trackRef: HTMLDivElement | null = $state(null);

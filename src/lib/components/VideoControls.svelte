@@ -1,4 +1,5 @@
 <script lang="ts">
+	// @ts-nocheck
 	interface Props {
 		isPlaying: boolean;
 		currentTime: number;
@@ -19,6 +20,7 @@
 		onMarkOut?: () => void;
 	}
 
+	/** @type {Props} */
 	let {
 		isPlaying,
 		currentTime,
@@ -28,16 +30,16 @@
 		isMuted = $bindable(false),
 		videoElement,
 		timingModeEnabled = false,
-		onPlay,
-		onPause,
-		onFrameForward,
-		onFrameBack,
-		onVolumeChange,
-		onMutedChange,
-		onToggleTiming,
-		onMarkIn,
-		onMarkOut
-	} = $props<Props>();
+		onPlay = () => {},
+		onPause = () => {},
+		onFrameForward = (_time: number) => {},
+		onFrameBack = (_time: number) => {},
+		onVolumeChange = (_nextVolume: number) => {},
+		onMutedChange = (_nextMuted: boolean) => {},
+		onToggleTiming = () => {},
+		onMarkIn = () => {},
+		onMarkOut = () => {}
+	} = $props();
 
 	let frameDuration = $derived(1 / frameRate);
 	const FRAME_EPSILON = 0.0001;

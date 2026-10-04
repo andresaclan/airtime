@@ -198,9 +198,9 @@
 	ondragleave={handleDragLeave}
 />
 
-<div class="flex h-dvh flex-col bg-[hsl(var(--at-bg))]" role="application">
-	<!-- Video Display Area - Full bleed -->
-	<div class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+	<div class="relative flex h-dvh flex-col overflow-hidden bg-[hsl(var(--at-bg))]" role="application">
+		<!-- Video Display Area - Full bleed -->
+		<div class="relative min-h-0 flex-1 overflow-hidden">
 		{#if !videoSrc}
 			<!-- Empty state -->
 			<button
@@ -274,9 +274,9 @@
 		{/if}
 	</div>
 
-	<!-- Control Bar -->
-	<div class="control-bar pb-safe shrink-0">
-		<div class="control-bar-inner">
+	<!-- Control Bar overlay -->
+	<div class="control-bar pb-safe pointer-events-none absolute inset-x-0 bottom-0 z-30">
+		<div class="control-bar-inner pointer-events-auto">
 			{#if videoSrc}
 				<div class="mb-3 flex items-center justify-between gap-3">
 					<span class="truncate text-xs font-medium text-[hsl(var(--at-fg-muted))]">

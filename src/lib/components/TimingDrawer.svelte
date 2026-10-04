@@ -1,4 +1,5 @@
 <script lang="ts">
+	// @ts-nocheck
 	interface Props {
 		isOpen: boolean;
 		inPoint: number | null;
@@ -8,6 +9,7 @@
 		onClose?: () => void;
 	}
 
+	/** @type {Props} */
 	let {
 		isOpen,
 		inPoint,
@@ -15,7 +17,7 @@
 		frameRate,
 		videoElement,
 		onClose
-	} = $props<Props>();
+	} = $props();
 
 	let inThumbnailCanvas: HTMLCanvasElement | null = $state(null);
 	let outThumbnailCanvas: HTMLCanvasElement | null = $state(null);

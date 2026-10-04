@@ -252,16 +252,22 @@ body {
    ======================================== */
 
 .control-bar {
-	position: relative;
-	background: hsl(var(--at-bg-elevated) / 0.95);
-	backdrop-filter: blur(20px) saturate(180%);
-	border-top: 1px solid hsl(var(--at-border) / 0.5);
+	position: absolute;
+	background: linear-gradient(
+		to bottom,
+		transparent 0%,
+		hsl(var(--at-bg) / 0.2) 14%,
+		hsl(var(--at-bg) / 0.78) 48%,
+		hsl(var(--at-bg) / 0.96) 100%
+	);
+	backdrop-filter: blur(10px) saturate(130%);
+	padding-top: 28px;
 }
 
 .control-bar-inner {
-	max-width: 800px;
+	width: min(100%, 980px);
 	margin: 0 auto;
-	padding: 16px 20px;
+	padding: 16px 20px 20px;
 }
 
 /* ========================================

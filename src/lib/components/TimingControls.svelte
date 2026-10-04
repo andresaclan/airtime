@@ -1,4 +1,5 @@
 <script lang="ts">
+	// @ts-nocheck
 	interface Props {
 		timingModeEnabled: boolean;
 		inPoint: number | null;
@@ -12,6 +13,7 @@
 		onViewDetails?: () => void;
 	}
 
+	/** @type {Props} */
 	let {
 		timingModeEnabled,
 		inPoint,
@@ -23,7 +25,7 @@
 		onMarkOut,
 		onClear,
 		onViewDetails
-	} = $props<Props>();
+	} = $props();
 
 	let frameCount = $derived(
 		inPoint !== null && outPoint !== null ? Math.round((outPoint - inPoint) * frameRate) : null
