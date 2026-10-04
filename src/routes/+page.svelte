@@ -27,6 +27,20 @@
 	let inPoint: number | null = $state(null);
 	let outPoint: number | null = $state(null);
 	let timingDrawerOpen = $state(false);
+	let controlsVisible = $state(true);
+
+	// Zoom state
+
+	function toggleControls() {
+		controlsVisible = !controlsVisible;
+	}
+
+	function handleControlsKeyDown(event: KeyboardEvent) {
+		if (event.key.toLowerCase() === 'h' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+			event.preventDefault();
+			toggleControls();
+		}
+	}
 
 	// Zoom state
 	let zoomLevel = $state(1);
@@ -196,6 +210,7 @@
 	ondrop={handleDrop}
 	ondragenter={handleDragEnter}
 	ondragleave={handleDragLeave}
+	onkeydown={handleControlsKeyDown}
 />
 
 	<div class="relative flex h-dvh flex-col overflow-hidden bg-[hsl(var(--at-bg))]" role="application">
@@ -274,10 +289,16 @@
 		{/if}
 	</div>
 
-	<!-- Control Bar overlay -->
-	<div class="control-bar pb-safe pointer-events-none absolute inset-x-0 bottom-0 z-30">
+	<!-- Control Bar overlay: the full player stays visible while controls occupy the bottom 10%. -->
+	<div class="control-bar pb-safe pointer-events-none absolute inset-x-0 bottom-0 z-30" class:controls-hidden={!controlsVisible}>
 		<div class="control-bar-inner pointer-events-auto">
-			{#if videoSrc}
+			{#if videoSrc && controlsVisible}
+				<div class="control-bar-header">
+					<span class="control-hint">H to hide controls</span>
+					<button onclick={toggleControls} class="control-visibility-btn" aria-label="Hide controls" title="Hide controls (H)">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+					</button>
+				</div>
 				<div class="mb-3 flex items-center justify-between gap-3">
 					<span class="truncate text-xs font-medium text-[hsl(var(--at-fg-muted))]">
 						{videoFileName}
@@ -341,6 +362,19 @@
 					onClear={clearTimingPoints}
 					onViewDetails={openTimingDrawer}
 				/>
+			{:else if videoSrc}
+				<div class="minimal-controls">
+					<div class="minimal-timing-values" aria-label="Timing values">
+						<span class="minimal-timing-label">IN</span>
+						<span class="minimal-timing-value">{inPoint !== null ? formatTimeWithFrames(inPoint, frameRate) : '--:--:--'}</span>
+						<span class="minimal-timing-separator">—</span>
+						<span class="minimal-timing-label minimal-out">OUT</span>
+						<span class="minimal-timing-value">{outPoint !== null ? formatTimeWithFrames(outPoint, frameRate) : '--:--:--'}</span>
+					</div>
+					<button onclick={toggleControls} class="control-visibility-btn" aria-label="Show controls" title="Show controls (H)">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+					</button>
+				</div>
 			{:else}
 				<div class="py-8 text-center text-sm text-[hsl(var(--at-fg-muted))]">
 					No video loaded
