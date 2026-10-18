@@ -8,14 +8,7 @@
 		onClose?: () => void;
 	}
 
-	let {
-		isOpen,
-		inPoint,
-		outPoint,
-		frameRate,
-		videoElement,
-		onClose
-	} = $props<Props>();
+	let { isOpen, inPoint, outPoint, frameRate, videoElement, onClose }: Props = $props();
 
 	let inThumbnailCanvas: HTMLCanvasElement | null = $state(null);
 	let outThumbnailCanvas: HTMLCanvasElement | null = $state(null);
@@ -23,11 +16,15 @@
 	let outThumbnailReady = $state(false);
 
 	let frameCount = $derived(
-		inPoint !== null && outPoint !== null ? Math.round((outPoint - inPoint) * frameRate) : null
+		inPoint !== null && outPoint !== null
+			? Math.round((Math.max(inPoint, outPoint) - Math.min(inPoint, outPoint)) * frameRate)
+			: null
 	);
 
 	let durationMs = $derived(
-		inPoint !== null && outPoint !== null ? (outPoint - inPoint) * 1000 : null
+		inPoint !== null && outPoint !== null
+			? (Math.max(inPoint, outPoint) - Math.min(inPoint, outPoint)) * 1000
+			: null
 	);
 
 	function formatTimeWithFrames(seconds: number, fps: number): string {
@@ -138,7 +135,14 @@
 			<div class="drawer-header">
 				<h2 class="drawer-title">Timing Details</h2>
 				<button class="close-btn" onclick={onClose} aria-label="Close">
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+					>
 						<line x1="18" y1="6" x2="6" y2="18" />
 						<line x1="6" y1="6" x2="18" y2="18" />
 					</svg>
@@ -165,7 +169,14 @@
 				<!-- Arrow and stats -->
 				<div class="stats-center">
 					{#if frameCount !== null && durationMs !== null}
-						<svg class="stats-arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<svg
+							class="stats-arrow"
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
 							<line x1="5" y1="12" x2="19" y2="12" />
 							<polyline points="12 5 19 12 12 19" />
 						</svg>
@@ -224,8 +235,12 @@
 	}
 
 	@keyframes fadeIn {
-		from { opacity: 0; }
-		to { opacity: 1; }
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
 	}
 
 	.drawer-content {
@@ -240,8 +255,12 @@
 	}
 
 	@keyframes slideUp {
-		from { transform: translateY(100%); }
-		to { transform: translateY(0); }
+		from {
+			transform: translateY(100%);
+		}
+		to {
+			transform: translateY(0);
+		}
 	}
 
 	.drawer-handle {

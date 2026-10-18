@@ -24,6 +24,7 @@
 		onVolumeChange?: (volume: number) => void;
 		onMutedChange?: (muted: boolean) => void;
 		onZoomChange?: (zoom: number) => void;
+		onError?: () => void;
 	}
 
 	let {
@@ -44,17 +45,22 @@
 		onFrameRateDetected,
 		onVolumeChange,
 		onMutedChange,
-		onZoomChange
+		onZoomChange,
+		onError
 	}: Props = $props();
 
 	let frameCount = $state(0);
 	let lastFrameTime = $state(0);
 	let framesForDetection: number[] = $state([]);
+	let detectionId = 0;
+	let detectionTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	// Zoom and pan state
 	const MIN_ZOOM = 1;
 	const MAX_ZOOM = 5;
 	const ZOOM_STEP = 0.25;
+	const WHEEL_ZOOM_SENSITIVITY = 0.001;
+	const PINCH_ZOOM_SENSITIVITY = 0.7;
 
 	let panX = $state(0);
 	let panY = $state(0);
@@ -229,8 +235,8 @@
 		const rect = containerRef?.getBoundingClientRect();
 		if (!rect) return;
 
-		const zoomDelta = event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-		setZoom(zoomLevel + zoomDelta, event.clientX - rect.left, event.clientY - rect.top);
+		const zoomFactor = Math.exp(-event.deltaY * WHEEL_ZOOM_SENSITIVITY);
+		setZoom(zoomLevel * zoomFactor, event.clientX - rect.left, event.clientY - rect.top);
 	}
 
 	// Mouse pan handlers
@@ -294,7 +300,7 @@
 		if (event.touches.length === 2 && initialPinchDistance > 0) {
 			const currentDistance = getTouchDistance(event.touches);
 			const scale = currentDistance / initialPinchDistance;
-			const newZoom = initialZoomOnPinch * scale;
+			const newZoom = initialZoomOnPinch * Math.pow(scale, PINCH_ZOOM_SENSITIVITY);
 
 			const center = getTouchCenter(event.touches);
 			const rect = containerRef?.getBoundingClientRect();
@@ -371,6 +377,10 @@
 	}
 
 	function detectFrameRate() {
+		detectionId += 1;
+		const currentDetectionId = detectionId;
+		if (detectionTimeout) clearTimeout(detectionTimeout);
+
 		if (!videoElement || !('requestVideoFrameCallback' in HTMLVideoElement.prototype)) {
 			applyDetectedFrameRate(null);
 			return;
@@ -381,6 +391,7 @@
 		framesForDetection = [];
 
 		const detectCallback = (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
+			if (currentDetectionId !== detectionId || !videoElement) return;
 			if (frameCount === 0) {
 				lastFrameTime = metadata.mediaTime;
 			} else {
@@ -393,16 +404,16 @@
 
 			frameCount++;
 
-			if (frameCount < 12 && videoElement) {
+			if (frameCount < 12) {
 				(videoElement as VideoElementWithFrameCallback).requestVideoFrameCallback(detectCallback);
 			} else if (framesForDetection.length > 0) {
 				const sorted = [...framesForDetection].sort((a, b) => a - b);
 				const median = sorted[Math.floor(sorted.length / 2)];
 
 				const ratioTo120 = Math.abs(120 - median) / 120;
-				const detectedRate =
-					ratioTo120 <= 0.1 ? 120 : Math.round(median * 100) / 100;
+				const detectedRate = ratioTo120 <= 0.1 ? 120 : Math.round(median * 100) / 100;
 				applyDetectedFrameRate(detectedRate);
+				if (detectionTimeout) clearTimeout(detectionTimeout);
 			}
 		};
 
@@ -416,9 +427,11 @@
 			if (playPromise) {
 				playPromise
 					.then(() => {
-						(videoElement as VideoElementWithFrameCallback).requestVideoFrameCallback(detectCallback);
-						setTimeout(() => {
-							if (videoElement && !wasPlaying) {
+						(videoElement as VideoElementWithFrameCallback).requestVideoFrameCallback(
+							detectCallback
+						);
+						detectionTimeout = setTimeout(() => {
+							if (currentDetectionId === detectionId && videoElement && !wasPlaying) {
 								videoElement.pause();
 								videoElement.currentTime = originalTime;
 								videoElement.muted = originalMuted;
@@ -478,6 +491,7 @@
 			onplay={handlePlay}
 			onpause={handlePause}
 			onvolumechange={handleVolumeChange}
+			onerror={onError}
 			class="max-h-full max-w-full object-contain"
 			style="{transformStyle} transform-origin: center center; cursor: {zoomLevel > 1
 				? isPanning
@@ -485,7 +499,6 @@
 					: 'grab'
 				: 'default'};"
 			playsinline
-			x-webkit-airplay="deny"
 			disableremoteplayback
 			disablepictureinpicture
 			controlslist="nodownload noplaybackrate noremoteplayback nofullscreen"
