@@ -116,6 +116,15 @@
 	}
 
 	function handleKeyDown(event: KeyboardEvent) {
+		const target = event.target;
+		if (
+			target instanceof HTMLElement &&
+			(target.isContentEditable ||
+				target.closest('input, textarea, select, [contenteditable="true"]'))
+		) {
+			return;
+		}
+
 		if (event.key === ' ' || event.key === 'k') {
 			event.preventDefault();
 			togglePlayPause();
