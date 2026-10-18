@@ -6,6 +6,7 @@
 	import TimingDrawer from '$lib/components/TimingDrawer.svelte';
 	import { resolve } from '$app/paths';
 	import { detectSourceFrameRateFromFile } from '$lib/video/frameRate';
+	import { formatTimecode, parseTimecode } from '$lib/video/timecode';
 
 	let videoElement: HTMLVideoElement | null = $state(null);
 	let videoSrc: string | null = $state(null);
@@ -28,6 +29,8 @@
 	let inPoint: number | null = $state(null);
 	let outPoint: number | null = $state(null);
 	let timingDrawerOpen = $state(false);
+	let timecodeEntry = $state('');
+	let timecodeError = $state('');
 
 	// Zoom state
 	let zoomLevel = $state(1);
@@ -172,13 +175,19 @@
 	}
 
 	function formatTimeWithFrames(seconds: number, fps: number): string {
-		if (!isFinite(seconds) || isNaN(seconds)) return '00:00:00';
-		const totalFrames = Math.round(seconds * fps);
-		const frameInSecond = totalFrames % Math.round(fps);
-		const totalSeconds = Math.floor(seconds);
-		const mins = Math.floor(totalSeconds / 60);
-		const secs = totalSeconds % 60;
-		return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${frameInSecond.toString().padStart(2, '0')}`;
+		return formatTimecode(seconds, fps);
+	}
+
+	function seekTimecode(event: SubmitEvent) {
+		event.preventDefault();
+		const seconds = parseTimecode(timecodeEntry, frameRate);
+		if (seconds === null || (duration > 0 && seconds > duration)) {
+			timecodeError = 'Enter valid HH:MM:SS:FF or drop-frame HH:MM:SS;FF';
+			return;
+		}
+		timecodeError = '';
+		if (videoElement) videoElement.currentTime = seconds;
+		currentTime = seconds;
 	}
 </script>
 
@@ -297,7 +306,7 @@
 					</div>
 				{:else}
 					<div class="viewer-badge">
-						<span class="viewer-badge-dot"></span>{sourceFrameRate ?? frameRate} fps
+						<span class="viewer-badge-dot"></span>Source {sourceFrameRate ? `${sourceFrameRate.toFixed(3)} detected` : 'unknown'} · Playback {playbackFrameRate ? `${playbackFrameRate.toFixed(2)} estimated` : 'estimating'} fps
 					</div>
 				{/if}
 
@@ -354,6 +363,11 @@
 						<span class="time-separator">/</span>
 						<span class="time-duration">{formatTimeWithFrames(duration, frameRate)}</span>
 					</div>
+					<form onsubmit={seekTimecode} class="flex items-center gap-1">
+						<input aria-label="Go to timecode" placeholder="HH:MM:SS:FF" bind:value={timecodeEntry} class="w-32 rounded border border-[hsl(var(--at-border))] bg-[hsl(var(--at-surface))] px-2 py-1 font-mono text-xs text-[hsl(var(--at-fg))]" />
+						<button type="submit">Go</button>
+					</form>
+					{#if timecodeError}<span class="text-xs text-red-400">{timecodeError}</span>{/if}
 
 					<VideoControls
 						{isPlaying}
