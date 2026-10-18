@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatTimecode } from '$lib/video/timecode';
 	interface Props {
 		timingModeEnabled: boolean;
 		inPoint: number | null;
@@ -36,13 +37,7 @@
 	let hasBothPoints = $derived(inPoint !== null && outPoint !== null);
 
 	function formatTimeCompact(seconds: number, fps: number): string {
-		if (!isFinite(seconds) || isNaN(seconds)) return '--:--';
-		const totalFrames = Math.round(seconds * fps);
-		const frameInSecond = totalFrames % Math.round(fps);
-		const totalSeconds = Math.floor(seconds);
-		const mins = Math.floor(totalSeconds / 60);
-		const secs = totalSeconds % 60;
-		return `${mins}:${secs.toString().padStart(2, '0')}:${frameInSecond.toString().padStart(2, '0')}`;
+		return formatTimecode(seconds, fps);
 	}
 </script>
 
