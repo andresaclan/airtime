@@ -66,7 +66,6 @@ The development server starts at `http://localhost:5173`.
 | `I`                        | Mark the In point while timing mode is active            |
 | `O`                        | Mark the Out point while timing mode is active           |
 | `ArrowLeft` / `ArrowRight` | Seek when the timeline has focus                         |
-| `Home` / `End`             | Seek to the beginning or end when the timeline has focus |
 | `Escape`                   | Close the timing details drawer                          |
 
 ## Supported files and browser behavior
@@ -150,18 +149,3 @@ Airtime is built as a static SvelteKit site:
 ```sh
 bun run build
 ```
-
-The generated site is written to `build/` and can be served by any static hosting provider. The repository includes a GitHub Actions workflow for Azure Static Web Apps that installs dependencies, runs the validation checks, builds the site, and deploys the generated `build/` directory.
-
-## Contributing
-
-Issues and pull requests are welcome. When proposing a change:
-
-1. Describe the user-facing behavior or bug.
-2. Keep changes focused and preserve the local-only privacy model.
-3. Run the check, lint, and build commands before submitting.
-4. Include reproduction steps for media or browser-specific issues.
-
-## License
-
-No license has been added to this repository yet. Until a license is published, the source should not be treated as freely reusable outside the permissions granted by the repository owner.
