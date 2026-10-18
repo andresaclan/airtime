@@ -52,21 +52,21 @@ The development server starts at `http://localhost:5173`.
 
 ## Keyboard shortcuts
 
-| Shortcut                   | Action                                                   |
-| -------------------------- | -------------------------------------------------------- |
-| `Space` or `K`             | Play or pause                                            |
-| `,`                        | Step one frame backward                                  |
-| `.`                        | Step one frame forward                                   |
-| `Shift` + `ArrowLeft`      | Step one frame backward                                  |
-| `Shift` + `ArrowRight`     | Step one frame forward                                   |
-| `ArrowUp`                  | Increase volume                                          |
-| `ArrowDown`                | Decrease volume                                          |
-| `M`                        | Mute or unmute                                           |
-| `T`                        | Toggle timing mode                                       |
-| `I`                        | Mark the In point while timing mode is active            |
-| `O`                        | Mark the Out point while timing mode is active           |
-| `ArrowLeft` / `ArrowRight` | Seek when the timeline has focus                         |
-| `Escape`                   | Close the timing details drawer                          |
+| Shortcut                   | Action                                         |
+| -------------------------- | ---------------------------------------------- |
+| `Space` or `K`             | Play or pause                                  |
+| `,`                        | Step one frame backward                        |
+| `.`                        | Step one frame forward                         |
+| `Shift` + `ArrowLeft`      | Step one frame backward                        |
+| `Shift` + `ArrowRight`     | Step one frame forward                         |
+| `ArrowUp`                  | Increase volume                                |
+| `ArrowDown`                | Decrease volume                                |
+| `M`                        | Mute or unmute                                 |
+| `T`                        | Toggle timing mode                             |
+| `I`                        | Mark the In point while timing mode is active  |
+| `O`                        | Mark the Out point while timing mode is active |
+| `ArrowLeft` / `ArrowRight` | Seek when the timeline has focus               |
+| `Escape`                   | Close the timing details drawer                |
 
 ## Supported files and browser behavior
 
