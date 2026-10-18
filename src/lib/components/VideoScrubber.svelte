@@ -23,15 +23,19 @@
 		onScrubStart,
 		onScrubEnd,
 		onSeek
-	} = $props<Props>();
+	}: Props = $props();
 
 	let wasPlayingBeforeScrub = $state(false);
 	let trackRef: HTMLDivElement | null = $state(null);
 	let isDragging = $state(false);
 
 	let progressPercent = $derived(duration > 0 ? (currentTime / duration) * 100 : 0);
-	let inPointPercent = $derived(inPoint !== null && duration > 0 ? (inPoint / duration) * 100 : null);
-	let outPointPercent = $derived(outPoint !== null && duration > 0 ? (outPoint / duration) * 100 : null);
+	let inPointPercent = $derived(
+		inPoint !== null && duration > 0 ? (inPoint / duration) * 100 : null
+	);
+	let outPointPercent = $derived(
+		outPoint !== null && duration > 0 ? (outPoint / duration) * 100 : null
+	);
 
 	function getTimeFromPosition(clientX: number): number {
 		if (!trackRef || duration <= 0) return 0;
@@ -42,10 +46,10 @@
 
 	function handlePointerDown(event: PointerEvent) {
 		if (!videoElement || !trackRef) return;
-		
+
 		event.preventDefault();
 		trackRef.setPointerCapture(event.pointerId);
-		
+
 		isScrubbing = true;
 		isDragging = true;
 		wasPlayingBeforeScrub = !videoElement.paused;
@@ -62,7 +66,7 @@
 
 	function handlePointerMove(event: PointerEvent) {
 		if (!isDragging || !videoElement) return;
-		
+
 		const newTime = getTimeFromPosition(event.clientX);
 		videoElement.currentTime = newTime;
 		onSeek?.(newTime);
@@ -70,21 +74,61 @@
 
 	function handlePointerUp(event: PointerEvent) {
 		if (!isDragging) return;
-		
+
 		trackRef?.releasePointerCapture(event.pointerId);
 		isDragging = false;
 		isScrubbing = false;
 
 		if (wasPlayingBeforeScrub && videoElement) {
-			videoElement.play();
+			void videoElement.play().catch(() => {
+				console.warn('Unable to resume video playback after scrubbing');
+			});
 		}
 
 		onScrubEnd?.();
 	}
+
+	function seekTo(time: number) {
+		if (!videoElement || duration <= 0) return;
+		const nextTime = Math.max(0, Math.min(duration, time));
+		videoElement.currentTime = nextTime;
+		onSeek?.(nextTime);
+	}
+
+	function handleKeyDown(event: KeyboardEvent) {
+		if (duration <= 0) return;
+
+		const step = Math.max(1 / 30, duration / 100);
+		switch (event.key) {
+			case 'ArrowLeft':
+				event.preventDefault();
+				seekTo(currentTime - step);
+				break;
+			case 'ArrowRight':
+				event.preventDefault();
+				seekTo(currentTime + step);
+				break;
+			case 'Home':
+				event.preventDefault();
+				seekTo(0);
+				break;
+			case 'End':
+				event.preventDefault();
+				seekTo(duration);
+				break;
+		}
+	}
+
+	let rangeStart = $derived(
+		inPoint !== null && outPoint !== null ? Math.min(inPointPercent ?? 0, outPointPercent ?? 0) : 0
+	);
+	let rangeEnd = $derived(
+		inPoint !== null && outPoint !== null ? Math.max(inPointPercent ?? 0, outPointPercent ?? 0) : 0
+	);
 </script>
 
 <div class="timeline-container">
-	<div 
+	<div
 		bind:this={trackRef}
 		class="timeline-track"
 		class:active={isDragging}
@@ -92,18 +136,20 @@
 		onpointermove={handlePointerMove}
 		onpointerup={handlePointerUp}
 		onpointercancel={handlePointerUp}
+		onkeydown={handleKeyDown}
 		role="slider"
 		aria-label="Video timeline"
 		aria-valuemin={0}
 		aria-valuemax={duration}
-		aria-valuenow={currentTime}
+		aria-valuenow={Math.max(0, Math.min(duration, currentTime))}
+		aria-valuetext={`${Math.round(currentTime * 10) / 10} seconds`}
 		tabindex="0"
 	>
 		<!-- Range highlight between in/out points -->
 		{#if timingModeEnabled && inPointPercent !== null && outPointPercent !== null}
-			<div 
+			<div
 				class="timeline-range"
-				style="left: {inPointPercent}%; width: {outPointPercent - inPointPercent}%;"
+				style="left: {rangeStart}%; width: {rangeEnd - rangeStart}%;"
 			></div>
 		{/if}
 
@@ -133,22 +179,22 @@
 
 <style>
 	.timeline-container {
-		padding: 16px 0 8px;
+		padding: 5px 0 3px;
 		touch-action: none;
 	}
 
 	.timeline-track {
 		position: relative;
-		height: 6px;
-		background: hsl(var(--at-border));
-		border-radius: 3px;
+		height: 3px;
+		background: hsl(var(--at-fg) / 0.16);
+		border-radius: 2px;
 		cursor: pointer;
 		transition: height 150ms ease;
 	}
 
 	.timeline-track:hover,
 	.timeline-track.active {
-		height: 8px;
+		height: 4px;
 	}
 
 	.timeline-progress {
@@ -164,15 +210,17 @@
 	.timeline-thumb {
 		position: absolute;
 		top: 50%;
-		width: 18px;
-		height: 18px;
+		width: 10px;
+		height: 10px;
 		background: hsl(var(--at-accent));
-		border: 3px solid white;
+		border: 2px solid white;
 		border-radius: 50%;
 		transform: translate(-50%, -50%);
-		box-shadow: 0 2px 8px hsl(var(--at-shadow) / 0.5);
+		box-shadow: 0 1px 6px hsl(var(--at-shadow) / 0.5);
 		pointer-events: none;
-		transition: transform 150ms ease, box-shadow 150ms ease;
+		transition:
+			transform 150ms ease,
+			box-shadow 150ms ease;
 	}
 
 	.timeline-track:hover .timeline-thumb,

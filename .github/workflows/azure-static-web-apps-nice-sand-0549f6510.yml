@@ -28,6 +28,8 @@ jobs:
       - name: Install and Build
         run: |
           bun install --frozen-lockfile
+          bun run check
+          bun run lint
           bun run build
 
       - name: Build And Deploy

@@ -3,12 +3,10 @@
 		timingModeEnabled: boolean;
 		inPoint: number | null;
 		outPoint: number | null;
-		currentTime: number;
 		frameRate: number;
 		onToggleTiming?: () => void;
 		onMarkIn?: () => void;
 		onMarkOut?: () => void;
-		onClear?: () => void;
 		onViewDetails?: () => void;
 	}
 
@@ -16,21 +14,23 @@
 		timingModeEnabled,
 		inPoint,
 		outPoint,
-		currentTime,
 		frameRate,
 		onToggleTiming,
 		onMarkIn,
 		onMarkOut,
-		onClear,
 		onViewDetails
-	} = $props<Props>();
+	}: Props = $props();
 
 	let frameCount = $derived(
-		inPoint !== null && outPoint !== null ? Math.round((outPoint - inPoint) * frameRate) : null
+		inPoint !== null && outPoint !== null
+			? Math.round((Math.max(inPoint, outPoint) - Math.min(inPoint, outPoint)) * frameRate)
+			: null
 	);
 
 	let durationMs = $derived(
-		inPoint !== null && outPoint !== null ? (outPoint - inPoint) * 1000 : null
+		inPoint !== null && outPoint !== null
+			? (Math.max(inPoint, outPoint) - Math.min(inPoint, outPoint)) * 1000
+			: null
 	);
 
 	let hasBothPoints = $derived(inPoint !== null && outPoint !== null);
@@ -99,32 +99,21 @@
 					<span class="timing-stat-value">{durationMs?.toFixed(0)}</span>
 					<span class="timing-stat-label">ms</span>
 				</div>
-				<button
-					onclick={onViewDetails}
-					class="details-btn"
-					title="View timing details"
-				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<button onclick={onViewDetails} class="details-btn" title="View timing details">
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+					>
 						<rect x="3" y="3" width="18" height="18" rx="2" />
 						<circle cx="8.5" cy="8.5" r="1.5" />
 						<polyline points="21 15 16 10 5 21" />
 					</svg>
 				</button>
 			</div>
-		{/if}
-
-		<!-- Clear button -->
-		{#if inPoint !== null || outPoint !== null}
-			<button
-				onclick={onClear}
-				class="clear-btn"
-				title="Clear points"
-			>
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<line x1="18" y1="6" x2="6" y2="18" />
-					<line x1="6" y1="6" x2="18" y2="18" />
-				</svg>
-			</button>
 		{/if}
 	{/if}
 </div>
@@ -134,25 +123,26 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 12px;
-		padding-top: 16px;
+		gap: 6px;
+		padding-top: 0;
 		flex-wrap: wrap;
 	}
 
 	.timing-toggle {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		padding: 8px 16px;
-		background: hsl(var(--at-surface));
-		border: 1px solid hsl(var(--at-border));
+		gap: 6px;
+		padding: 5px 9px;
+		background: hsl(var(--at-surface) / 0.1);
+		border: 1px solid hsl(var(--at-border) / 0.55);
 		border-radius: 100px;
 		cursor: pointer;
 		transition: all 180ms ease;
 	}
 
 	.timing-toggle:hover {
-		border-color: hsl(var(--at-accent) / 0.5);
+		border-color: hsl(var(--at-accent) / 0.68);
+		background: hsl(var(--at-surface) / 0.18);
 	}
 
 	.timing-toggle.active {
@@ -161,8 +151,8 @@
 	}
 
 	.timing-toggle-dot {
-		width: 8px;
-		height: 8px;
+		width: 6px;
+		height: 6px;
 		border-radius: 50%;
 		background: hsl(var(--at-fg-muted));
 		transition: all 180ms ease;
@@ -174,9 +164,10 @@
 	}
 
 	.timing-toggle-text {
-		font-size: 13px;
+		font-size: 11px;
 		font-weight: 600;
 		color: hsl(var(--at-fg-secondary));
+		text-shadow: 0 1px 3px hsl(var(--at-shadow) / 0.95);
 	}
 
 	.timing-toggle.active .timing-toggle-text {
@@ -191,17 +182,17 @@
 	.mark-btn {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		padding: 8px 14px;
-		background: hsl(var(--at-surface));
-		border: 1px solid hsl(var(--at-border));
+		gap: 6px;
+		padding: 5px 8px;
+		background: hsl(var(--at-surface) / 0.1);
+		border: 1px solid hsl(var(--at-border) / 0.55);
 		border-radius: 10px;
 		cursor: pointer;
 		transition: all 180ms ease;
 	}
 
 	.mark-btn:hover {
-		background: hsl(var(--at-surface-hover));
+		background: hsl(var(--at-surface-hover) / 0.2);
 	}
 
 	.mark-btn-in.marked {
@@ -215,8 +206,8 @@
 	}
 
 	.mark-btn-key {
-		width: 20px;
-		height: 20px;
+		width: 17px;
+		height: 17px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -239,16 +230,17 @@
 
 	.mark-btn-time {
 		font-family: 'JetBrains Mono', ui-monospace, monospace;
-		font-size: 12px;
+		font-size: 10px;
 		font-weight: 500;
 		color: hsl(var(--at-fg));
+		text-shadow: 0 1px 3px hsl(var(--at-shadow) / 0.95);
 	}
 
 	.timing-results {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		padding: 8px 14px;
+		gap: 8px;
+		padding: 5px 9px;
 		background: hsl(var(--at-accent) / 0.08);
 		border: 1px solid hsl(var(--at-accent) / 0.25);
 		border-radius: 10px;
@@ -296,26 +288,6 @@
 
 	.details-btn:hover {
 		background: hsl(var(--at-accent) / 0.15);
-	}
-
-	.clear-btn {
-		width: 32px;
-		height: 32px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: transparent;
-		border: 1px solid hsl(var(--at-border));
-		color: hsl(var(--at-fg-muted));
-		cursor: pointer;
-		border-radius: 8px;
-		transition: all 150ms ease;
-	}
-
-	.clear-btn:hover {
-		background: hsl(var(--at-out) / 0.1);
-		border-color: hsl(var(--at-out) / 0.5);
-		color: hsl(var(--at-out));
 	}
 
 	@media (max-width: 480px) {
