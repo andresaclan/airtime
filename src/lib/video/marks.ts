@@ -22,6 +22,19 @@ export type Analysis = {
 	outOfSequence: Set<string>;
 };
 
+export type Jump = {
+	takeoff: Mark;
+	landing?: Mark;
+	contact?: Interval;
+	flight?: Interval;
+};
+
+export type JumpGroups = {
+	jumps: Jump[];
+	/** Marks that do not belong to a usable contact or flight interval. */
+	strayMarks: Mark[];
+};
+
 export const GRAVITY = 9.81;
 
 export function frameOf(time: number, fps: number): number {
@@ -85,6 +98,42 @@ export function analyzeMarks(marks: Mark[], fps: number, timeScale = 1): Analysi
 		});
 	}
 	return { intervals, outOfSequence };
+}
+
+/**
+ * Groups intervals into jumps. A landing that ends one flight may also start
+ * the next contact interval, which is how rebound jumps share a touchdown.
+ */
+export function groupJumps(marks: Mark[], analysis: Analysis): JumpGroups {
+	const sorted = sortMarks(marks);
+	const flightsByTakeoff = new Map(
+		analysis.intervals
+			.filter((interval) => interval.kind === 'flight')
+			.map((interval) => [interval.from.id, interval])
+	);
+	const contactsByTakeoff = new Map(
+		analysis.intervals
+			.filter((interval) => interval.kind === 'contact')
+			.map((interval) => [interval.to.id, interval])
+	);
+	const jumps: Jump[] = [];
+	const used = new Set<string>();
+
+	for (const takeoff of sorted.filter((mark) => mark.type === 'takeoff')) {
+		const flight = flightsByTakeoff.get(takeoff.id);
+		const contact = contactsByTakeoff.get(takeoff.id);
+		const position = sorted.findIndex((mark) => mark.id === takeoff.id);
+		// When repeated takeoffs have no interval between them, keep the earlier
+		// duplicate as an unpaired mark instead of presenting it as a jump.
+		if (!flight && !contact && sorted[position + 1]?.type === 'takeoff') continue;
+		const jump: Jump = { takeoff, flight, contact, landing: flight?.to };
+		jumps.push(jump);
+		used.add(takeoff.id);
+		if (contact) used.add(contact.from.id);
+		if (flight) used.add(flight.to.id);
+	}
+
+	return { jumps, strayMarks: sorted.filter((mark) => !used.has(mark.id)) };
 }
 
 /** Random ID; falls back when `crypto.randomUUID` is missing (non-secure contexts such as LAN http). */

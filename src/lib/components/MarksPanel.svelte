@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { formatTimecode } from '$lib/video/timecode';
-	import type { Analysis, Interval, Mark } from '$lib/video/marks';
+	import { groupJumps, type Analysis, type Interval, type Mark } from '$lib/video/marks';
 	import { TIME_SCALES } from '$lib/session/schema';
 
 	interface Props {
@@ -39,12 +39,15 @@
 		onClose
 	}: Props = $props();
 
-	const LABELS = { takeoff: 'Takeoff', landing: 'Landing' } as const;
+	const LABELS = { takeoff: 'Takeoff', landing: 'Touchdown' } as const;
 
-	let flights = $derived(analysis.intervals.filter((interval) => interval.kind === 'flight'));
-	let bestFlight = $derived(
-		flights.reduce<Interval | null>(
-			(best, flight) => (!best || flight.seconds > best.seconds ? flight : best),
+	let grouped = $derived(groupJumps(marks, analysis));
+	let bestJump = $derived(
+		grouped.jumps.reduce<(typeof grouped.jumps)[number] | null>(
+			(best, jump) =>
+				jump.flight && (!best?.flight || jump.flight.realSeconds > best.flight.realSeconds)
+					? jump
+					: best,
 			null
 		)
 	);
@@ -53,15 +56,48 @@
 	let slowMotion = $derived(
 		TIME_SCALES.find((scale) => scale.value === timeScale && scale.value !== 1)
 	);
-	// Interval that starts at each mark, so it can be drawn between that row and the next.
-	let intervalFrom = $derived(
-		new Map(analysis.intervals.map((interval) => [interval.from.id, interval]))
-	);
+	let outOfSequenceMarks = $derived(marks.filter((mark) => analysis.outOfSequence.has(mark.id)));
 
 	function formatMs(seconds: number): string {
 		return `${(seconds * 1000).toFixed(1)}`;
 	}
+
+	function intervalDescription(interval: Interval): string {
+		const from = interval.kind === 'contact' ? 'Touchdown' : 'Takeoff';
+		const to = interval.kind === 'contact' ? 'Takeoff' : 'Landing';
+		return `${interval.kind === 'flight' ? 'Flight' : 'Ground contact'} · ${from} ${formatTimecode(interval.from.time, frameRate)} → ${to} ${formatTimecode(interval.to.time, frameRate)} · ${formatMs(interval.realSeconds)} ms · ${interval.frames} fr${interval.heightCm === undefined ? '' : ` · ${interval.heightCm.toFixed(1)} cm`}`;
+	}
 </script>
+
+{#snippet markRow(mark: Mark, label: string)}
+	<div class="mp-mark mp-mark-{mark.type}" class:active={mark.id === activeMarkId}>
+		<button class="mp-mark-main" onclick={() => onSeek(mark.time)} title="Go to this frame">
+			<span class="mp-dot"></span>
+			<span class="mp-mark-type">{label}</span>
+			<span class="mp-mark-time">{formatTimecode(mark.time, frameRate)}</span>
+		</button>
+		<div class="mp-mark-actions">
+			<button
+				class="mp-icon-btn"
+				onclick={() => onNudge(mark.id, -1)}
+				aria-label="Move {label.toLowerCase()} one frame earlier"
+				title="1 frame earlier">‹</button
+			>
+			<button
+				class="mp-icon-btn"
+				onclick={() => onNudge(mark.id, 1)}
+				aria-label="Move {label.toLowerCase()} one frame later"
+				title="1 frame later">›</button
+			>
+			<button
+				class="mp-icon-btn mp-remove"
+				onclick={() => onRemove(mark.id)}
+				aria-label="Remove {label.toLowerCase()}"
+				title="Remove (Backspace)">×</button
+			>
+		</div>
+	</div>
+{/snippet}
 
 <aside class="marks-panel" aria-label="Jump analysis">
 	<header class="mp-header">
@@ -78,6 +114,96 @@
 		</button>
 	</header>
 
+	{#if bestJump?.flight}
+		<div class="mp-summary">
+			<div class="mp-stat mp-stat-primary">
+				<span class="mp-stat-label"
+					>{grouped.jumps.filter((jump) => jump.flight).length > 1
+						? 'Best jump height'
+						: 'Jump height'}</span
+				>
+				<span class="mp-stat-value">{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span>
+				<span class="mp-stat-sub">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span>
+			</div>
+			<div class="mp-stat">
+				<span class="mp-stat-label">Flight time</span>
+				<span class="mp-stat-value">{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span>
+				<span class="mp-stat-sub">{bestJump.flight.frames} frames</span>
+			</div>
+		</div>
+	{/if}
+	<div class="mp-calibration">
+		<p class="mp-precision">
+			±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps{#if slowMotion}
+				· real time ({slowMotion.label.toLowerCase()}){/if}
+		</p>
+		<label class="mp-scale">
+			<span>Footage</span>
+			<select class="mp-field" bind:value={timeScale}>
+				{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}>{scale.label}</option
+					>{/each}
+			</select>
+		</label>
+	</div>
+
+	{#if marks.length === 0}
+		<div class="mp-empty">
+			<p class="mp-empty-title">Mark a jump</p>
+			<ol>
+				<li>Pause on the first frame the feet leave the ground and press <kbd>T</kbd>.</li>
+				<li>Step to the first frame they touch down and press <kbd>L</kbd>.</li>
+			</ol>
+			<p class="mp-empty-hint">
+				Step frames with <kbd>,</kbd> <kbd>.</kbd> · mark a landing before the takeoff to also get contact
+				time.
+			</p>
+		</div>
+	{:else}
+		<div class="mp-results">
+			{#each grouped.jumps as jump, index (jump.takeoff.id)}
+				<section class="mp-jump" class:mp-best={jump === bestJump} aria-label="Jump {index + 1}">
+					<h3>
+						Jump {index + 1}{#if jump === bestJump}<span>Best</span>{/if}
+					</h3>
+					{#if jump.contact}
+						{@render markRow(jump.contact.from, 'Touchdown')}
+						<div class="mp-interval mp-interval-contact">{intervalDescription(jump.contact)}</div>
+					{/if}
+					{@render markRow(jump.takeoff, 'Takeoff')}
+					{#if jump.flight}
+						<div class="mp-interval mp-interval-flight">{intervalDescription(jump.flight)}</div>
+						{@render markRow(jump.flight.to, 'Landing')}
+					{:else}
+						<p class="mp-incomplete">Mark a landing to complete this jump.</p>
+					{/if}
+					{#if jump.contact && jump.flight?.heightCm !== undefined}
+						<p class="mp-rsi">
+							RSI <strong
+								>{(jump.flight.heightCm / 100 / jump.contact.realSeconds).toFixed(2)}</strong
+							>
+						</p>
+					{/if}
+				</section>
+			{/each}
+			{#if outOfSequenceMarks.length > 0}
+				<div class="mp-warning">
+					Repeated marks have no timing interval: {outOfSequenceMarks
+						.map((mark) => LABELS[mark.type])
+						.join(', ')}
+				</div>
+			{/if}
+			{#if grouped.strayMarks.length > 0}
+				<section class="mp-strays" aria-label="Unpaired marks">
+					<h3>Unpaired marks</h3>
+					{#each grouped.strayMarks as mark (mark.id)}{@render markRow(
+							mark,
+							LABELS[mark.type]
+						)}{/each}
+				</section>
+			{/if}
+		</div>
+	{/if}
+
 	<div class="mp-session">
 		<input
 			class="mp-field mp-title"
@@ -93,98 +219,7 @@
 			aria-label="Session notes"
 			rows="2"
 		></textarea>
-		<label class="mp-scale">
-			<span>Footage</span>
-			<select class="mp-field" bind:value={timeScale}>
-				{#each TIME_SCALES as scale (scale.value)}
-					<option value={scale.value}>{scale.label}</option>
-				{/each}
-			</select>
-		</label>
 	</div>
-
-	{#if bestFlight}
-		<div class="mp-summary">
-			<div class="mp-stat">
-				<span class="mp-stat-label">{flights.length > 1 ? 'Best height' : 'Jump height'}</span>
-				<span class="mp-stat-value">{bestFlight.heightCm?.toFixed(1)}<small>cm</small></span>
-				<span class="mp-stat-sub">{((bestFlight.heightCm ?? 0) / 2.54).toFixed(1)} in</span>
-			</div>
-			<div class="mp-stat">
-				<span class="mp-stat-label">Flight time</span>
-				<span class="mp-stat-value">{formatMs(bestFlight.realSeconds)}<small>ms</small></span>
-				<span class="mp-stat-sub">{bestFlight.frames} frames</span>
-			</div>
-		</div>
-		<p class="mp-precision">
-			±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps{#if slowMotion}&nbsp;· real
-				time ({slowMotion.label.toLowerCase()}){/if}
-		</p>
-	{/if}
-
-	{#if marks.length === 0}
-		<div class="mp-empty">
-			<p class="mp-empty-title">Mark a jump</p>
-			<ol>
-				<li>Pause on the first frame the feet leave the ground and press <kbd>T</kbd>.</li>
-				<li>Step to the first frame they touch down and press <kbd>L</kbd>.</li>
-			</ol>
-			<p class="mp-empty-hint">
-				Step frames with <kbd>,</kbd> <kbd>.</kbd> · mark a landing before the takeoff to also get contact
-				time.
-			</p>
-		</div>
-	{:else}
-		<ol class="mp-list">
-			{#each marks as mark, index (mark.id)}
-				{@const interval = intervalFrom.get(mark.id)}
-				<li class="mp-mark mp-mark-{mark.type}" class:active={mark.id === activeMarkId}>
-					<button class="mp-mark-main" onclick={() => onSeek(mark.time)} title="Go to this frame">
-						<span class="mp-dot"></span>
-						<span class="mp-mark-type">{LABELS[mark.type]}</span>
-						<span class="mp-mark-time">{formatTimecode(mark.time, frameRate)}</span>
-					</button>
-					<div class="mp-mark-actions">
-						<button
-							class="mp-icon-btn"
-							onclick={() => onNudge(mark.id, -1)}
-							aria-label="Move {LABELS[mark.type].toLowerCase()} one frame earlier"
-							title="1 frame earlier">‹</button
-						>
-						<button
-							class="mp-icon-btn"
-							onclick={() => onNudge(mark.id, 1)}
-							aria-label="Move {LABELS[mark.type].toLowerCase()} one frame later"
-							title="1 frame later">›</button
-						>
-						<button
-							class="mp-icon-btn mp-remove"
-							onclick={() => onRemove(mark.id)}
-							aria-label="Remove {LABELS[mark.type].toLowerCase()}"
-							title="Remove (Backspace)">×</button
-						>
-					</div>
-				</li>
-				{#if index + 1 < marks.length && analysis.outOfSequence.has(marks[index + 1].id)}
-					<li class="mp-interval mp-warning">
-						Two {LABELS[mark.type].toLowerCase()}s in a row — no timing between them
-					</li>
-				{:else if interval}
-					<li class="mp-interval mp-interval-{interval.kind}">
-						<span class="mp-interval-label"
-							>{interval.kind === 'flight' ? 'Flight' : 'Contact'}</span
-						>
-						<span class="mp-interval-value">{formatMs(interval.realSeconds)} ms</span>
-						<span class="mp-interval-meta">
-							{interval.frames} fr{#if interval.heightCm !== undefined}&nbsp;· {interval.heightCm.toFixed(
-									1
-								)} cm{/if}
-						</span>
-					</li>
-				{/if}
-			{/each}
-		</ol>
-	{/if}
 
 	<footer class="mp-footer">
 		<button class="mp-text-btn" onclick={onUndo} disabled={!canUndo} title="Undo (⌘Z)">Undo</button>
@@ -225,6 +260,8 @@
 		flex-direction: column;
 		gap: 6px;
 		padding: 0 12px 10px;
+		border-top: 1px solid hsl(var(--at-border) / 0.8);
+		padding-top: 10px;
 	}
 
 	.mp-field {
@@ -258,8 +295,9 @@
 
 	.mp-scale {
 		display: flex;
-		align-items: center;
-		gap: 8px;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 4px;
 		color: hsl(var(--at-fg-muted));
 		font-size: 11px;
 	}
@@ -271,7 +309,7 @@
 
 	.mp-summary {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
+		grid-template-columns: 1.2fr 1fr;
 		gap: 8px;
 		padding: 4px 12px 0;
 	}
@@ -285,12 +323,14 @@
 		background: hsl(var(--at-surface));
 	}
 
+	.mp-stat-primary .mp-stat-value {
+		font-size: 26px;
+	}
+
 	.mp-stat-label {
 		color: hsl(var(--at-fg-muted));
-		font-size: 10px;
-		font-weight: 600;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
+		font-size: 11px;
+		font-weight: 500;
 	}
 
 	.mp-stat-value {
@@ -313,9 +353,29 @@
 	}
 
 	.mp-precision {
-		margin: 6px 16px 0;
+		margin: 0;
 		color: hsl(var(--at-fg-muted));
 		font-size: 10px;
+	}
+
+	.mp-calibration {
+		display: grid;
+		grid-template-columns: 1.25fr 0.9fr;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 12px;
+		border-bottom: 1px solid hsl(var(--at-border) / 0.8);
+	}
+
+	.mp-calibration .mp-scale {
+		flex-direction: row;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.mp-calibration .mp-scale select {
+		min-width: 0;
+		padding: 4px 5px;
 	}
 
 	.mp-empty {
@@ -360,13 +420,52 @@
 		text-align: center;
 	}
 
-	.mp-list {
+	.mp-results {
 		flex: 1;
 		min-height: 0;
-		margin: 10px 0 0;
-		padding: 0 8px;
+		padding: 10px 8px;
 		overflow-y: auto;
-		list-style: none;
+	}
+
+	.mp-jump,
+	.mp-strays {
+		margin-bottom: 8px;
+		padding: 8px;
+		border: 1px solid hsl(var(--at-border) / 0.8);
+		border-radius: 10px;
+		background: hsl(var(--at-surface) / 0.55);
+	}
+
+	.mp-jump.mp-best {
+		border-color: hsl(var(--at-border-hover));
+	}
+
+	.mp-jump h3,
+	.mp-strays h3 {
+		display: flex;
+		justify-content: space-between;
+		margin: 0 0 4px;
+		font-size: 12px;
+		font-weight: 600;
+	}
+
+	.mp-jump h3 span {
+		color: hsl(var(--at-fg-muted));
+		font-size: 10px;
+		font-weight: 500;
+	}
+
+	.mp-incomplete,
+	.mp-rsi {
+		margin: 4px 2px 2px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+	}
+
+	.mp-rsi strong {
+		margin-left: 4px;
+		color: hsl(var(--at-fg));
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
 	}
 
 	.mp-mark {
@@ -466,47 +565,29 @@
 		color: hsl(var(--at-error));
 	}
 
-	/* Interval rows hang off a rail between the two marks they connect. */
 	.mp-interval {
-		display: flex;
-		align-items: baseline;
-		gap: 8px;
-		margin: 0 0 0 11px;
-		padding: 4px 8px 4px 16px;
-		border-left: 2px solid var(--rail);
+		margin: 2px 0 5px 8px;
+		padding: 3px 7px;
+		border-left: 2px solid hsl(var(--at-border-hover));
 		color: hsl(var(--at-fg-secondary));
-		font-size: 11px;
+		font-size: 10px;
+		line-height: 1.45;
 	}
 
 	.mp-interval-flight {
-		--rail: hsl(var(--at-takeoff) / 0.7);
+		border-left-color: hsl(var(--at-takeoff) / 0.7);
 	}
 
 	.mp-interval-contact {
-		--rail: hsl(var(--at-landing) / 0.5);
-	}
-
-	.mp-interval-label {
-		min-width: 46px;
-		color: hsl(var(--at-fg-muted));
-	}
-
-	.mp-interval-value {
-		color: hsl(var(--at-fg));
-		font-family: 'JetBrains Mono', ui-monospace, monospace;
-		font-weight: 700;
-		font-variant-numeric: tabular-nums;
-	}
-
-	.mp-interval-meta {
-		margin-left: auto;
-		color: hsl(var(--at-fg-muted));
-		font-variant-numeric: tabular-nums;
+		border-left-color: hsl(var(--at-landing) / 0.6);
 	}
 
 	.mp-warning {
-		--rail: hsl(var(--at-warning) / 0.6);
+		margin: 4px 0 8px;
+		padding: 6px 8px;
+		border-left: 2px solid hsl(var(--at-warning) / 0.6);
 		color: hsl(var(--at-warning));
+		font-size: 10px;
 	}
 
 	.mp-footer {
