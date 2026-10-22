@@ -7,16 +7,12 @@
 		volume: number;
 		isMuted: boolean;
 		videoElement: HTMLVideoElement | null;
-		timingModeEnabled?: boolean;
 		onPlay?: () => void;
 		onPause?: () => void;
 		onFrameForward?: (time: number) => void;
 		onFrameBack?: (time: number) => void;
 		onVolumeChange?: (volume: number) => void;
 		onMutedChange?: (muted: boolean) => void;
-		onToggleTiming?: () => void;
-		onMarkIn?: () => void;
-		onMarkOut?: () => void;
 	}
 
 	let {
@@ -27,16 +23,12 @@
 		volume = $bindable(1),
 		isMuted = $bindable(false),
 		videoElement,
-		timingModeEnabled = false,
 		onPlay,
 		onPause,
 		onFrameForward,
 		onFrameBack,
 		onVolumeChange,
-		onMutedChange,
-		onToggleTiming,
-		onMarkIn,
-		onMarkOut
+		onMutedChange
 	}: Props = $props();
 
 	const FRAME_EPSILON = 0.0001;
@@ -171,15 +163,6 @@
 				}
 				onVolumeChange?.(newVolume);
 			}
-		} else if (event.key === 't' || event.key === 'T') {
-			event.preventDefault();
-			onToggleTiming?.();
-		} else if ((event.key === 'i' || event.key === 'I') && timingModeEnabled) {
-			event.preventDefault();
-			onMarkIn?.();
-		} else if ((event.key === 'o' || event.key === 'O') && timingModeEnabled) {
-			event.preventDefault();
-			onMarkOut?.();
 		}
 	}
 </script>

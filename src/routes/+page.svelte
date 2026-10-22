@@ -2,11 +2,31 @@
 	import VideoViewer from '$lib/components/VideoViewer.svelte';
 	import VideoScrubber from '$lib/components/VideoScrubber.svelte';
 	import VideoControls from '$lib/components/VideoControls.svelte';
-	import TimingControls from '$lib/components/TimingControls.svelte';
-	import TimingDrawer from '$lib/components/TimingDrawer.svelte';
+	import MarksPanel from '$lib/components/MarksPanel.svelte';
+	import KeybindsDialog from '$lib/components/KeybindsDialog.svelte';
+	import SessionsDialog from '$lib/components/SessionsDialog.svelte';
 	import { resolve } from '$app/paths';
 	import { detectSourceFrameRateFromFile } from '$lib/video/frameRate';
 	import { formatTimecode } from '$lib/video/timecode';
+	import {
+		analyzeMarks,
+		frameOf,
+		markAtFrame,
+		moveMark,
+		newId,
+		placeMark,
+		removeMark,
+		sortMarks,
+		type Mark,
+		type MarkType
+	} from '$lib/video/marks';
+	import { SCHEMA_VERSION, type FrameRateSource, type Session } from '$lib/session/schema';
+	import { fingerprintFile } from '$lib/session/fingerprint';
+	import {
+		findSessionByFingerprint,
+		requestPersistentStorage,
+		saveSession
+	} from '$lib/session/store';
 
 	let videoElement: HTMLVideoElement | null = $state(null);
 	let videoSrc: string | null = $state(null);
@@ -24,11 +44,38 @@
 	let isDragging = $state(false);
 	let mediaError = $state(false);
 
-	// Timing mode state
-	let timingModeEnabled = $state(false);
-	let inPoint: number | null = $state(null);
-	let outPoint: number | null = $state(null);
-	let timingDrawerOpen = $state(false);
+	// Marks are kept in media-time order; each snapshot pushed to history makes
+	// every edit (including Clear all) undoable.
+	let marks: Mark[] = $state([]);
+	let markHistory: Mark[][] = $state([]);
+	let panelOpen = $state(true);
+	let keybindsOpen = $state(false);
+	let sessionsOpen = $state(false);
+
+	// Saving is explicit (⌘S). The session is "dirty" whenever the marks or details
+	// differ from what was last saved or restored for this video.
+	let videoFile: File | null = null;
+	let fingerprintPromise: Promise<string> | null = null;
+	let sessionId: string | null = $state(null);
+	let sessionCreatedAt: string | null = null;
+	let sessionTitle = $state('');
+	let sessionNotes = $state('');
+	let timeScale = $state(1);
+	let savedSignature: string | null = $state(null);
+	let isSaving = $state(false);
+	let notice: string | null = $state(null);
+	let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+	let defaultTitle = $derived(videoFileName.replace(/\.[^.]+$/, '') || 'Untitled');
+	let signature = $derived(
+		JSON.stringify({ marks, title: sessionTitle, notes: sessionNotes, timeScale })
+	);
+	let isDirty = $derived(videoSrc !== null && signature !== savedSignature);
+	let frameRateSource: FrameRateSource = $derived(
+		sourceFrameRate ? 'container' : playbackFrameRate ? 'playback-estimate' : 'default'
+	);
+
+	let analysis = $derived(analyzeMarks(marks, frameRate, timeScale));
+	let activeMark = $derived(markAtFrame(marks, currentTime, frameRate));
 
 	// Zoom state
 	let zoomLevel = $state(1);
@@ -59,6 +106,9 @@
 	}
 
 	function loadVideoFile(file: File) {
+		if (isDirty && !confirm(`Discard unsaved changes to "${sessionTitle || defaultTitle}"?`)) {
+			return;
+		}
 		activeVideoLoadId += 1;
 		const loadId = activeVideoLoadId;
 
@@ -76,11 +126,19 @@
 		sourceFrameRate = null;
 		playbackFrameRate = null;
 
-		timingModeEnabled = false;
-		inPoint = null;
-		outPoint = null;
-		timingDrawerOpen = false;
+		marks = [];
+		markHistory = [];
 		zoomLevel = 1;
+
+		videoFile = file;
+		sessionId = null;
+		sessionCreatedAt = null;
+		sessionTitle = defaultTitle;
+		sessionNotes = '';
+		timeScale = 1;
+		savedSignature = signature;
+		fingerprintPromise = fingerprintFile(file);
+		void restoreSession(loadId, fingerprintPromise);
 
 		void detectSourceFrameRateFromFile(file)
 			.then((detectedFps) => {
@@ -96,35 +154,199 @@
 			});
 	}
 
-	function toggleTimingMode() {
-		timingModeEnabled = !timingModeEnabled;
-		if (!timingModeEnabled) {
-			inPoint = null;
-			outPoint = null;
+	function showNotice(text: string) {
+		notice = text;
+		clearTimeout(noticeTimer);
+		noticeTimer = setTimeout(() => (notice = null), 3500);
+	}
+
+	function formatSavedAt(iso: string): string {
+		return new Date(iso).toLocaleString(undefined, {
+			month: 'short',
+			day: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit'
+		});
+	}
+
+	/** Restores the saved session for this file, unless the user has already started editing. */
+	async function restoreSession(loadId: number, fingerprint: Promise<string>) {
+		try {
+			const saved = await findSessionByFingerprint(await fingerprint);
+			if (!saved || loadId !== activeVideoLoadId || isDirty) return;
+			sessionId = saved.id;
+			sessionCreatedAt = saved.createdAt;
+			sessionTitle = saved.title;
+			sessionNotes = saved.notes;
+			timeScale = saved.timeScale;
+			marks = sortMarks(saved.marks);
+			markHistory = [];
+			savedSignature = signature;
+			const count = saved.marks.length;
+			showNotice(
+				`Restored ${count} mark${count === 1 ? '' : 's'} · saved ${formatSavedAt(saved.updatedAt)}`
+			);
+		} catch {
+			// No storage available (e.g. private browsing); the video still works unsaved.
 		}
 	}
 
-	function markInPoint() {
-		if (!timingModeEnabled) return;
-		inPoint = currentTime;
-	}
-
-	function markOutPoint() {
-		if (!timingModeEnabled) return;
-		if (inPoint !== null && currentTime < inPoint) {
-			outPoint = inPoint;
-			inPoint = currentTime;
-		} else {
-			outPoint = currentTime;
+	async function save() {
+		if (!videoFile || !fingerprintPromise || !isDirty || isSaving) return;
+		const loadId = activeVideoLoadId;
+		const savingSignature = signature;
+		const now = new Date().toISOString();
+		isSaving = true;
+		try {
+			const session: Session = {
+				schemaVersion: SCHEMA_VERSION,
+				id: sessionId ?? newId(),
+				title: sessionTitle.trim() || defaultTitle,
+				notes: sessionNotes,
+				createdAt: sessionCreatedAt ?? now,
+				updatedAt: now,
+				media: {
+					fileName: videoFile.name,
+					mimeType: videoFile.type,
+					sizeBytes: videoFile.size,
+					lastModified: new Date(videoFile.lastModified).toISOString(),
+					durationSeconds: duration,
+					width: videoElement?.videoWidth ?? 0,
+					height: videoElement?.videoHeight ?? 0,
+					fingerprint: await fingerprintPromise
+				},
+				frameRate: { value: frameRate, source: frameRateSource },
+				timeScale,
+				marks: $state.snapshot(marks)
+			};
+			await saveSession(session);
+			requestPersistentStorage();
+			if (loadId !== activeVideoLoadId) return;
+			sessionId = session.id;
+			sessionCreatedAt = session.createdAt;
+			savedSignature = savingSignature;
+			showNotice('Saved');
+		} catch {
+			showNotice("Couldn't save — browser storage is unavailable");
+		} finally {
+			isSaving = false;
 		}
 	}
 
-	function openTimingDrawer() {
-		timingDrawerOpen = true;
+	function handleSessionDeleted(id: string) {
+		if (id !== sessionId) return;
+		// The open session is gone from storage, so everything on screen is now unsaved.
+		// Its ID is kept so saving again (or importing a backup) recreates the same session.
+		savedSignature = null;
 	}
 
-	function closeTimingDrawer() {
-		timingDrawerOpen = false;
+	function handleSessionsImported() {
+		if (videoSrc && fingerprintPromise && !isDirty) {
+			void restoreSession(activeVideoLoadId, fingerprintPromise);
+		}
+	}
+
+	function handleBeforeUnload(event: BeforeUnloadEvent) {
+		if (isDirty) event.preventDefault();
+	}
+
+	function commitMarks(next: Mark[]) {
+		markHistory = [...markHistory, marks];
+		marks = next;
+	}
+
+	function addMark(type: MarkType) {
+		if (!videoElement) return;
+		// Marking while playing would land between frames; pause on the frame instead.
+		if (!videoElement.paused) videoElement.pause();
+		commitMarks(placeMark(marks, type, videoElement.currentTime, frameRate));
+	}
+
+	function nudgeMark(id: string, frames: number) {
+		const mark = marks.find((candidate) => candidate.id === id);
+		if (!mark) return;
+		const maxFrame = duration > 0 ? Math.floor(duration * frameRate) : Infinity;
+		const frame = Math.max(0, Math.min(maxFrame, frameOf(mark.time, frameRate) + frames));
+		commitMarks(moveMark(marks, id, frame / frameRate));
+		seekTo(frame / frameRate);
+	}
+
+	function deleteMark(id: string) {
+		commitMarks(removeMark(marks, id));
+	}
+
+	function clearMarks() {
+		if (marks.length) commitMarks([]);
+	}
+
+	function undoMarks() {
+		const previous = markHistory.at(-1);
+		if (!previous) return;
+		markHistory = markHistory.slice(0, -1);
+		marks = previous;
+	}
+
+	function seekTo(time: number) {
+		if (!videoElement) return;
+		videoElement.pause();
+		videoElement.currentTime = time;
+		currentTime = time;
+	}
+
+	function seekAdjacentMark(direction: 1 | -1) {
+		const frame = frameOf(currentTime, frameRate);
+		const target =
+			direction > 0
+				? marks.find((mark) => frameOf(mark.time, frameRate) > frame)
+				: marks.findLast((mark) => frameOf(mark.time, frameRate) < frame);
+		if (target) seekTo(target.time);
+	}
+
+	function handleMarkKeyDown(event: KeyboardEvent) {
+		const target = event.target;
+		if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 's') {
+			event.preventDefault();
+			void save();
+			return;
+		}
+		if (
+			event.key === '?' &&
+			!event.metaKey &&
+			!event.ctrlKey &&
+			!(target instanceof HTMLElement && target.closest('input, textarea, select'))
+		) {
+			event.preventDefault();
+			keybindsOpen = true;
+			return;
+		}
+		if (
+			!videoSrc ||
+			event.altKey ||
+			(target instanceof HTMLElement &&
+				(target.isContentEditable || target.closest('input, textarea, select')))
+		) {
+			return;
+		}
+		const key = event.key.toLowerCase();
+		if ((event.metaKey || event.ctrlKey) && key === 'z' && !event.shiftKey) {
+			event.preventDefault();
+			undoMarks();
+			return;
+		}
+		if (event.metaKey || event.ctrlKey) return;
+		if (key === 't' || key === 'l') {
+			event.preventDefault();
+			addMark(key === 't' ? 'takeoff' : 'landing');
+		} else if ((key === 'backspace' || key === 'delete') && activeMark) {
+			event.preventDefault();
+			deleteMark(activeMark.id);
+		} else if (key === '[' || key === ']') {
+			event.preventDefault();
+			seekAdjacentMark(key === ']' ? 1 : -1);
+		} else if (key === 'a') {
+			event.preventDefault();
+			panelOpen = !panelOpen;
+		}
 	}
 
 	function handleDrop(event: DragEvent) {
@@ -188,6 +410,17 @@
 	/>
 </svelte:head>
 
+<svelte:window onkeydown={handleMarkKeyDown} onbeforeunload={handleBeforeUnload} />
+
+<KeybindsDialog isOpen={keybindsOpen} onClose={() => (keybindsOpen = false)} />
+<SessionsDialog
+	isOpen={sessionsOpen}
+	currentSessionId={sessionId}
+	onClose={() => (sessionsOpen = false)}
+	onDeleted={handleSessionDeleted}
+	onImported={handleSessionsImported}
+/>
+
 <div
 	class="app-shell flex h-dvh flex-col bg-[hsl(var(--at-bg))]"
 	role="application"
@@ -197,39 +430,70 @@
 	ondragleave={handleDragLeave}
 >
 	<header class="app-header">
-		<a class="brand-mark" href={resolve('/')} aria-label="Airtime home"
-			><span class="brand-glyph">a</span><span>Airtime</span></a
-		>
+		<a class="brand-mark" href={resolve('/')} aria-label="Airtime home">Airtime</a>
 		{#if videoSrc}
 			<div class="header-file" title={videoFileName}>
-				<span class="header-file-dot"></span>
+				<span class="header-file-dot" class:unsaved={isDirty}></span>
 				<span class="truncate">{videoFileName}</span>
+				{#if notice}
+					<span class="header-status">{notice}</span>
+				{:else if isDirty}
+					<span class="header-status unsaved">Unsaved</span>
+				{/if}
 			</div>
 		{/if}
-		<button
-			onclick={openFilePicker}
-			class="header-open"
-			aria-label={videoSrc ? 'Replace video' : 'Open video'}
-		>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				class="h-4 w-4"
-				fill="none"
-				viewBox="0 0 24 24"
-				stroke="currentColor"
-				stroke-width="1.8"
-				><path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-				/></svg
+		<div class="header-actions">
+			<button
+				class="header-open"
+				onclick={() => (sessionsOpen = true)}
+				title="Saved sessions, export and import"
 			>
-			<span>{videoSrc ? 'Change video' : 'Open video'}</span>
-		</button>
+				Sessions
+			</button>
+			{#if videoSrc}
+				<button
+					class="header-open"
+					onclick={save}
+					disabled={!isDirty || isSaving}
+					title="Save marks to this browser (⌘S)"
+				>
+					Save
+				</button>
+				<button
+					class="header-open"
+					class:active={panelOpen}
+					onclick={() => (panelOpen = !panelOpen)}
+					aria-pressed={panelOpen}
+					title="Toggle analysis panel (A)"
+				>
+					Analysis{#if marks.length}<span class="header-count">{marks.length}</span>{/if}
+				</button>
+			{/if}
+			<button
+				onclick={openFilePicker}
+				class="header-open"
+				aria-label={videoSrc ? 'Replace video' : 'Open video'}
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="1.8"
+					><path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+					/></svg
+				>
+				<span>{videoSrc ? 'Change video' : 'Open video'}</span>
+			</button>
+		</div>
 	</header>
 	<!-- Viewing stage -->
 	<div
-		class="viewer-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
+		class="viewer-stage relative flex min-h-0 flex-1 items-center justify-center gap-3 overflow-hidden"
 	>
 		{#if !videoSrc}
 			<!-- Empty state -->
@@ -292,7 +556,15 @@
 					</div>
 				{:else}
 					<div class="viewer-badge">
-						<span class="viewer-badge-dot"></span>Source {sourceFrameRate ? `${sourceFrameRate.toFixed(3)} detected` : 'unknown'} · Playback {playbackFrameRate ? `${playbackFrameRate.toFixed(2)} estimated` : 'estimating'} fps
+						<span class="viewer-badge-dot"></span>{#if sourceFrameRate}
+							{sourceFrameRate} fps
+						{:else if playbackFrameRate}
+							<span title="Couldn't read the frame rate from the file; estimated from playback">
+								~{playbackFrameRate} fps (estimated)
+							</span>
+						{:else}
+							Detecting fps…
+						{/if}
 					</div>
 				{/if}
 
@@ -324,60 +596,78 @@
 						</div>
 					</div>
 				{/if}
-			</div>
-		{/if}
-	</div>
+				<div class="control-bar">
+					<div class="control-bar-inner">
+						<VideoScrubber
+							{currentTime}
+							{duration}
+							{videoElement}
+							{marks}
+							intervals={analysis.intervals}
+							activeMarkId={activeMark?.id ?? null}
+							bind:isScrubbing
+						/>
 
-	<!-- Control Bar -->
-	{#if videoSrc}
-		<div class="control-bar">
-			<div class="control-bar-inner">
-				<!-- Timeline/Scrubber -->
-				<VideoScrubber
-					{currentTime}
-					{duration}
-					{videoElement}
-					{inPoint}
-					{outPoint}
-					{timingModeEnabled}
-					bind:isScrubbing
-				/>
+						<div class="control-toolbar">
+							<div class="time-readout">
+								<span class="time-current">{formatTimeWithFrames(currentTime, frameRate)}</span>
+								<span class="time-separator">/</span>
+								<span class="time-duration">{formatTimeWithFrames(duration, frameRate)}</span>
+							</div>
 
-				<div class="control-toolbar">
-					<div class="time-readout">
-						<span class="time-current">{formatTimeWithFrames(currentTime, frameRate)}</span>
-						<span class="time-separator">/</span>
-						<span class="time-duration">{formatTimeWithFrames(duration, frameRate)}</span>
+							<VideoControls
+								{isPlaying}
+								{currentTime}
+								{duration}
+								{frameRate}
+								{videoElement}
+								bind:volume
+								bind:isMuted
+							/>
+
+							<div class="mark-actions">
+								<button
+									class="mark-action mark-action-takeoff"
+									class:on-frame={activeMark?.type === 'takeoff'}
+									onclick={() => addMark('takeoff')}
+									title="Mark takeoff on this frame (T)"
+								>
+									<span class="mark-action-dot"></span>Takeoff<kbd>T</kbd>
+								</button>
+								<button
+									class="mark-action mark-action-landing"
+									class:on-frame={activeMark?.type === 'landing'}
+									onclick={() => addMark('landing')}
+									title="Mark landing on this frame (L)"
+								>
+									<span class="mark-action-dot"></span>Landing<kbd>L</kbd>
+								</button>
+							</div>
+						</div>
 					</div>
-
-					<VideoControls
-						{isPlaying}
-						{currentTime}
-						{duration}
-						{frameRate}
-						{videoElement}
-						{timingModeEnabled}
-						bind:volume
-						bind:isMuted
-						onToggleTiming={toggleTimingMode}
-						onMarkIn={markInPoint}
-						onMarkOut={markOutPoint}
-					/>
-
-					<TimingControls
-						{timingModeEnabled}
-						{inPoint}
-						{outPoint}
-						{frameRate}
-						onToggleTiming={toggleTimingMode}
-						onMarkIn={markInPoint}
-						onMarkOut={markOutPoint}
-						onViewDetails={openTimingDrawer}
-					/>
 				</div>
 			</div>
-		</div>
-	{/if}
+			{#if panelOpen}
+				<MarksPanel
+					{marks}
+					{analysis}
+					{frameRate}
+					bind:title={sessionTitle}
+					bind:notes={sessionNotes}
+					bind:timeScale
+					titlePlaceholder={defaultTitle}
+					activeMarkId={activeMark?.id ?? null}
+					canUndo={markHistory.length > 0}
+					onSeek={seekTo}
+					onNudge={nudgeMark}
+					onRemove={deleteMark}
+					onUndo={undoMarks}
+					onClear={clearMarks}
+					onClose={() => (panelOpen = false)}
+				/>
+			{/if}
+		{/if}
+	</div>
 
 	<!-- Hidden file input -->
 	<input
@@ -387,15 +677,5 @@
 		accept="video/*"
 		onchange={handleFileSelect}
 		class="sr-only"
-	/>
-
-	<!-- Timing Drawer -->
-	<TimingDrawer
-		isOpen={timingDrawerOpen}
-		{inPoint}
-		{outPoint}
-		{frameRate}
-		{videoElement}
-		onClose={closeTimingDrawer}
 	/>
 </div>

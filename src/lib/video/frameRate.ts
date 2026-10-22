@@ -123,6 +123,10 @@ function parseHdlrHandlerType(view: DataView, hdlr: Box): string | null {
 	return readType(view, handlerOffset);
 }
 
+// Uses the sample-weighted median frame duration rather than the mean. iPhone
+// slo-mo/high-fps captures include a short low-rate pre-roll (e.g. ~22 frames at
+// 30fps before 120fps capture) that the edit list hides; averaging it in makes a
+// 120fps file read as ~100fps.
 function parseSttsFrameRate(view: DataView, stts: Box, timescale: number): number | null {
 	const payloadOffset = stts.start + stts.headerSize;
 	if (payloadOffset + 8 > stts.end) return null;
@@ -132,22 +136,35 @@ function parseSttsFrameRate(view: DataView, stts: Box, timescale: number): numbe
 
 	let cursor = payloadOffset + 8;
 	let totalSamples = 0;
-	let totalDelta = 0;
+	const entries: { count: number; delta: number }[] = [];
 
 	for (let i = 0; i < entryCount; i++) {
 		if (cursor + 8 > stts.end) return null;
 		const sampleCount = readUint32(view, cursor);
 		const sampleDelta = readUint32(view, cursor + 4);
-		if (sampleCount === 0 || sampleDelta === 0) return null;
-
-		totalSamples += sampleCount;
-		totalDelta += sampleCount * sampleDelta;
 		cursor += 8;
+		// The final sample often carries a zero/placeholder delta; skip it.
+		if (sampleCount === 0 || sampleDelta === 0) continue;
+
+		entries.push({ count: sampleCount, delta: sampleDelta });
+		totalSamples += sampleCount;
 	}
 
-	if (totalSamples <= 0 || totalDelta <= 0) return null;
+	if (totalSamples <= 0) return null;
 
-	const fps = (timescale * totalSamples) / totalDelta;
+	entries.sort((a, b) => a.delta - b.delta);
+	const half = totalSamples / 2;
+	let seen = 0;
+	let medianDelta = entries[entries.length - 1].delta;
+	for (const entry of entries) {
+		seen += entry.count;
+		if (seen >= half) {
+			medianDelta = entry.delta;
+			break;
+		}
+	}
+
+	const fps = timescale / medianDelta;
 	return Number.isFinite(fps) && fps > 0 ? fps : null;
 }
 

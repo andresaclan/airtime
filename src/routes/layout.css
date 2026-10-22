@@ -38,6 +38,8 @@
 	/* Timing specific */
 	--at-in: 160 84% 45%;
 	--at-out: 0 72% 55%;
+	--at-takeoff: 168 76% 46%;
+	--at-landing: 32 95% 58%;
 
 	/* Effects */
 	--at-shadow: 220 50% 3%;
@@ -280,19 +282,6 @@ body {
 	text-decoration: none;
 }
 
-.brand-glyph {
-	display: grid;
-	width: 24px;
-	height: 24px;
-	place-items: center;
-	border: 1px solid hsl(var(--at-accent) / 0.45);
-	border-radius: 9px;
-	background: hsl(var(--at-accent) / 0.14);
-	color: hsl(var(--at-accent-hover));
-	font-size: 17px;
-	font-weight: 700;
-}
-
 .header-file {
 	display: flex;
 	align-items: center;
@@ -389,11 +378,11 @@ body {
 	left: 50%;
 	width: min(760px, calc(100% - 32px));
 	transform: translateX(-50%);
-	border: 1px solid hsl(var(--at-border-hover) / 0.28);
+	border: 1px solid hsl(var(--at-border-hover) / 0.4);
 	border-radius: 14px;
-	background: hsl(var(--at-bg-elevated) / 0.06);
-	box-shadow: 0 8px 24px hsl(var(--at-shadow) / 0.08);
-	backdrop-filter: blur(1px) saturate(105%);
+	background: hsl(var(--at-bg-elevated) / 0.62);
+	box-shadow: 0 8px 24px hsl(var(--at-shadow) / 0.25);
+	backdrop-filter: blur(12px) saturate(120%);
 	transition:
 		background 180ms ease,
 		border-color 180ms ease;
@@ -401,8 +390,8 @@ body {
 
 .control-bar:hover,
 .control-bar:focus-within {
-	border-color: hsl(var(--at-border-hover) / 0.4);
-	background: hsl(var(--at-bg-elevated) / 0.1);
+	border-color: hsl(var(--at-border-hover) / 0.6);
+	background: hsl(var(--at-bg-elevated) / 0.78);
 }
 
 .control-bar-inner {
@@ -438,6 +427,107 @@ body {
 }
 .control-toolbar > .timing-section {
 	justify-self: end;
+}
+
+.mark-actions {
+	justify-self: end;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.mark-action {
+	--mark-color: hsl(var(--at-takeoff));
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 28px;
+	padding: 0 6px 0 9px;
+	border: 1px solid color-mix(in srgb, var(--mark-color) 45%, transparent);
+	border-radius: 8px;
+	background: hsl(var(--at-bg) / 0.55);
+	color: hsl(var(--at-fg));
+	font: inherit;
+	font-size: 11px;
+	font-weight: 600;
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		background 140ms ease,
+		border-color 140ms ease;
+}
+
+.mark-action-landing {
+	--mark-color: hsl(var(--at-landing));
+}
+
+.mark-action:hover,
+.mark-action.on-frame {
+	border-color: var(--mark-color);
+	background: color-mix(in srgb, var(--mark-color) 22%, hsl(var(--at-bg) / 0.6));
+}
+
+.mark-action-dot {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--mark-color);
+}
+
+.mark-action kbd {
+	padding: 1px 4px;
+	border-radius: 4px;
+	background: hsl(var(--at-fg) / 0.1);
+	color: hsl(var(--at-fg-secondary));
+	font: 600 9px 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.header-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.header-open.active {
+	border-color: hsl(var(--at-accent) / 0.65);
+}
+
+.header-open:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.header-open:disabled:hover {
+	border-color: hsl(var(--at-border-hover) / 0.8);
+	background: hsl(var(--at-surface));
+}
+
+.header-file-dot.unsaved {
+	background: hsl(var(--at-warning));
+	box-shadow: 0 0 10px hsl(var(--at-warning) / 0.45);
+}
+
+.header-status {
+	flex: 0 0 auto;
+	color: hsl(var(--at-fg-muted));
+	font-size: 11px;
+	white-space: nowrap;
+}
+
+.header-status.unsaved {
+	color: hsl(var(--at-warning));
+}
+
+.header-count {
+	display: inline-grid;
+	min-width: 18px;
+	height: 18px;
+	place-items: center;
+	padding: 0 5px;
+	border-radius: 9px;
+	background: hsl(var(--at-accent) / 0.25);
+	color: hsl(var(--at-accent-hover));
+	font-size: 10px;
 }
 
 /* ========================================
@@ -923,6 +1013,12 @@ body {
    Responsive
    ======================================== */
 
+@media (max-width: 900px) {
+	.viewer-stage {
+		flex-direction: column;
+	}
+}
+
 @media (max-width: 640px) {
 	.app-header {
 		min-height: 42px;
@@ -932,10 +1028,6 @@ body {
 	.brand-mark {
 		gap: 8px;
 		font-size: 13px;
-	}
-	.brand-glyph {
-		width: 23px;
-		height: 23px;
 	}
 	.header-file {
 		position: absolute;
@@ -951,6 +1043,23 @@ body {
 	}
 	.viewer-stage {
 		padding: 0 8px 8px;
+	}
+	.header-file {
+		display: none;
+	}
+	.mark-actions {
+		grid-column: 1 / -1;
+		justify-self: stretch;
+		padding-bottom: 2px;
+	}
+	.mark-action {
+		flex: 1;
+		justify-content: center;
+		min-height: 36px;
+		font-size: 13px;
+	}
+	.mark-action kbd {
+		display: none;
 	}
 	.viewer-frame {
 		border-radius: 9px;

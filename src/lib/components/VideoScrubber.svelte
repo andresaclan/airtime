@@ -1,12 +1,14 @@
 <script lang="ts">
+	import type { Interval, Mark } from '$lib/video/marks';
+
 	interface Props {
 		currentTime: number;
 		duration: number;
 		videoElement: HTMLVideoElement | null;
 		isScrubbing?: boolean;
-		inPoint?: number | null;
-		outPoint?: number | null;
-		timingModeEnabled?: boolean;
+		marks?: Mark[];
+		intervals?: Interval[];
+		activeMarkId?: string | null;
 		onScrubStart?: () => void;
 		onScrubEnd?: () => void;
 		onSeek?: (time: number) => void;
@@ -17,9 +19,9 @@
 		duration,
 		videoElement,
 		isScrubbing = $bindable(false),
-		inPoint = null,
-		outPoint = null,
-		timingModeEnabled = false,
+		marks = [],
+		intervals = [],
+		activeMarkId = null,
 		onScrubStart,
 		onScrubEnd,
 		onSeek
@@ -30,12 +32,10 @@
 	let isDragging = $state(false);
 
 	let progressPercent = $derived(duration > 0 ? (currentTime / duration) * 100 : 0);
-	let inPointPercent = $derived(
-		inPoint !== null && duration > 0 ? (inPoint / duration) * 100 : null
-	);
-	let outPointPercent = $derived(
-		outPoint !== null && duration > 0 ? (outPoint / duration) * 100 : null
-	);
+
+	function percentOf(time: number): number {
+		return duration > 0 ? Math.max(0, Math.min(100, (time / duration) * 100)) : 0;
+	}
 
 	function getTimeFromPosition(clientX: number): number {
 		if (!trackRef || duration <= 0) return 0;
@@ -119,12 +119,12 @@
 		}
 	}
 
-	let rangeStart = $derived(
-		inPoint !== null && outPoint !== null ? Math.min(inPointPercent ?? 0, outPointPercent ?? 0) : 0
-	);
-	let rangeEnd = $derived(
-		inPoint !== null && outPoint !== null ? Math.max(inPointPercent ?? 0, outPointPercent ?? 0) : 0
-	);
+	function handleMarkPointerDown(event: PointerEvent, mark: Mark) {
+		// Seek to the exact marked frame instead of the pixel under the pointer.
+		event.stopPropagation();
+		event.preventDefault();
+		seekTo(mark.time);
+	}
 </script>
 
 <div class="timeline-container">
@@ -145,41 +145,38 @@
 		aria-valuetext={`${Math.round(currentTime * 10) / 10} seconds`}
 		tabindex="0"
 	>
-		<!-- Range highlight between in/out points -->
-		{#if timingModeEnabled && inPointPercent !== null && outPointPercent !== null}
+		{#each intervals as interval (interval.from.id)}
 			<div
-				class="timeline-range"
-				style="left: {rangeStart}%; width: {rangeEnd - rangeStart}%;"
+				class="timeline-band timeline-band-{interval.kind}"
+				style="left: {percentOf(interval.from.time)}%; width: {percentOf(interval.to.time) -
+					percentOf(interval.from.time)}%;"
 			></div>
-		{/if}
+		{/each}
 
 		<!-- Progress fill -->
 		<div class="timeline-progress" style="width: {progressPercent}%;"></div>
 
 		<!-- Playhead thumb -->
 		<div class="timeline-thumb" style="left: {progressPercent}%;"></div>
-
-		<!-- In point marker -->
-		{#if timingModeEnabled && inPointPercent !== null}
-			<div class="timeline-marker timeline-marker-in" style="left: {inPointPercent}%;">
-				<div class="timeline-marker-line"></div>
-				<span class="timeline-marker-label">I</span>
-			</div>
-		{/if}
-
-		<!-- Out point marker -->
-		{#if timingModeEnabled && outPointPercent !== null}
-			<div class="timeline-marker timeline-marker-out" style="left: {outPointPercent}%;">
-				<div class="timeline-marker-line"></div>
-				<span class="timeline-marker-label">O</span>
-			</div>
-		{/if}
 	</div>
+
+	{#each marks as mark (mark.id)}
+		<button
+			type="button"
+			class="timeline-mark timeline-mark-{mark.type}"
+			class:active={mark.id === activeMarkId}
+			style="left: {percentOf(mark.time)}%;"
+			onpointerdown={(event) => handleMarkPointerDown(event, mark)}
+			aria-label="Go to {mark.type}"
+			title="Go to {mark.type}"
+		></button>
+	{/each}
 </div>
 
 <style>
 	.timeline-container {
-		padding: 5px 0 3px;
+		position: relative;
+		padding: 12px 0 4px;
 		touch-action: none;
 	}
 
@@ -229,60 +226,82 @@
 		box-shadow: 0 0 16px hsl(var(--at-accent) / 0.5);
 	}
 
-	.timeline-range {
+	.timeline-band {
 		position: absolute;
 		top: 0;
 		height: 100%;
-		background: hsl(var(--at-accent) / 0.25);
-		border-radius: 3px;
+		z-index: 2;
 		pointer-events: none;
 	}
 
-	.timeline-marker {
+	.timeline-band-flight {
+		background: hsl(var(--at-takeoff) / 0.85);
+	}
+
+	.timeline-band-contact {
+		background: hsl(var(--at-landing) / 0.55);
+	}
+
+	.timeline-progress {
+		z-index: 1;
+	}
+
+	.timeline-thumb {
+		z-index: 3;
+	}
+
+	/* Marks sit above the track as small flags; the hit area is wider than the glyph. */
+	.timeline-mark {
 		position: absolute;
-		top: 50%;
-		transform: translateX(-50%) translateY(-50%);
-		z-index: 5;
-		pointer-events: none;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
+		top: 2px;
+		z-index: 4;
+		width: 14px;
+		height: 14px;
+		padding: 0;
+		border: none;
+		background: transparent;
+		transform: translateX(-50%);
+		cursor: pointer;
 	}
 
-	.timeline-marker-line {
-		width: 3px;
-		height: 24px;
-		border-radius: 2px;
-	}
-
-	.timeline-marker-in .timeline-marker-line {
-		background: hsl(var(--at-in));
-		box-shadow: 0 0 10px hsl(var(--at-in) / 0.6);
-	}
-
-	.timeline-marker-out .timeline-marker-line {
-		background: hsl(var(--at-out));
-		box-shadow: 0 0 10px hsl(var(--at-out) / 0.6);
-	}
-
-	.timeline-marker-label {
+	.timeline-mark::before {
+		content: '';
 		position: absolute;
-		top: -20px;
-		font-size: 9px;
-		font-weight: 700;
-		padding: 2px 6px;
-		border-radius: 4px;
-		letter-spacing: 0.5px;
+		left: 50%;
+		top: 3px;
+		width: 2px;
+		height: 12px;
+		border-radius: 1px;
+		background: var(--mark-color);
+		box-shadow: 0 0 0 1px hsl(var(--at-shadow) / 0.6);
+		transform: translateX(-50%);
 	}
 
-	.timeline-marker-in .timeline-marker-label {
-		background: hsl(var(--at-in));
-		color: white;
+	.timeline-mark::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		top: 0;
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--mark-color);
+		box-shadow: 0 0 0 1.5px hsl(var(--at-shadow) / 0.7);
+		transform: translateX(-50%);
+		transition: transform 120ms ease;
 	}
 
-	.timeline-marker-out .timeline-marker-label {
-		background: hsl(var(--at-out));
-		color: white;
+	.timeline-mark:hover::after,
+	.timeline-mark.active::after {
+		transform: translateX(-50%) scale(1.45);
+	}
+
+	.timeline-mark-takeoff {
+		--mark-color: hsl(var(--at-takeoff));
+	}
+
+	.timeline-mark-landing {
+		--mark-color: hsl(var(--at-landing));
 	}
 
 	/* Touch-friendly sizing */
