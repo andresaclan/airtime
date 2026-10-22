@@ -9,7 +9,9 @@ export const EXPORT_FORMAT = 'airtime-export';
 
 const ABOUT =
 	'Jump timings marked by hand, frame by frame, on videos in Airtime. Each session is one video. ' +
-	'Marks are the source data; everything under "derived" is computed from them and can be recomputed.';
+	'Marks are the source data; everything under "derived", "tables" and "overview" is computed ' +
+	'from them and can be recomputed. For analysis across sessions, start with "tables": flat rows ' +
+	'that load directly into a dataframe or chart. Sessions are ordered by recordedAt, oldest first.';
 
 const FIELDS = {
 	'sessions[].marks[].seconds':
@@ -31,7 +33,15 @@ const FIELDS = {
 	'sessions[].derived.precisionMs':
 		'Real-time duration of one frame; each mark is accurate to about ±1 frame.',
 	'sessions[].derived.warnings[]':
-		'"out-of-sequence" = this mark repeats the previous mark\'s type, so no interval was computed.'
+		'"out-of-sequence" = this mark repeats the previous mark\'s type, so no interval was computed.',
+	'tables.intervals[]':
+		'One row per flight or contact interval across every session, with session context repeated ' +
+		'on each row. index = 1-based position among intervals of the same kind within its session.',
+	'tables.sessions[]': 'One row per session with its summary statistics.',
+	recordedAt:
+		"The video file's last-modified time: usually when it was recorded, but changed by some edits " +
+		'or copies.',
+	overview: 'Totals and extremes across all exported sessions.'
 };
 
 export type ExportedMark = { id: string; type: MarkType; seconds: number; frame: number };
@@ -65,12 +75,60 @@ export type ExportedSession = Omit<Session, 'marks'> & {
 	};
 };
 
+export type IntervalRow = {
+	sessionId: string;
+	sessionTitle: string;
+	recordedAt: string;
+	fileName: string;
+	kind: 'flight' | 'contact';
+	index: number;
+	startSeconds: number;
+	frames: number;
+	seconds: number;
+	realSeconds: number;
+	heightCm: number | null;
+	frameRate: number;
+	frameRateSource: FrameRateSource;
+	timeScale: number;
+	precisionMs: number;
+};
+
+export type SessionRow = {
+	sessionId: string;
+	title: string;
+	notes: string;
+	recordedAt: string;
+	savedAt: string;
+	fileName: string;
+	frameRate: number;
+	frameRateSource: FrameRateSource;
+	timeScale: number;
+	markCount: number;
+	warningCount: number;
+} & ExportedSession['derived']['summary'];
+
+export type ExportOverview = {
+	sessionCount: number;
+	flightCount: number;
+	contactCount: number;
+	firstRecordedAt: string | null;
+	lastRecordedAt: string | null;
+	bestHeight: { heightCm: number; sessionId: string; sessionTitle: string } | null;
+	meanHeightCm: number | null;
+	meanFlightRealSeconds: number | null;
+	meanContactRealSeconds: number | null;
+	/** Sessions whose frame rate was assumed rather than read or measured. */
+	lowTrustSessionIds: string[];
+};
+
 export type AirtimeExport = {
 	format: typeof EXPORT_FORMAT;
 	schemaVersion: typeof SCHEMA_VERSION;
 	exportedAt: string;
 	about: string;
 	fields: typeof FIELDS;
+	overview: ExportOverview;
+	tables: { sessions: SessionRow[]; intervals: IntervalRow[] };
 	sessions: ExportedSession[];
 };
 
@@ -136,14 +194,92 @@ function exportSession(session: Session): ExportedSession {
 	};
 }
 
+function sessionRow(session: ExportedSession): SessionRow {
+	return {
+		sessionId: session.id,
+		title: session.title,
+		notes: session.notes,
+		recordedAt: session.media.lastModified,
+		savedAt: session.updatedAt,
+		fileName: session.media.fileName,
+		frameRate: session.frameRate.value,
+		frameRateSource: session.frameRate.source,
+		timeScale: session.timeScale,
+		markCount: session.marks.length,
+		warningCount: session.derived.warnings.length,
+		...session.derived.summary
+	};
+}
+
+function intervalRows(session: ExportedSession): IntervalRow[] {
+	const counts = { flight: 0, contact: 0 };
+	return session.derived.intervals.map((interval) => ({
+		sessionId: session.id,
+		sessionTitle: session.title,
+		recordedAt: session.media.lastModified,
+		fileName: session.media.fileName,
+		kind: interval.kind,
+		index: ++counts[interval.kind],
+		startSeconds: interval.startSeconds,
+		frames: interval.frames,
+		seconds: interval.seconds,
+		realSeconds: interval.realSeconds,
+		heightCm: interval.heightCm ?? null,
+		frameRate: session.frameRate.value,
+		frameRateSource: session.frameRate.source,
+		timeScale: session.timeScale,
+		precisionMs: session.derived.precisionMs
+	}));
+}
+
+function overview(sessions: ExportedSession[], intervals: IntervalRow[]): ExportOverview {
+	const flights = intervals.filter((row) => row.kind === 'flight');
+	const contacts = intervals.filter((row) => row.kind === 'contact');
+	const best = flights.reduce<IntervalRow | null>(
+		(top, row) => (!top || (row.heightCm ?? 0) > (top.heightCm ?? 0) ? row : top),
+		null
+	);
+	return {
+		sessionCount: sessions.length,
+		flightCount: flights.length,
+		contactCount: contacts.length,
+		firstRecordedAt: sessions[0]?.media.lastModified ?? null,
+		lastRecordedAt: sessions.at(-1)?.media.lastModified ?? null,
+		bestHeight: best
+			? { heightCm: best.heightCm ?? 0, sessionId: best.sessionId, sessionTitle: best.sessionTitle }
+			: null,
+		meanHeightCm: mean(
+			flights.map((row) => row.heightCm ?? 0),
+			1
+		),
+		meanFlightRealSeconds: mean(
+			flights.map((row) => row.realSeconds),
+			4
+		),
+		meanContactRealSeconds: mean(
+			contacts.map((row) => row.realSeconds),
+			4
+		),
+		lowTrustSessionIds: sessions
+			.filter((session) => session.frameRate.source === 'default')
+			.map((session) => session.id)
+	};
+}
+
 export function buildExport(sessions: Session[]): AirtimeExport {
+	const exported = [...sessions]
+		.sort((a, b) => a.media.lastModified.localeCompare(b.media.lastModified))
+		.map(exportSession);
+	const intervals = exported.flatMap(intervalRows);
 	return {
 		format: EXPORT_FORMAT,
 		schemaVersion: SCHEMA_VERSION,
 		exportedAt: new Date().toISOString(),
 		about: ABOUT,
 		fields: FIELDS,
-		sessions: sessions.map(exportSession)
+		overview: overview(exported, intervals),
+		tables: { sessions: exported.map(sessionRow), intervals },
+		sessions: exported
 	};
 }
 
