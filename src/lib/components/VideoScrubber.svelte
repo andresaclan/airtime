@@ -199,7 +199,7 @@
 		left: 0;
 		top: 0;
 		height: 100%;
-		background: hsl(var(--at-accent));
+		background: hsl(var(--at-fg) / 0.45);
 		border-radius: 3px;
 		pointer-events: none;
 	}
@@ -209,21 +209,18 @@
 		top: 50%;
 		width: 10px;
 		height: 10px;
-		background: hsl(var(--at-accent));
-		border: 2px solid white;
+		background: hsl(var(--at-fg));
+		border: 2px solid hsl(var(--at-bg));
 		border-radius: 50%;
 		transform: translate(-50%, -50%);
 		box-shadow: 0 1px 6px hsl(var(--at-shadow) / 0.5);
 		pointer-events: none;
-		transition:
-			transform 150ms ease,
-			box-shadow 150ms ease;
+		transition: transform 150ms ease;
 	}
 
 	.timeline-track:hover .timeline-thumb,
 	.timeline-track.active .timeline-thumb {
 		transform: translate(-50%, -50%) scale(1.15);
-		box-shadow: 0 0 16px hsl(var(--at-accent) / 0.5);
 	}
 
 	.timeline-band {

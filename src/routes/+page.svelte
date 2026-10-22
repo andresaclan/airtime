@@ -466,7 +466,7 @@
 					aria-pressed={panelOpen}
 					title="Toggle analysis panel (A)"
 				>
-					Analysis{#if marks.length}<span class="header-count">{marks.length}</span>{/if}
+					Analysis
 				</button>
 			{/if}
 			<button
@@ -499,7 +499,7 @@
 			<!-- Empty state -->
 			<button
 				onclick={openFilePicker}
-				class="empty-state at-reveal cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+				class="empty-state at-reveal cursor-pointer"
 				style="--delay: 50ms"
 			>
 				<div class="empty-state-icon" class:animate-pulse={isDragging}>
@@ -575,11 +575,11 @@
 					>
 						<div class="text-center">
 							<div
-								class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[hsl(var(--at-accent)/0.2)]"
+								class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[hsl(var(--at-surface))]"
 							>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
-									class="h-8 w-8 text-[hsl(var(--at-accent))]"
+									class="h-8 w-8 text-[hsl(var(--at-fg-secondary))]"
 									fill="none"
 									viewBox="0 0 24 24"
 									stroke="currentColor"
