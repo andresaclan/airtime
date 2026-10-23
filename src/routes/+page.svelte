@@ -118,6 +118,8 @@
 
 		videoSrc = URL.createObjectURL(file);
 		videoFileName = file.name;
+		clearTimeout(noticeTimer);
+		notice = null;
 		isPlaying = false;
 		mediaError = false;
 		currentTime = 0;
@@ -154,10 +156,10 @@
 			});
 	}
 
-	function showNotice(text: string) {
+	function showNotice(text: string, durationMs = 3500) {
 		notice = text;
 		clearTimeout(noticeTimer);
-		noticeTimer = setTimeout(() => (notice = null), 3500);
+		noticeTimer = setTimeout(() => (notice = null), durationMs);
 	}
 
 	function formatSavedAt(iso: string): string {
@@ -352,6 +354,7 @@
 	function handleDrop(event: DragEvent) {
 		event.preventDefault();
 		isDragging = false;
+		if (keybindsOpen || sessionsOpen) return;
 
 		const files = Array.from(event.dataTransfer?.files ?? []);
 		const file = files.find((candidate) => isLikelyVideoFile(candidate));
@@ -377,16 +380,20 @@
 
 	function handleDragLeave(event: DragEvent) {
 		event.preventDefault();
-		const currentTarget = event.currentTarget as HTMLElement | null;
-		const nextTarget = event.relatedTarget as Node | null;
-		if (!currentTarget || !nextTarget || !currentTarget.contains(nextTarget)) {
-			isDragging = false;
-		}
+		// A null relatedTarget means the drag left the window (or the browser doesn't report it).
+		if (!event.relatedTarget) isDragging = false;
 	}
 
 	function handleMediaError() {
 		mediaError = true;
 		isPlaying = false;
+	}
+
+	/** Videos aren't stored, so "opening" a saved session means asking for its video again. */
+	function handleSessionOpen(session: Session) {
+		sessionsOpen = false;
+		showNotice(`Choose ${session.media.fileName} to reopen its marks`, 10000);
+		openFilePicker();
 	}
 
 	function openFilePicker() {
@@ -410,25 +417,27 @@
 	/>
 </svelte:head>
 
-<svelte:window onkeydown={handleMarkKeyDown} onbeforeunload={handleBeforeUnload} />
+<!-- Drag and drop is handled on the window so the app shell stays a plain, non-interactive element. -->
+<svelte:window
+	onkeydown={handleMarkKeyDown}
+	onbeforeunload={handleBeforeUnload}
+	ondragover={handleDragOver}
+	ondrop={handleDrop}
+	ondragenter={handleDragEnter}
+	ondragleave={handleDragLeave}
+/>
 
 <KeybindsDialog isOpen={keybindsOpen} onClose={() => (keybindsOpen = false)} />
 <SessionsDialog
 	isOpen={sessionsOpen}
 	currentSessionId={sessionId}
 	onClose={() => (sessionsOpen = false)}
+	onOpen={handleSessionOpen}
 	onDeleted={handleSessionDeleted}
 	onImported={handleSessionsImported}
 />
 
-<div
-	class="app-shell flex h-dvh flex-col bg-[hsl(var(--at-bg))]"
-	role="application"
-	ondragover={handleDragOver}
-	ondrop={handleDrop}
-	ondragenter={handleDragEnter}
-	ondragleave={handleDragLeave}
->
+<div class="app-shell flex h-dvh flex-col bg-[hsl(var(--at-bg))]">
 	<header class="app-header">
 		<a class="brand-mark" href={resolve('/')} aria-label="Airtime home">Airtime</a>
 		{#if videoSrc}
@@ -441,6 +450,8 @@
 					<span class="header-status unsaved">Unsaved</span>
 				{/if}
 			</div>
+		{:else if notice}
+			<div class="header-file"><span class="header-status">{notice}</span></div>
 		{/if}
 		<div class="header-actions">
 			<button

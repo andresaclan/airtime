@@ -2,22 +2,25 @@
 	import { analyzeMarks } from '$lib/video/marks';
 	import type { Session } from '$lib/session/schema';
 	import { deleteSession, listSessions, putSessions } from '$lib/session/store';
+	import { dialogFocus, focusFirst, trapTab } from '$lib/dialogFocus';
 	import { downloadExport, parseImport, sessionsToImport } from '$lib/session/exportFile';
 
 	interface Props {
 		isOpen: boolean;
 		currentSessionId: string | null;
 		onClose: () => void;
+		onOpen: (session: Session) => void;
 		onDeleted: (id: string) => void;
 		onImported: () => void;
 	}
 
-	let { isOpen, currentSessionId, onClose, onDeleted, onImported }: Props = $props();
+	let { isOpen, currentSessionId, onClose, onOpen, onDeleted, onImported }: Props = $props();
 
 	let sessions: Session[] = $state([]);
 	let loading = $state(false);
 	let message: { text: string; error?: boolean } | null = $state(null);
 	let importInput: HTMLInputElement | null = $state(null);
+	let card: HTMLElement | null = $state(null);
 
 	async function refresh() {
 		loading = true;
@@ -46,6 +49,7 @@
 				event.preventDefault();
 				onClose();
 			}
+			trapTab(event, card);
 			event.stopImmediatePropagation();
 		}
 
@@ -76,6 +80,8 @@
 		await deleteSession(session.id);
 		onDeleted(session.id);
 		await refresh();
+		// The focused Delete button is gone; keep keyboard focus inside the dialog.
+		if (card && !card.contains(document.activeElement)) focusFirst(card);
 	}
 
 	async function handleImport(event: Event) {
@@ -119,7 +125,7 @@
 		aria-label="Saved sessions"
 		tabindex="-1"
 	>
-		<div class="sessions-card">
+		<div class="sessions-card" bind:this={card} use:dialogFocus tabindex="-1">
 			<div class="sessions-header">
 				<h2 class="sessions-title">Saved sessions</h2>
 				<button class="close-btn" onclick={onClose} aria-label="Close">
@@ -138,8 +144,8 @@
 			</div>
 
 			<p class="sessions-hint">
-				Stored in this browser only. Videos aren't saved — drop the same file in again to reopen its
-				marks. Export to back up or to hand the data to an agent.
+				Stored in this browser only. Videos aren't saved — choose Open (or drop the same file in) to
+				reopen a session's marks. Export to back up or to hand the data to an agent.
 			</p>
 
 			{#if message}
@@ -170,6 +176,9 @@
 								</span>
 							</div>
 							<div class="session-actions">
+								{#if session.id !== currentSessionId}
+									<button class="text-btn" onclick={() => onOpen(session)}>Open</button>
+								{/if}
 								<button class="text-btn" onclick={() => downloadExport([session])}>Export</button>
 								<button class="text-btn danger" onclick={() => handleDelete(session)}>Delete</button
 								>
@@ -234,6 +243,7 @@
 		border: 1px solid hsl(var(--at-border));
 		border-radius: 16px;
 		box-shadow: 0 24px 60px hsl(var(--at-shadow) / 0.5);
+		outline: none;
 	}
 
 	.sessions-header {
