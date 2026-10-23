@@ -163,11 +163,9 @@
 
 	.group-title {
 		margin-bottom: 8px;
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 600;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: hsl(var(--at-fg-muted));
+		color: hsl(var(--at-fg-secondary));
 	}
 
 	.bind-list {

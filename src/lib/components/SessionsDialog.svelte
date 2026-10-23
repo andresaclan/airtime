@@ -334,8 +334,8 @@
 		margin-left: 6px;
 		padding: 1px 6px;
 		border-radius: 6px;
-		background: hsl(var(--at-accent) / 0.25);
-		color: hsl(var(--at-accent-hover));
+		background: hsl(var(--at-fg) / 0.1);
+		color: hsl(var(--at-fg-secondary));
 		font-size: 10px;
 		font-weight: 600;
 	}
