@@ -66,23 +66,35 @@ export function deleteSession(id: string): Promise<undefined> {
 	return run('readwrite', (store) => store.delete(id));
 }
 
+export type StoredSessions = {
+	/** Newest first. */
+	sessions: Session[];
+	/**
+	 * Records this version can't read, usually because a newer version of Airtime saved
+	 * them. They're left in storage untouched, and callers must not overwrite them.
+	 */
+	unreadableIds: string[];
+};
+
 /**
  * Records are upgraded to the current schema as they're read; the next save writes the
- * new shape. A record that can't be upgraded is skipped but left in storage.
+ * new shape.
  */
-function readable(records: Record<string, unknown>[]): Session[] {
-	return records.flatMap((record) => {
+function readable(records: Record<string, unknown>[]): StoredSessions {
+	const result: StoredSessions = { sessions: [], unreadableIds: [] };
+	for (const record of records) {
 		try {
-			return [migrateSession(record) as Session];
+			result.sessions.push(migrateSession(record) as Session);
 		} catch {
-			return [];
+			result.unreadableIds.push(String(record.id));
 		}
-	});
+	}
+	result.sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+	return result;
 }
 
-export async function listSessions(): Promise<Session[]> {
-	const sessions = readable(await run('readonly', (store) => store.getAll()));
-	return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+export async function readSessions(): Promise<StoredSessions> {
+	return readable(await run('readonly', (store) => store.getAll()));
 }
 
 /** Most recently updated session for a file, if any. */
@@ -90,7 +102,7 @@ export async function findSessionByFingerprint(fingerprint: string): Promise<Ses
 	const matches = readable(
 		await run('readonly', (store) => store.index('fingerprint').getAll(fingerprint))
 	);
-	return matches.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+	return matches.sessions[0];
 }
 
 let persistRequested = false;

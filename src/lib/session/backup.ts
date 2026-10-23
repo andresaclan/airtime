@@ -14,7 +14,9 @@ export type BackupStatus = {
 	lastBackupAt: string | null;
 	/** Sessions saved or changed since the last full export. */
 	notBackedUp: number;
-	/** True once enough work, or old enough work, exists only in this browser. */
+	/** Stored sessions this version can't read or export (saved by a newer Airtime). */
+	unreadable: number;
+	/** True once enough work, or old enough work, exists only in this browser, or some is unreadable. */
 	due: boolean;
 };
 
@@ -38,7 +40,7 @@ export function recordBackup(at = new Date().toISOString()): void {
 export function backupStatus(
 	sessions: Session[],
 	lastBackup: string | null,
-	now = Date.now()
+	{ unreadable = 0, now = Date.now() }: { unreadable?: number; now?: number } = {}
 ): BackupStatus {
 	const pending = sessions.filter((session) => !lastBackup || session.updatedAt > lastBackup);
 	const oldest = pending.reduce<string | null>(
@@ -46,9 +48,10 @@ export function backupStatus(
 		null
 	);
 	const due =
+		unreadable > 0 ||
 		pending.length >= DUE_AFTER_SESSIONS ||
 		(oldest !== null && now - Date.parse(oldest) >= DUE_AFTER_MS);
-	return { lastBackupAt: lastBackup, notBackedUp: pending.length, due };
+	return { lastBackupAt: lastBackup, notBackedUp: pending.length, unreadable, due };
 }
 
 export async function storageProtection(): Promise<StorageProtection> {

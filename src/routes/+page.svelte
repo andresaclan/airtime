@@ -25,7 +25,7 @@
 	import { fingerprintFile } from '$lib/session/fingerprint';
 	import {
 		findSessionByFingerprint,
-		listSessions,
+		readSessions,
 		requestPersistentStorage,
 		saveSession
 	} from '$lib/session/store';
@@ -217,11 +217,19 @@
 
 	async function refreshBackup(): Promise<BackupStatus | null> {
 		try {
-			backup = backupStatus(await listSessions(), lastBackupAt());
+			const stored = await readSessions();
+			backup = backupStatus(stored.sessions, lastBackupAt(), {
+				unreadable: stored.unreadableIds.length
+			});
 		} catch {
 			backup = null;
 		}
 		return backup;
+	}
+
+	function backupReminder(status: BackupStatus): string {
+		if (status.unreadable > 0) return 'some sessions need a newer Airtime — reload to update';
+		return `${status.notBackedUp} sessions not backed up — export from Sessions`;
 	}
 
 	onMount(() => {
@@ -268,11 +276,7 @@
 			sessionCreatedAt = session.createdAt;
 			savedSignature = savingSignature;
 			const status = await refreshBackup();
-			showNotice(
-				status?.due
-					? `Saved · ${status.notBackedUp} sessions not backed up — export from Sessions`
-					: 'Saved'
-			);
+			showNotice(status?.due ? `Saved · ${backupReminder(status)}` : 'Saved');
 		} catch {
 			showNotice("Couldn't save — browser storage is unavailable");
 		} finally {
@@ -537,9 +541,7 @@
 			<button
 				class="header-open"
 				onclick={() => (sessionsOpen = true)}
-				title={backup?.due
-					? `${backup.notBackedUp} sessions are only saved in this browser — export a backup`
-					: 'Saved sessions, export and import'}
+				title={backup?.due ? backupReminder(backup) : 'Saved sessions, export and import'}
 			>
 				Sessions{#if backup?.due}<span class="header-backup-dot" aria-label="Backup recommended"
 					></span>{/if}

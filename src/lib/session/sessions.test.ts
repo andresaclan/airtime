@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { buildExport, parseImport } from './exportFile';
+import { buildExport, parseImport, sessionsToImport } from './exportFile';
 import { migrateSession, NewerSchemaError } from './migrate';
 import { backupStatus } from './backup';
 import { SCHEMA_VERSION, type Session } from './schema';
@@ -56,10 +56,52 @@ describe('migrateSession', () => {
 		expect(migrateSession(raw)).toEqual(raw);
 	});
 
+	// MIGRATIONS is empty until the first schema change, so exercise the chain with stand-ins.
+	test('runs each step in order, from the stored version up to the target', () => {
+		const steps = {
+			1: (session: Record<string, unknown>) => ({ ...session, notes: session.notes ?? '' }),
+			2: ({ timeScale, ...session }: Record<string, unknown>) => ({
+				...session,
+				playback: { timeScale }
+			})
+		};
+		const v1 = { schemaVersion: 1, id: 'x', timeScale: 0.25 };
+		expect(migrateSession(v1, steps, 3)).toEqual({
+			schemaVersion: 3,
+			id: 'x',
+			notes: '',
+			playback: { timeScale: 0.25 }
+		});
+		expect(migrateSession({ schemaVersion: 2, id: 'y', timeScale: 1 }, steps, 3)).toEqual({
+			schemaVersion: 3,
+			id: 'y',
+			playback: { timeScale: 1 }
+		});
+		expect(v1).toEqual({ schemaVersion: 1, id: 'x', timeScale: 0.25 });
+	});
+
+	test('fails loudly when a step is missing', () => {
+		expect(() => migrateSession({ schemaVersion: 1 }, {}, 2)).toThrow(/No migration from/);
+	});
+
 	test('rejects newer and nonsense versions', () => {
 		expect(() => migrateSession({ schemaVersion: SCHEMA_VERSION + 1 })).toThrow(NewerSchemaError);
 		expect(() => migrateSession({ schemaVersion: 0 })).toThrow();
 		expect(() => migrateSession({ schemaVersion: 1.5 })).toThrow();
+	});
+});
+
+describe('sessionsToImport', () => {
+	const sessions = parseImport(v1Text);
+
+	test('never overwrites a stored session this version cannot read', () => {
+		const [cmj, drop] = sessions;
+		expect(sessionsToImport(sessions, [], [cmj.id])).toEqual([drop]);
+	});
+
+	test('keeps only new or newer sessions', () => {
+		const older = { ...sessions[0], updatedAt: '2026-09-01T00:00:00.000Z' };
+		expect(sessionsToImport(sessions, [older, sessions[1]])).toEqual([sessions[0]]);
 	});
 });
 
@@ -69,13 +111,15 @@ describe('backupStatus', () => {
 	const at = (iso: string) => Date.parse(iso);
 
 	test('counts sessions changed since the last backup', () => {
-		const status = backupStatus(sessions, '2026-10-02T00:00:00.000Z', at('2026-10-05T00:00:00Z'));
+		const status = backupStatus(sessions, '2026-10-02T00:00:00.000Z', {
+			now: at('2026-10-05T00:00:00Z')
+		});
 		expect(status.notBackedUp).toBe(1);
 		expect(status.due).toBe(false);
 	});
 
 	test('is due once unexported work is two weeks old', () => {
-		const status = backupStatus(sessions, null, at('2026-10-01T17:10:00Z') + 14 * day);
+		const status = backupStatus(sessions, null, { now: at('2026-10-01T17:10:00Z') + 14 * day });
 		expect(status).toMatchObject({ notBackedUp: 2, due: true });
 	});
 
@@ -84,11 +128,21 @@ describe('backupStatus', () => {
 			...sessions[0],
 			id: `s${i}`
 		}));
-		expect(backupStatus(many, null, at('2026-10-02T00:00:00Z')).due).toBe(true);
+		expect(backupStatus(many, null, { now: at('2026-10-02T00:00:00Z') }).due).toBe(true);
+	});
+
+	test('is due while sessions are unreadable, even with everything exported', () => {
+		const status = backupStatus(sessions, '2026-10-04T12:00:00.000Z', {
+			unreadable: 1,
+			now: at('2026-10-05T00:00:00Z')
+		});
+		expect(status).toMatchObject({ notBackedUp: 0, unreadable: 1, due: true });
 	});
 
 	test('is not due when everything is backed up', () => {
-		const status = backupStatus(sessions, '2026-10-04T12:00:00.000Z', at('2027-01-01T00:00:00Z'));
+		const status = backupStatus(sessions, '2026-10-04T12:00:00.000Z', {
+			now: at('2027-01-01T00:00:00Z')
+		});
 		expect(status).toMatchObject({ notBackedUp: 0, due: false });
 	});
 });

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { analyzeMarks } from '$lib/video/marks';
 	import type { Session } from '$lib/session/schema';
-	import { deleteSession, listSessions, putSessions } from '$lib/session/store';
+	import { deleteSession, putSessions, readSessions } from '$lib/session/store';
 	import { downloadExport, parseImport, sessionsToImport } from '$lib/session/exportFile';
 	import {
 		backupStatus,
@@ -31,14 +31,15 @@
 	let protection: StorageProtection = $state('unknown');
 	let protectDeclined = $state(false);
 	let lastBackup: string | null = $state(null);
-	let backup = $derived(backupStatus(sessions, lastBackup));
+	let unreadableIds: string[] = $state([]);
+	let backup = $derived(backupStatus(sessions, lastBackup, { unreadable: unreadableIds.length }));
 
 	async function refresh() {
 		loading = true;
 		lastBackup = lastBackupAt();
 		protection = await storageProtection();
 		try {
-			sessions = await listSessions();
+			({ sessions, unreadableIds } = await readSessions());
 		} catch {
 			message = { text: "Couldn't read saved sessions from this browser.", error: true };
 		} finally {
@@ -102,7 +103,8 @@
 		message = null;
 		try {
 			const incoming = parseImport(await file.text());
-			const toImport = sessionsToImport(incoming, await listSessions());
+			const stored = await readSessions();
+			const toImport = sessionsToImport(incoming, stored.sessions, stored.unreadableIds);
 			await putSessions(toImport);
 			const skipped = incoming.length - toImport.length;
 			message = {
@@ -173,7 +175,7 @@
 				<p class="sessions-message" class:error={message.error}>{message.text}</p>
 			{/if}
 
-			{#if sessions.length > 0}
+			{#if sessions.length > 0 || backup.unreadable > 0}
 				<div class="sessions-status">
 					{#if protection === 'protected'}
 						<p class="status-line ok">
@@ -190,24 +192,36 @@
 								>{/if}
 						</p>
 					{/if}
-					<p class="status-line" class:warn={backup.due}>
-						<span class="status-dot"></span>
-						{#if backup.notBackedUp === 0}
-							All sessions backed up {formatDate(backup.lastBackupAt ?? '')}.
-						{:else}
-							{backup.lastBackupAt
-								? `Last backup ${formatDate(backup.lastBackupAt)}`
-								: 'Never backed up'} · {backup.notBackedUp} session{backup.notBackedUp === 1
-								? ''
-								: 's'} only in this browser. Clearing browser data deletes them; Export all keeps a copy.
-						{/if}
-					</p>
+					{#if sessions.length > 0}
+						<p class="status-line" class:warn={backup.notBackedUp > 0 && backup.due}>
+							<span class="status-dot"></span>
+							{#if backup.notBackedUp === 0}
+								All sessions backed up {formatDate(backup.lastBackupAt ?? '')}.
+							{:else}
+								{backup.lastBackupAt
+									? `Last backup ${formatDate(backup.lastBackupAt)}`
+									: 'Never backed up'} · {backup.notBackedUp} session{backup.notBackedUp === 1
+									? ''
+									: 's'} only in this browser. Clearing browser data deletes them; Export all keeps a
+								copy.
+							{/if}
+						</p>
+					{/if}
+					{#if backup.unreadable > 0}
+						<p class="status-line warn">
+							<span class="status-dot"></span>
+							{backup.unreadable === 1
+								? "1 session was saved by a newer version of Airtime and can't be shown or exported here. It's kept safe"
+								: `${backup.unreadable} sessions were saved by a newer version of Airtime and can't be shown or exported here. They're kept safe`}
+							— reload the page to update the app.
+						</p>
+					{/if}
 				</div>
 			{/if}
 
 			{#if loading && sessions.length === 0}
 				<p class="sessions-empty">Loading…</p>
-			{:else if sessions.length === 0}
+			{:else if sessions.length === 0 && unreadableIds.length === 0}
 				<p class="sessions-empty">No saved sessions yet. Mark a video and press ⌘/Ctrl + S.</p>
 			{:else}
 				<ul class="sessions-list">

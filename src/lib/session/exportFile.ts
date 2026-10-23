@@ -403,10 +403,19 @@ export function parseImport(text: string): Session[] {
 	});
 }
 
-/** Imported sessions that are new or newer than what's stored; the rest are skipped. */
-export function sessionsToImport(incoming: Session[], existing: Session[]): Session[] {
+/**
+ * Imported sessions that are new or newer than what's stored; the rest are skipped.
+ * `unreadableIds` are stored records this version can't read, so they're never overwritten.
+ */
+export function sessionsToImport(
+	incoming: Session[],
+	existing: Session[],
+	unreadableIds: string[] = []
+): Session[] {
 	const stored = new Map(existing.map((session) => [session.id, session]));
+	const untouchable = new Set(unreadableIds);
 	return incoming.filter((session) => {
+		if (untouchable.has(session.id)) return false;
 		const current = stored.get(session.id);
 		return !current || session.updatedAt > current.updatedAt;
 	});

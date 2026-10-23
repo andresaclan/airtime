@@ -21,15 +21,20 @@ export class NewerSchemaError extends Error {
 	}
 }
 
-export function migrateSession(raw: RawSession): RawSession {
+/** `migrations` and `target` are overridable so tests can exercise the chain. */
+export function migrateSession(
+	raw: RawSession,
+	migrations: Record<number, (session: RawSession) => RawSession> = MIGRATIONS,
+	target: number = SCHEMA_VERSION
+): RawSession {
 	let version = typeof raw.schemaVersion === 'number' ? raw.schemaVersion : 1;
 	if (!Number.isInteger(version) || version < 1) {
 		throw new Error(`Unrecognised schema version ${String(raw.schemaVersion)}`);
 	}
-	if (version > SCHEMA_VERSION) throw new NewerSchemaError(version);
+	if (version > target) throw new NewerSchemaError(version);
 	let session = raw;
-	while (version < SCHEMA_VERSION) {
-		const step = MIGRATIONS[version];
+	while (version < target) {
+		const step = migrations[version];
 		if (!step) throw new Error(`No migration from schema version ${version}`);
 		version += 1;
 		session = { ...step(session), schemaVersion: version };
