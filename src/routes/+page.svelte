@@ -70,6 +70,7 @@
 	let backup: BackupStatus | null = $state(null);
 	// Kept loaded so Back up now can open the share sheet without awaiting storage first.
 	let savedSessions: Session[] | null = $state(null);
+	let savedSessionsReadAt = '';
 	let reminderDismissed = $state(false);
 	let showBackupReminder = $derived(needsBackup(backup) && !reminderDismissed);
 	let isAppEmpty = $derived.by(() => savedSessions?.length === 0 && backup?.unreadable === 0);
@@ -233,8 +234,10 @@
 
 	async function refreshBackup(): Promise<BackupStatus | null> {
 		try {
+			const readAt = new Date().toISOString();
 			const stored = await readSessions();
 			savedSessions = stored.sessions;
+			savedSessionsReadAt = readAt;
 			backup = backupStatus(stored.sessions, lastBackupAt(), {
 				unreadable: stored.unreadableIds.length
 			});
@@ -247,7 +250,7 @@
 
 	async function handleBackUpNow() {
 		if (!savedSessions) return;
-		const outcome = await backUp(savedSessions);
+		const outcome = await backUp(savedSessions, savedSessionsReadAt);
 		if (outcome === 'cancelled') return;
 		await refreshBackup();
 		showNotice(outcome === 'shared' ? 'Backup shared' : 'Backup downloaded');

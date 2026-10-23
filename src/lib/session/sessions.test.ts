@@ -1,12 +1,14 @@
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { buildExport, parseImport, sessionsToImport } from './exportFile';
 import { migrateSession, NewerSchemaError } from './migrate';
 import {
+	backUp,
 	backupAfterRestore,
 	backupMethod,
 	backupStatus,
 	importSummary,
 	isShareCancel,
+	lastBackupAt,
 	needsBackup
 } from './backup';
 import { SCHEMA_VERSION, type Session } from './schema';
@@ -185,6 +187,32 @@ describe('isShareCancel', () => {
 		expect(isShareCancel(new DOMException('no gesture', 'NotAllowedError'))).toBe(false);
 		expect(isShareCancel(new Error('boom'))).toBe(false);
 		expect(isShareCancel(null)).toBe(false);
+	});
+});
+
+describe('backUp', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	test('only counts sessions read before the backup as backed up', async () => {
+		const stored = new Map<string, string>();
+		vi.stubGlobal('localStorage', {
+			getItem: (key: string) => stored.get(key) ?? null,
+			setItem: (key: string, value: string) => stored.set(key, value)
+		});
+		vi.stubGlobal('window', { matchMedia: () => ({ matches: true }) });
+		vi.stubGlobal('navigator', { canShare: () => true, share: async () => {} });
+
+		const [base] = parseImport(v1Text);
+		const read = { ...base, id: 'read', updatedAt: '2026-10-10T00:00:00.000Z' };
+		// Saved in another tab after this one read its sessions, so it isn't in the file.
+		const later = { ...base, id: 'later', updatedAt: '2026-10-10T00:05:00.000Z' };
+		const readAt = '2026-10-10T00:01:00.000Z';
+
+		expect(await backUp([read], readAt)).toBe('shared');
+		expect(lastBackupAt()).toBe(readAt);
+		expect(backupStatus([read, later], lastBackupAt()).notBackedUp).toBe(1);
 	});
 });
 

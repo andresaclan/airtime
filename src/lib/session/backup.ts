@@ -99,16 +99,17 @@ export type BackupOutcome = 'shared' | 'downloaded' | 'cancelled';
  * Exports every session and records the backup. Call it straight from a tap, with sessions
  * already loaded: Safari only opens the share sheet if nothing is awaited first. A share
  * counts as a backup even though we can't know where it went.
+ *
+ * `readAt` is when `sessions` were read from storage. Anything saved after that (in another
+ * tab, or by a save still in flight) isn't in the file, so the backup only counts up to then.
  */
-export async function backUp(sessions: Session[]): Promise<BackupOutcome> {
-	// Anything saved after this moment isn't in the file.
-	const at = new Date().toISOString();
+export async function backUp(sessions: Session[], readAt: string): Promise<BackupOutcome> {
 	const file = exportFile(sessions);
 	const touchFirst = window.matchMedia?.('(pointer: coarse)').matches ?? false;
 	if (backupMethod({ canShareFiles: canShareFile(file), touchFirst }) === 'share') {
 		try {
 			await navigator.share({ files: [file] });
-			recordBackup(at);
+			recordBackup(readAt);
 			return 'shared';
 		} catch (error) {
 			if (isShareCancel(error)) return 'cancelled';
@@ -116,7 +117,7 @@ export async function backUp(sessions: Session[]): Promise<BackupOutcome> {
 		}
 	}
 	downloadFile(file);
-	recordBackup(at);
+	recordBackup(readAt);
 	return 'downloaded';
 }
 

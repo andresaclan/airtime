@@ -36,6 +36,7 @@
 	let protection: StorageProtection = $state('unknown');
 	let protectDeclined = $state(false);
 	let lastBackup: string | null = $state(null);
+	let sessionsReadAt = '';
 	let unreadableIds: string[] = $state([]);
 	let backup = $derived(backupStatus(sessions, lastBackup, { unreadable: unreadableIds.length }));
 
@@ -44,7 +45,9 @@
 		lastBackup = lastBackupAt();
 		protection = await storageProtection();
 		try {
+			const readAt = new Date().toISOString();
 			({ sessions, unreadableIds } = await readSessions());
+			sessionsReadAt = readAt;
 		} catch {
 			message = { text: "Couldn't read saved sessions from this browser.", error: true };
 		} finally {
@@ -125,7 +128,7 @@
 	}
 
 	async function handleExportAll() {
-		if ((await backUp(sessions)) !== 'cancelled') lastBackup = lastBackupAt();
+		if ((await backUp(sessions, sessionsReadAt)) !== 'cancelled') lastBackup = lastBackupAt();
 	}
 
 	function handleBackdropClick(event: MouseEvent) {
