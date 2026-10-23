@@ -126,117 +126,126 @@
 		</button>
 	</header>
 
-	{#if bestJump?.flight}
-		<div class="mp-summary">
-			<div class="mp-stat mp-stat-primary">
-				<span class="mp-stat-label">{completedJumps > 1 ? 'Best jump height' : 'Jump height'}</span>
-				<span class="mp-stat-value">{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span>
-				<span class="mp-stat-sub">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span>
-			</div>
-			<div class="mp-stat">
-				<span class="mp-stat-label">Flight time</span>
-				<span class="mp-stat-value">{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span>
-				<span class="mp-stat-sub">{bestJump.flight.frames} fr</span>
-			</div>
-			<div class="mp-stat">
-				<span class="mp-stat-label">Contact time</span>
-				{#if bestJump.contact}
-					<span class="mp-stat-value"
-						>{formatMs(bestJump.contact.realSeconds)}<small>ms</small></span
+	<div class="mp-body">
+		{#if bestJump?.flight}
+			<div class="mp-summary">
+				<div class="mp-stat mp-stat-primary">
+					<span class="mp-stat-label"
+						>{completedJumps > 1 ? 'Best jump height' : 'Jump height'}</span
 					>
-					<span class="mp-stat-sub">{bestJump.contact.frames} fr</span>
-				{:else}
-					<span class="mp-stat-value">—</span>
-					<span class="mp-stat-sub">No contact</span>
+					<span class="mp-stat-value">{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span>
+					<span class="mp-stat-sub">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span>
+				</div>
+				<div class="mp-stat">
+					<span class="mp-stat-label">Flight time</span>
+					<span class="mp-stat-value">{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span
+					>
+					<span class="mp-stat-sub">{bestJump.flight.frames} fr</span>
+				</div>
+				<div class="mp-stat">
+					<span class="mp-stat-label">Contact time</span>
+					{#if bestJump.contact}
+						<span class="mp-stat-value"
+							>{formatMs(bestJump.contact.realSeconds)}<small>ms</small></span
+						>
+						<span class="mp-stat-sub">{bestJump.contact.frames} fr</span>
+					{:else}
+						<span class="mp-stat-value">—</span>
+						<span class="mp-stat-sub">No contact</span>
+					{/if}
+				</div>
+			</div>
+		{/if}
+		<div class="mp-calibration">
+			<p class="mp-precision">
+				±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps{#if slowMotion}
+					· real time ({slowMotion.label.toLowerCase()}){/if}
+			</p>
+			<label class="mp-scale">
+				<span>Footage</span>
+				<select class="mp-field" bind:value={timeScale}>
+					{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
+							>{scale.label}</option
+						>{/each}
+				</select>
+			</label>
+		</div>
+
+		{#if marks.length === 0}
+			<div class="mp-empty">
+				<p class="mp-empty-title">Mark a jump</p>
+				<ol>
+					<li>Pause on the first frame the feet leave the ground and press <kbd>T</kbd>.</li>
+					<li>Step to the first frame they touch down and press <kbd>L</kbd>.</li>
+				</ol>
+				<p class="mp-empty-hint">
+					Step frames with <kbd>,</kbd> <kbd>.</kbd> · mark a landing before the takeoff to also get contact
+					time.
+				</p>
+			</div>
+		{:else}
+			<div class="mp-results">
+				{#each grouped.jumps as jump, index (jump.takeoff.id)}
+					<section class="mp-jump" class:mp-best={jump === bestJump} aria-label="Jump {index + 1}">
+						<h3>
+							<span class="mp-jump-title">{jumpTitle(jump, index)}</span>
+							{#if completedJumps >= 2 && jump === bestJump}<span>Best</span>{/if}
+						</h3>
+						{#if jump.contact}
+							{@render markRow(jump.contact.from, 'Touchdown')}
+							<div
+								class="mp-interval mp-interval-contact"
+								title={intervalDescription(jump.contact)}
+							>
+								{intervalDescription(jump.contact)}
+							</div>
+						{/if}
+						{@render markRow(jump.takeoff, 'Takeoff')}
+						{#if jump.flight}
+							<div class="mp-interval mp-interval-flight" title={intervalDescription(jump.flight)}>
+								{intervalDescription(jump.flight)}
+							</div>
+							{@render markRow(jump.flight.to, 'Landing')}
+						{:else}
+							<p class="mp-incomplete">Mark a landing to complete this jump.</p>
+						{/if}
+					</section>
+				{/each}
+				{#if outOfSequenceMarks.length > 0}
+					<div class="mp-warning">
+						Repeated marks have no timing interval: {outOfSequenceMarks
+							.map((mark) => (mark.type === 'landing' ? 'Landing' : 'Takeoff'))
+							.join(', ')}
+					</div>
+				{/if}
+				{#if grouped.strayMarks.length > 0}
+					<section class="mp-strays" aria-label="Unpaired marks">
+						<h3>Unpaired marks</h3>
+						{#each grouped.strayMarks as mark (mark.id)}{@render markRow(
+								mark,
+								mark.type === 'landing' ? 'Landing' : 'Takeoff'
+							)}{/each}
+					</section>
 				{/if}
 			</div>
-		</div>
-	{/if}
-	<div class="mp-calibration">
-		<p class="mp-precision">
-			±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps{#if slowMotion}
-				· real time ({slowMotion.label.toLowerCase()}){/if}
-		</p>
-		<label class="mp-scale">
-			<span>Footage</span>
-			<select class="mp-field" bind:value={timeScale}>
-				{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}>{scale.label}</option
-					>{/each}
-			</select>
-		</label>
-	</div>
+		{/if}
 
-	{#if marks.length === 0}
-		<div class="mp-empty">
-			<p class="mp-empty-title">Mark a jump</p>
-			<ol>
-				<li>Pause on the first frame the feet leave the ground and press <kbd>T</kbd>.</li>
-				<li>Step to the first frame they touch down and press <kbd>L</kbd>.</li>
-			</ol>
-			<p class="mp-empty-hint">
-				Step frames with <kbd>,</kbd> <kbd>.</kbd> · mark a landing before the takeoff to also get contact
-				time.
-			</p>
+		<div class="mp-session">
+			<input
+				class="mp-field mp-title"
+				bind:value={title}
+				placeholder={titlePlaceholder}
+				aria-label="Session title"
+				spellcheck="false"
+			/>
+			<textarea
+				class="mp-field mp-notes"
+				bind:value={notes}
+				placeholder="Notes (exercise, attempt, how it felt…)"
+				aria-label="Session notes"
+				rows="2"
+			></textarea>
 		</div>
-	{:else}
-		<div class="mp-results">
-			{#each grouped.jumps as jump, index (jump.takeoff.id)}
-				<section class="mp-jump" class:mp-best={jump === bestJump} aria-label="Jump {index + 1}">
-					<h3>
-						<span class="mp-jump-title">{jumpTitle(jump, index)}</span>
-						{#if completedJumps >= 2 && jump === bestJump}<span>Best</span>{/if}
-					</h3>
-					{#if jump.contact}
-						{@render markRow(jump.contact.from, 'Touchdown')}
-						<div class="mp-interval mp-interval-contact" title={intervalDescription(jump.contact)}>
-							{intervalDescription(jump.contact)}
-						</div>
-					{/if}
-					{@render markRow(jump.takeoff, 'Takeoff')}
-					{#if jump.flight}
-						<div class="mp-interval mp-interval-flight" title={intervalDescription(jump.flight)}>
-							{intervalDescription(jump.flight)}
-						</div>
-						{@render markRow(jump.flight.to, 'Landing')}
-					{:else}
-						<p class="mp-incomplete">Mark a landing to complete this jump.</p>
-					{/if}
-				</section>
-			{/each}
-			{#if outOfSequenceMarks.length > 0}
-				<div class="mp-warning">
-					Repeated marks have no timing interval: {outOfSequenceMarks
-						.map((mark) => (mark.type === 'landing' ? 'Landing' : 'Takeoff'))
-						.join(', ')}
-				</div>
-			{/if}
-			{#if grouped.strayMarks.length > 0}
-				<section class="mp-strays" aria-label="Unpaired marks">
-					<h3>Unpaired marks</h3>
-					{#each grouped.strayMarks as mark (mark.id)}{@render markRow(
-							mark,
-							mark.type === 'landing' ? 'Landing' : 'Takeoff'
-						)}{/each}
-				</section>
-			{/if}
-		</div>
-	{/if}
-
-	<div class="mp-session">
-		<input
-			class="mp-field mp-title"
-			bind:value={title}
-			placeholder={titlePlaceholder}
-			aria-label="Session title"
-			spellcheck="false"
-		/>
-		<textarea
-			class="mp-field mp-notes"
-			bind:value={notes}
-			placeholder="Notes (exercise, attempt, how it felt…)"
-			aria-label="Session notes"
-			rows="2"
-		></textarea>
 	</div>
 
 	<footer class="mp-footer">
@@ -258,6 +267,11 @@
 		background: hsl(var(--at-bg-elevated));
 		color: hsl(var(--at-fg));
 		font-size: 12px;
+	}
+
+	/* Transparent on desktop; becomes the scrolling region on narrow screens. */
+	.mp-body {
+		display: contents;
 	}
 
 	.mp-header {
@@ -652,12 +666,43 @@
 		}
 	}
 
+	/* The glyph stays 16px; the button box itself reaches the 44px touch minimum. */
+	@media (pointer: coarse) {
+		.mp-icon-btn {
+			width: 44px;
+			height: 44px;
+		}
+
+		.mp-header {
+			padding-block: 4px 0;
+		}
+
+		.mp-mark-actions {
+			gap: 0;
+			padding-right: 0;
+		}
+	}
+
 	@media (max-width: 900px) {
 		.marks-panel {
 			flex: 0 0 auto;
 			width: 100%;
 			height: auto;
 			max-height: 38vh;
+			overflow: hidden;
+		}
+
+		/* Header and footer stay pinned; everything between them scrolls. */
+		.mp-body {
+			display: block;
+			flex: 1 1 auto;
+			min-height: 0;
+			overflow-y: auto;
+			overscroll-behavior: contain;
+		}
+
+		.mp-results {
+			overflow-y: visible;
 		}
 	}
 </style>

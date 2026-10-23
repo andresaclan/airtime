@@ -411,6 +411,16 @@
 		cursor: not-allowed;
 	}
 
+	/* Keep the 20px glyph but give frame and mute buttons a 44px touch target. The
+	   vertical margin cancels the extra height so the control bar doesn't grow. */
+	@media (pointer: coarse) {
+		.frame-btn {
+			width: 44px;
+			height: 44px;
+			margin-block: -8px;
+		}
+	}
+
 	@media (max-width: 480px) {
 		.volume-slider {
 			display: none;
