@@ -3,6 +3,7 @@
  * written so an agent can read it without any other context.
  */
 import { analyzeMarks, frameOf, GRAVITY, sortMarks, type MarkType } from '$lib/video/marks';
+import { migrateSession } from './migrate';
 import { SCHEMA_VERSION, type FrameRateSource, type Session } from './schema';
 
 export const EXPORT_FORMAT = 'airtime-export';
@@ -381,7 +382,10 @@ function parseSession(raw: unknown, index: number): Session {
 	};
 }
 
-/** Parses an Airtime export file. Derived values are ignored; they're recomputed from marks. */
+/**
+ * Parses an Airtime export file from this or any earlier version. Derived values are
+ * ignored; they're recomputed from marks.
+ */
 export function parseImport(text: string): Session[] {
 	let data: unknown;
 	try {
@@ -390,18 +394,28 @@ export function parseImport(text: string): Session[] {
 		throw new Error('Not a valid JSON file');
 	}
 	expect(isObject(data) && data.format === EXPORT_FORMAT, 'Not an Airtime export file');
-	expect(
-		data.schemaVersion === SCHEMA_VERSION,
-		`Unsupported schema version ${String(data.schemaVersion)}`
-	);
 	expect(Array.isArray(data.sessions), 'sessions must be an array');
-	return data.sessions.map(parseSession);
+	const fileVersion = data.schemaVersion;
+	return data.sessions.map((raw, index) => {
+		expect(isObject(raw), `sessions[${index}] must be an object`);
+		// Sessions carry their own version; the file's covers any that don't.
+		return parseSession(migrateSession({ schemaVersion: fileVersion, ...raw }), index);
+	});
 }
 
-/** Imported sessions that are new or newer than what's stored; the rest are skipped. */
-export function sessionsToImport(incoming: Session[], existing: Session[]): Session[] {
+/**
+ * Imported sessions that are new or newer than what's stored; the rest are skipped.
+ * `unreadableIds` are stored records this version can't read, so they're never overwritten.
+ */
+export function sessionsToImport(
+	incoming: Session[],
+	existing: Session[],
+	unreadableIds: string[] = []
+): Session[] {
 	const stored = new Map(existing.map((session) => [session.id, session]));
+	const untouchable = new Set(unreadableIds);
 	return incoming.filter((session) => {
+		if (untouchable.has(session.id)) return false;
 		const current = stored.get(session.id);
 		return !current || session.updatedAt > current.updatedAt;
 	});

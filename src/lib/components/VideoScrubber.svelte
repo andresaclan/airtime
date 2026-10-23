@@ -311,5 +311,20 @@
 			width: 24px;
 			height: 24px;
 		}
+
+		/* 44px hit box centred on the same spot the 14px box and glyph occupied. */
+		.timeline-mark {
+			top: -12.5px;
+			width: 44px;
+			height: 44px;
+		}
+
+		.timeline-mark::before {
+			top: 17.5px;
+		}
+
+		.timeline-mark::after {
+			top: 14.5px;
+		}
 	}
 </style>
