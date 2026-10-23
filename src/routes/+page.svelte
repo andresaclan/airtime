@@ -30,7 +30,16 @@
 		requestPersistentStorage,
 		saveSession
 	} from '$lib/session/store';
-	import { backupStatus, lastBackupAt, type BackupStatus } from '$lib/session/backup';
+	import {
+		backUp,
+		backupStatus,
+		importBackup,
+		importFailure,
+		importSummary,
+		lastBackupAt,
+		needsBackup,
+		type BackupStatus
+	} from '$lib/session/backup';
 
 	let videoElement: HTMLVideoElement | null = $state(null);
 	let videoSrc: string | null = $state(null);
@@ -63,6 +72,14 @@
 	let keybindsOpen = $state(false);
 	let sessionsOpen = $state(false);
 	let backup: BackupStatus | null = $state(null);
+	// Kept loaded so Back up now can open the share sheet without awaiting storage first.
+	let savedSessions: Session[] | null = $state(null);
+	let savedSessionsReadAt = '';
+	let reminderDismissed = $state(false);
+	let showBackupReminder = $derived(needsBackup(backup) && !reminderDismissed);
+	let isAppEmpty = $derived.by(() => savedSessions?.length === 0 && backup?.unreadable === 0);
+	let restoreInput: HTMLInputElement | null = $state(null);
+	let restoreMessage: { text: string; error?: boolean } | null = $state(null);
 
 	// Saving is explicit (⌘S). The session is "dirty" whenever the marks or details
 	// differ from what was last saved or restored for this video.
@@ -221,14 +238,45 @@
 
 	async function refreshBackup(): Promise<BackupStatus | null> {
 		try {
+			const readAt = new Date().toISOString();
 			const stored = await readSessions();
+			savedSessions = stored.sessions;
+			savedSessionsReadAt = readAt;
 			backup = backupStatus(stored.sessions, lastBackupAt(), {
 				unreadable: stored.unreadableIds.length
 			});
 		} catch {
+			savedSessions = null;
 			backup = null;
 		}
 		return backup;
+	}
+
+	async function handleBackUpNow() {
+		if (!savedSessions) return;
+		const outcome = await backUp(savedSessions, savedSessionsReadAt);
+		if (outcome === 'cancelled') return;
+		await refreshBackup();
+		showNotice(outcome === 'shared' ? 'Backup shared' : 'Backup downloaded');
+	}
+
+	async function handleRestore(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		restoreMessage = null;
+		try {
+			const result = await importBackup(file);
+			restoreMessage = {
+				text:
+					importSummary(result) +
+					(result.imported ? ' — open each video to bring back its marks.' : '')
+			};
+			await refreshBackup();
+		} catch (error) {
+			restoreMessage = { text: importFailure(error), error: true };
+		}
 	}
 
 	function backupReminder(status: BackupStatus): string {
@@ -282,7 +330,10 @@
 			sessionCreatedAt = session.createdAt;
 			savedSignature = savingSignature;
 			const status = await refreshBackup();
-			showNotice(status?.due ? `Saved · ${backupReminder(status)}` : 'Saved');
+			// While the reminder bar is up it already says this.
+			showNotice(
+				status?.due && !showBackupReminder ? `Saved · ${backupReminder(status)}` : 'Saved'
+			);
 		} catch {
 			showNotice("Couldn't save — browser storage is unavailable");
 		} finally {
@@ -594,43 +645,82 @@
 		</div>
 		<div class="app-notice" class:visible={notice} role="status">{notice ?? ''}</div>
 	</header>
+	{#if showBackupReminder && backup}
+		<section class="backup-reminder" aria-label="Backup reminder">
+			<span class="backup-reminder-dot"></span>
+			<span class="backup-reminder-text">
+				{backup.notBackedUp} session{backup.notBackedUp === 1 ? '' : 's'} not backed up
+			</span>
+			<button class="backup-reminder-action" onclick={handleBackUpNow}>Back up now</button>
+			<button
+				class="backup-reminder-dismiss"
+				onclick={() => (reminderDismissed = true)}
+				aria-label="Dismiss backup reminder"
+				title="Hide until next visit"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-3.5 w-3.5"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<line x1="18" y1="6" x2="6" y2="18" />
+					<line x1="6" y1="6" x2="18" y2="18" />
+				</svg>
+			</button>
+		</section>
+	{/if}
 	<!-- Viewing stage -->
 	<div
 		class="viewer-stage relative flex min-h-0 flex-1 items-center justify-center gap-3 overflow-hidden"
 	>
 		{#if !videoSrc}
 			<!-- Empty state -->
-			<button
-				onclick={openFilePicker}
-				class="empty-state at-reveal cursor-pointer"
-				style="--delay: 50ms"
-			>
-				<div class="empty-state-icon" class:animate-pulse={isDragging}>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-10 w-10"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="1.5"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-						/>
-					</svg>
-				</div>
-				<div class="empty-state-title">
-					{isDragging ? 'Drop video here' : 'Open a video'}
-				</div>
-				<div class="empty-state-description">
-					<span class="pointer-only">Click to browse or drag and drop a video file</span><span
-						class="touch-only">Tap to choose a video from your library or files</span
-					>
-				</div>
-				<div class="empty-state-hint">Press <kbd>?</kbd> for keyboard shortcuts</div>
-			</button>
+			<div class="empty-stack">
+				<button
+					onclick={openFilePicker}
+					class="empty-state at-reveal cursor-pointer"
+					style="--delay: 50ms"
+				>
+					<div class="empty-state-icon" class:animate-pulse={isDragging}>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-10 w-10"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="1.5"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+							/>
+						</svg>
+					</div>
+					<div class="empty-state-title">
+						{isDragging ? 'Drop video here' : 'Open a video'}
+					</div>
+					<div class="empty-state-description">
+						<span class="pointer-only">Click to browse or drag and drop a video file</span><span
+							class="touch-only">Tap to choose a video from your library or files</span
+						>
+					</div>
+					<div class="empty-state-hint">Press <kbd>?</kbd> for keyboard shortcuts</div>
+				</button>
+				{#if isAppEmpty}
+					<p class="empty-restore at-reveal" style="--delay: 100ms">
+						Have a backup? <button class="empty-restore-btn" onclick={() => restoreInput?.click()}
+							>Restore it</button
+						>
+					</p>
+				{/if}
+				<p class="empty-restore-message" class:error={restoreMessage?.error} role="status">
+					{restoreMessage?.text ?? ''}
+				</p>
+			</div>
 		{:else}
 			<div class="viewer-frame">
 				<VideoViewer
@@ -796,6 +886,13 @@
 		accept="video/*"
 		onchange={handleFileSelect}
 		oncancel={() => (expectedSession = null)}
+		class="sr-only"
+	/>
+	<input
+		bind:this={restoreInput}
+		type="file"
+		accept="application/json,.json"
+		onchange={handleRestore}
 		class="sr-only"
 	/>
 </div>

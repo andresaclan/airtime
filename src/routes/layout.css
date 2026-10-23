@@ -467,6 +467,61 @@ body {
 	}
 }
 
+/* Quiet, non-modal: stays while a backup is due, until dismissed for this visit. */
+.backup-reminder {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	min-height: 34px;
+	padding: 3px 12px 3px 28px;
+	border-bottom: 1px solid hsl(var(--at-border) / 0.72);
+	background: hsl(var(--at-warning) / 0.08);
+	color: hsl(var(--at-fg-secondary));
+	font-size: 12px;
+}
+
+.backup-reminder-dot {
+	width: 6px;
+	height: 6px;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	background: hsl(var(--at-warning));
+}
+
+.backup-reminder-action {
+	min-height: 26px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 7px;
+	background: hsl(var(--at-accent));
+	color: hsl(var(--at-bg));
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.backup-reminder-action:hover {
+	background: hsl(var(--at-accent-hover));
+}
+
+.backup-reminder-dismiss {
+	display: grid;
+	place-items: center;
+	width: 28px;
+	height: 28px;
+	border: none;
+	border-radius: 7px;
+	background: transparent;
+	color: hsl(var(--at-fg-muted));
+	cursor: pointer;
+}
+
+.backup-reminder-dismiss:hover {
+	background: hsl(var(--at-surface-hover));
+	color: hsl(var(--at-fg));
+}
+
 /* ========================================
    Utilities
    ======================================== */
@@ -534,6 +589,46 @@ body {
 	max-width: 280px;
 }
 
+.empty-stack {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.empty-restore {
+	color: hsl(var(--at-fg-muted));
+	font-size: 13px;
+}
+
+.empty-restore-btn {
+	min-height: 32px;
+	padding: 0 2px;
+	border: none;
+	background: none;
+	color: hsl(var(--at-accent));
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.empty-restore-btn:hover {
+	text-decoration: underline;
+}
+
+.empty-restore-message {
+	max-width: 320px;
+	min-height: 1.5em;
+	margin-top: 8px;
+	color: hsl(var(--at-fg-secondary));
+	font-size: 12px;
+	line-height: 1.5;
+	text-align: center;
+}
+
+.empty-restore-message.error {
+	color: hsl(var(--at-error));
+}
+
 /* ========================================
    Responsive
    ======================================== */
@@ -583,6 +678,21 @@ body {
 		max-width: 38vw;
 		transform: translateX(-50%);
 		font-size: 11px;
+	}
+	.backup-reminder {
+		justify-content: flex-start;
+		padding-left: 14px;
+		padding-right: 6px;
+	}
+	.backup-reminder-text {
+		flex: 1;
+	}
+	.backup-reminder-action {
+		min-height: 32px;
+	}
+	.backup-reminder-dismiss {
+		width: 32px;
+		height: 32px;
 	}
 	.header-open {
 		min-height: 28px;
