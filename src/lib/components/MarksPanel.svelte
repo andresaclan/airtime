@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { formatTimecode } from '$lib/video/timecode';
-	import { groupJumps, type Analysis, type Interval, type Mark } from '$lib/video/marks';
+	import { groupJumps, type Analysis, type Interval, type Jump, type Mark } from '$lib/video/marks';
 	import { TIME_SCALES } from '$lib/session/schema';
 
 	interface Props {
@@ -54,7 +54,23 @@
 	let slowMotion = $derived(
 		TIME_SCALES.find((scale) => scale.value === timeScale && scale.value !== 1)
 	);
-	let outOfSequenceMarks = $derived(marks.filter((mark) => analysis.outOfSequence.has(mark.id)));
+	// A landing followed by the next attempt's touchdown is normal; only warn about
+	// repeated marks that no jump could use.
+	let outOfSequenceMarks = $derived(
+		grouped.strayMarks.filter((mark) => analysis.outOfSequence.has(mark.id))
+	);
+	let completedJumps = $derived(grouped.jumps.filter((jump) => jump.flight).length);
+
+	function jumpTitle(jump: Jump, index: number): string {
+		const parts = [`Jump ${index + 1}`];
+		if (jump.flight?.heightCm !== undefined) {
+			parts.push(`${jump.flight.heightCm.toFixed(1)} cm`);
+			if (jump.contact) {
+				parts.push(`RSI ${(jump.flight.heightCm / 100 / jump.contact.realSeconds).toFixed(2)}`);
+			}
+		}
+		return parts.join(' · ');
+	}
 
 	function formatMs(seconds: number): string {
 		return `${(seconds * 1000).toFixed(1)}`;
@@ -113,11 +129,7 @@
 	{#if bestJump?.flight}
 		<div class="mp-summary">
 			<div class="mp-stat mp-stat-primary">
-				<span class="mp-stat-label"
-					>{grouped.jumps.filter((jump) => jump.flight).length > 1
-						? 'Best jump height'
-						: 'Jump height'}</span
-				>
+				<span class="mp-stat-label">{completedJumps > 1 ? 'Best jump height' : 'Jump height'}</span>
 				<span class="mp-stat-value">{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span>
 				<span class="mp-stat-sub">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span>
 			</div>
@@ -127,7 +139,7 @@
 				<span class="mp-stat-sub">{bestJump.flight.frames} fr</span>
 			</div>
 			<div class="mp-stat">
-				<span class="mp-stat-label">Ground contact</span>
+				<span class="mp-stat-label">Contact time</span>
 				{#if bestJump.contact}
 					<span class="mp-stat-value"
 						>{formatMs(bestJump.contact.realSeconds)}<small>ms</small></span
@@ -171,16 +183,8 @@
 			{#each grouped.jumps as jump, index (jump.takeoff.id)}
 				<section class="mp-jump" class:mp-best={jump === bestJump} aria-label="Jump {index + 1}">
 					<h3>
-						<span class="mp-jump-title"
-							>Jump {index + 1}{#if jump.flight}
-								· {jump.flight.heightCm?.toFixed(1)} cm{/if}{#if jump.contact && jump.flight?.heightCm !== undefined}
-								· RSI {(jump.flight.heightCm / 100 / jump.contact.realSeconds).toFixed(
-									2
-								)}{/if}</span
-						>
-						{#if grouped.jumps.filter((item) => item.flight).length >= 2 && jump === bestJump}<span
-								>Best</span
-							>{/if}
+						<span class="mp-jump-title">{jumpTitle(jump, index)}</span>
+						{#if completedJumps >= 2 && jump === bestJump}<span>Best</span>{/if}
 					</h3>
 					{#if jump.contact}
 						{@render markRow(jump.contact.from, 'Touchdown')}
@@ -323,7 +327,7 @@
 
 	.mp-summary {
 		display: grid;
-		grid-template-columns: 1.2fr 1fr 1fr;
+		grid-template-columns: 1fr 1fr;
 		gap: 5px;
 		padding: 4px 12px 0;
 	}
@@ -338,8 +342,12 @@
 		background: hsl(var(--at-surface));
 	}
 
+	.mp-stat-primary {
+		grid-column: 1 / -1;
+	}
+
 	.mp-stat-primary .mp-stat-value {
-		font-size: 23px;
+		font-size: 26px;
 	}
 
 	.mp-stat-label {
