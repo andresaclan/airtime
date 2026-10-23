@@ -388,20 +388,18 @@
 		width: 38px;
 		height: 38px;
 		border-radius: 50%;
-		background: hsl(var(--at-accent));
+		background: hsl(var(--at-fg) / 0.92);
 		border: none;
-		color: white;
+		color: hsl(var(--at-bg));
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		cursor: pointer;
-		transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
-		box-shadow: 0 0 16px hsl(var(--at-accent) / 0.28);
+		transition: background 150ms ease;
 	}
 
 	.play-btn:hover:not(:disabled) {
-		transform: scale(1.08);
-		box-shadow: 0 0 32px hsl(var(--at-accent) / 0.5);
+		background: hsl(var(--at-fg));
 	}
 
 	.play-btn:active:not(:disabled) {
@@ -411,7 +409,6 @@
 	.play-btn:disabled {
 		opacity: 0.4;
 		cursor: not-allowed;
-		box-shadow: none;
 	}
 
 	@media (max-width: 480px) {
