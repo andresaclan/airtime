@@ -1,14 +1,17 @@
 <script lang="ts">
 	import { analyzeMarks } from '$lib/video/marks';
 	import type { Session } from '$lib/session/schema';
-	import { deleteSession, putSessions, readSessions } from '$lib/session/store';
+	import { deleteSession, readSessions } from '$lib/session/store';
 	import { dialogFocus, focusFirst, trapTab } from '$lib/dialogFocus';
-	import { downloadExport, parseImport, sessionsToImport } from '$lib/session/exportFile';
+	import { downloadExport } from '$lib/session/exportFile';
 	import {
+		backUp,
 		backupStatus,
+		importBackup,
+		importFailure,
+		importSummary,
 		lastBackupAt,
 		protectStorage,
-		recordBackup,
 		storageProtection,
 		type StorageProtection
 	} from '$lib/session/backup';
@@ -107,23 +110,12 @@
 		if (!file) return;
 		message = null;
 		try {
-			const incoming = parseImport(await file.text());
-			const stored = await readSessions();
-			const toImport = sessionsToImport(incoming, stored.sessions, stored.unreadableIds);
-			await putSessions(toImport);
-			const skipped = incoming.length - toImport.length;
-			message = {
-				text:
-					`Imported ${toImport.length} session${toImport.length === 1 ? '' : 's'}` +
-					(skipped ? ` · skipped ${skipped} already up to date` : '')
-			};
+			const result = await importBackup(file);
+			message = { text: importSummary(result) };
 			await refresh();
-			if (toImport.length) onImported();
+			if (result.imported) onImported();
 		} catch (error) {
-			message = {
-				text: `Import failed: ${error instanceof Error ? error.message : 'unknown error'}`,
-				error: true
-			};
+			message = { text: importFailure(error), error: true };
 		}
 	}
 
@@ -132,10 +124,8 @@
 		protection = await storageProtection();
 	}
 
-	function handleExportAll() {
-		downloadExport(sessions);
-		recordBackup();
-		lastBackup = lastBackupAt();
+	async function handleExportAll() {
+		if ((await backUp(sessions)) !== 'cancelled') lastBackup = lastBackupAt();
 	}
 
 	function handleBackdropClick(event: MouseEvent) {
@@ -227,7 +217,14 @@
 			{#if loading && sessions.length === 0}
 				<p class="sessions-empty">Loading…</p>
 			{:else if sessions.length === 0 && unreadableIds.length === 0}
-				<p class="sessions-empty">No saved sessions yet. Mark a video and press ⌘/Ctrl + S.</p>
+				<div class="sessions-empty">
+					<p>No saved sessions yet. Mark a video and press ⌘/Ctrl + S.</p>
+					<p class="sessions-empty-restore">
+						Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
+							>Restore it</button
+						>
+					</p>
+				</div>
 			{:else}
 				<ul class="sessions-list">
 					{#each sessions as session (session.id)}
@@ -422,6 +419,12 @@
 		color: hsl(var(--at-fg-secondary));
 		font-size: 13px;
 		text-align: center;
+	}
+
+	.sessions-empty-restore {
+		margin-top: 8px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
 	}
 
 	.sessions-list {

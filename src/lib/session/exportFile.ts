@@ -295,14 +295,23 @@ export function exportFileName(sessions: Session[]): string {
 	return `airtime-${slug || 'session'}-${date}.json`;
 }
 
-export function downloadExport(sessions: Session[]): void {
+/** Built synchronously, so it can be handed to `navigator.share` inside the tap that asked. */
+export function exportFile(sessions: Session[]): File {
 	const json = JSON.stringify(buildExport(sessions), null, 2);
-	const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+	return new File([json], exportFileName(sessions), { type: 'application/json' });
+}
+
+export function downloadFile(file: File): void {
+	const url = URL.createObjectURL(file);
 	const link = document.createElement('a');
 	link.href = url;
-	link.download = exportFileName(sessions);
+	link.download = file.name;
 	link.click();
 	setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+export function downloadExport(sessions: Session[]): void {
+	downloadFile(exportFile(sessions));
 }
 
 // ---- Import ----

@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'vitest';
 import { buildExport, parseImport, sessionsToImport } from './exportFile';
 import { migrateSession, NewerSchemaError } from './migrate';
-import { backupStatus } from './backup';
+import {
+	backupAfterRestore,
+	backupMethod,
+	backupStatus,
+	importSummary,
+	isShareCancel,
+	needsBackup
+} from './backup';
 import { SCHEMA_VERSION, type Session } from './schema';
 // A real export from schema v1, frozen. Never regenerate it: it stands in for the backups
 // users already have, which every future version must still import.
@@ -144,5 +151,66 @@ describe('backupStatus', () => {
 			now: at('2027-01-01T00:00:00Z')
 		});
 		expect(status).toMatchObject({ notBackedUp: 0, due: false });
+	});
+});
+
+describe('needsBackup', () => {
+	const status = { lastBackupAt: null, notBackedUp: 6, unreadable: 0, due: true };
+
+	test('reminds while due work is unexported', () => {
+		expect(needsBackup(status)).toBe(true);
+	});
+
+	test('stays quiet when nothing is at risk or a backup would not help', () => {
+		expect(needsBackup(null)).toBe(false);
+		expect(needsBackup({ ...status, due: false })).toBe(false);
+		expect(needsBackup({ ...status, notBackedUp: 0, unreadable: 1 })).toBe(false);
+	});
+});
+
+describe('backupMethod', () => {
+	test('shares on touch-first devices that can share files', () => {
+		expect(backupMethod({ canShareFiles: true, touchFirst: true })).toBe('share');
+	});
+
+	test('downloads otherwise', () => {
+		expect(backupMethod({ canShareFiles: true, touchFirst: false })).toBe('download');
+		expect(backupMethod({ canShareFiles: false, touchFirst: true })).toBe('download');
+	});
+});
+
+describe('isShareCancel', () => {
+	test('only a dismissed share sheet counts as cancelled', () => {
+		expect(isShareCancel(new DOMException('cancelled', 'AbortError'))).toBe(true);
+		expect(isShareCancel(new DOMException('no gesture', 'NotAllowedError'))).toBe(false);
+		expect(isShareCancel(new Error('boom'))).toBe(false);
+		expect(isShareCancel(null)).toBe(false);
+	});
+});
+
+describe('backupAfterRestore', () => {
+	const sessions = parseImport(v1Text);
+	const newest = sessions.map((session) => session.updatedAt).sort()[1];
+
+	test('a restore into an empty browser is backed up as of its newest session', () => {
+		expect(backupAfterRestore([], sessions, null)).toBe(newest);
+	});
+
+	test('never marks local work as backed up', () => {
+		expect(backupAfterRestore([sessions[0]], [sessions[1]], null)).toBeNull();
+		expect(backupAfterRestore([], [], null)).toBeNull();
+	});
+
+	test('never moves the last backup backwards', () => {
+		expect(backupAfterRestore([], sessions, '2027-01-01T00:00:00.000Z')).toBeNull();
+	});
+});
+
+describe('importSummary', () => {
+	test('counts imported and skipped sessions', () => {
+		expect(importSummary({ imported: 1, skipped: 0 })).toBe('Imported 1 session');
+		expect(importSummary({ imported: 3, skipped: 2 })).toBe(
+			'Imported 3 sessions · skipped 2 already up to date'
+		);
 	});
 });
