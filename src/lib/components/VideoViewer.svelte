@@ -17,6 +17,7 @@
 		volume: number;
 		isMuted: boolean;
 		zoomLevel?: number;
+		playbackRate?: number;
 		onTimeUpdate?: (time: number) => void;
 		onDurationChange?: (duration: number) => void;
 		onPlayStateChange?: (playing: boolean) => void;
@@ -39,6 +40,7 @@
 		volume = $bindable(1),
 		isMuted = $bindable(false),
 		zoomLevel = $bindable(1),
+		playbackRate = 1,
 		onTimeUpdate,
 		onDurationChange,
 		onPlayStateChange,
@@ -83,6 +85,14 @@
 	$effect(() => {
 		if (videoElement) {
 			videoElement.muted = isMuted;
+		}
+	});
+
+	// defaultPlaybackRate too, so the rate survives loading a new video into the element.
+	$effect(() => {
+		if (videoElement) {
+			videoElement.defaultPlaybackRate = playbackRate;
+			videoElement.playbackRate = playbackRate;
 		}
 	});
 
@@ -365,6 +375,38 @@
 		}
 	}
 
+	// Playback timing is noisy, so estimates snap to a standard rate when they're close to one.
+	const COMMON_FRAME_RATES = [
+		15,
+		24000 / 1001,
+		24,
+		25,
+		30000 / 1001,
+		30,
+		48,
+		50,
+		60000 / 1001,
+		60,
+		90,
+		100,
+		120,
+		240
+	];
+
+	function median(values: number[]): number {
+		const sorted = [...values].sort((a, b) => a - b);
+		return sorted[Math.floor(sorted.length / 2)];
+	}
+
+	function snapFrameRate(rate: number): number {
+		if (Math.abs(120 - rate) / 120 <= 0.1) return 120;
+		const nearest = COMMON_FRAME_RATES.reduce((best, candidate) =>
+			Math.abs(candidate - rate) < Math.abs(best - rate) ? candidate : best
+		);
+		if (Math.abs(nearest - rate) / nearest <= 0.04) return Math.round(nearest * 1000) / 1000;
+		return Math.round(rate * 100) / 100;
+	}
+
 	function applyDetectedFrameRate(detectedRate: number | null) {
 		playbackFrameRate = detectedRate;
 		if (sourceFrameRate && sourceFrameRate > 0) {
@@ -391,7 +433,7 @@
 		framesForDetection = [];
 
 		const detectCallback = (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
-			if (currentDetectionId !== detectionId || !videoElement) return;
+			if (settled || currentDetectionId !== detectionId || !videoElement) return;
 			if (frameCount === 0) {
 				lastFrameTime = metadata.mediaTime;
 			} else {
@@ -406,15 +448,20 @@
 
 			if (frameCount < 12) {
 				(videoElement as VideoElementWithFrameCallback).requestVideoFrameCallback(detectCallback);
-			} else if (framesForDetection.length > 0) {
-				const sorted = [...framesForDetection].sort((a, b) => a - b);
-				const median = sorted[Math.floor(sorted.length / 2)];
-
-				const ratioTo120 = Math.abs(120 - median) / 120;
-				const detectedRate = ratioTo120 <= 0.1 ? 120 : Math.round(median * 100) / 100;
-				applyDetectedFrameRate(detectedRate);
-				if (detectionTimeout) clearTimeout(detectionTimeout);
+			} else {
+				finishDetection();
 			}
+		};
+
+		// Low frame-rate clips may not deliver 12 frames before the probe pauses, so the
+		// timeout settles with whatever was sampled rather than leaving detection pending.
+		let settled = false;
+		const finishDetection = () => {
+			if (settled || currentDetectionId !== detectionId) return;
+			settled = true;
+			applyDetectedFrameRate(
+				framesForDetection.length >= 3 ? snapFrameRate(median(framesForDetection)) : null
+			);
 		};
 
 		const wasPlaying = !videoElement.paused;
@@ -436,6 +483,7 @@
 								videoElement.currentTime = originalTime;
 								videoElement.muted = originalMuted;
 							}
+							finishDetection();
 						}, 500);
 					})
 					.catch(() => {

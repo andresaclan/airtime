@@ -5,6 +5,7 @@
 	import MarksPanel from '$lib/components/MarksPanel.svelte';
 	import KeybindsDialog from '$lib/components/KeybindsDialog.svelte';
 	import SessionsDialog from '$lib/components/SessionsDialog.svelte';
+	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { detectSourceFrameRateFromFile } from '$lib/video/frameRate';
 	import { formatTimecode } from '$lib/video/timecode';
@@ -24,9 +25,11 @@
 	import { fingerprintFile } from '$lib/session/fingerprint';
 	import {
 		findSessionByFingerprint,
+		listSessions,
 		requestPersistentStorage,
 		saveSession
 	} from '$lib/session/store';
+	import { backupStatus, lastBackupAt, type BackupStatus } from '$lib/session/backup';
 
 	let videoElement: HTMLVideoElement | null = $state(null);
 	let videoSrc: string | null = $state(null);
@@ -37,6 +40,9 @@
 	let frameRate = $state(30);
 	let sourceFrameRate: number | null = $state(null);
 	let playbackFrameRate: number | null = $state(null);
+	// False until the viewer has either measured a rate or given up and fallen back to 30.
+	let frameRateSettled = $state(false);
+	let playbackRate = $state(1);
 	let volume = $state(1);
 	let isMuted = $state(false);
 	let isScrubbing = $state(false);
@@ -48,9 +54,11 @@
 	// every edit (including Clear all) undoable.
 	let marks: Mark[] = $state([]);
 	let markHistory: Mark[][] = $state([]);
+	let markFuture: Mark[][] = $state([]);
 	let panelOpen = $state(true);
 	let keybindsOpen = $state(false);
 	let sessionsOpen = $state(false);
+	let backup: BackupStatus | null = $state(null);
 
 	// Saving is explicit (⌘S). The session is "dirty" whenever the marks or details
 	// differ from what was last saved or restored for this video.
@@ -125,9 +133,11 @@
 		frameRate = 30;
 		sourceFrameRate = null;
 		playbackFrameRate = null;
+		frameRateSettled = false;
 
 		marks = [];
 		markHistory = [];
+		markFuture = [];
 		zoomLevel = 1;
 
 		videoFile = file;
@@ -138,7 +148,8 @@
 		timeScale = 1;
 		savedSignature = signature;
 		fingerprintPromise = fingerprintFile(file);
-		void restoreSession(loadId, fingerprintPromise);
+		void restoreSession(loadId, fingerprintPromise, expectedSession ?? undefined);
+		expectedSession = null;
 
 		void detectSourceFrameRateFromFile(file)
 			.then((detectedFps) => {
@@ -170,10 +181,18 @@
 	}
 
 	/** Restores the saved session for this file, unless the user has already started editing. */
-	async function restoreSession(loadId: number, fingerprint: Promise<string>) {
+	async function restoreSession(loadId: number, fingerprint: Promise<string>, expected?: Session) {
 		try {
 			const saved = await findSessionByFingerprint(await fingerprint);
-			if (!saved || loadId !== activeVideoLoadId || isDirty) return;
+			if (loadId !== activeVideoLoadId || isDirty) return;
+			if (!saved) {
+				if (expected) {
+					showNotice(
+						`This isn't the video saved as "${expected.title}" — look for ${expected.media.fileName}`
+					);
+				}
+				return;
+			}
 			sessionId = saved.id;
 			sessionCreatedAt = saved.createdAt;
 			sessionTitle = saved.title;
@@ -181,14 +200,37 @@
 			timeScale = saved.timeScale;
 			marks = sortMarks(saved.marks);
 			markHistory = [];
+			markFuture = [];
 			savedSignature = signature;
 			const count = saved.marks.length;
+			if (expected && expected.id !== saved.id) {
+				showNotice(`This video belongs to "${saved.title}", not "${expected.title}"`);
+				return;
+			}
 			showNotice(
 				`Restored ${count} mark${count === 1 ? '' : 's'} · saved ${formatSavedAt(saved.updatedAt)}`
 			);
 		} catch {
 			// No storage available (e.g. private browsing); the video still works unsaved.
 		}
+	}
+
+	async function refreshBackup(): Promise<BackupStatus | null> {
+		try {
+			backup = backupStatus(await listSessions(), lastBackupAt());
+		} catch {
+			backup = null;
+		}
+		return backup;
+	}
+
+	onMount(() => {
+		void refreshBackup();
+	});
+
+	function closeSessions() {
+		sessionsOpen = false;
+		void refreshBackup();
 	}
 
 	async function save() {
@@ -225,7 +267,12 @@
 			sessionId = session.id;
 			sessionCreatedAt = session.createdAt;
 			savedSignature = savingSignature;
-			showNotice('Saved');
+			const status = await refreshBackup();
+			showNotice(
+				status?.due
+					? `Saved · ${status.notBackedUp} sessions not backed up — export from Sessions`
+					: 'Saved'
+			);
 		} catch {
 			showNotice("Couldn't save — browser storage is unavailable");
 		} finally {
@@ -240,6 +287,15 @@
 		savedSignature = null;
 	}
 
+	// Set when a saved session asks for its video, so a mismatched file can be flagged.
+	let expectedSession: Session | null = null;
+
+	function handleSessionOpen(session: Session) {
+		closeSessions();
+		expectedSession = session;
+		openFilePicker();
+	}
+
 	function handleSessionsImported() {
 		if (videoSrc && fingerprintPromise && !isDirty) {
 			void restoreSession(activeVideoLoadId, fingerprintPromise);
@@ -252,6 +308,7 @@
 
 	function commitMarks(next: Mark[]) {
 		markHistory = [...markHistory, marks];
+		markFuture = [];
 		marks = next;
 	}
 
@@ -283,7 +340,23 @@
 		const previous = markHistory.at(-1);
 		if (!previous) return;
 		markHistory = markHistory.slice(0, -1);
+		markFuture = [...markFuture, marks];
 		marks = previous;
+	}
+
+	function redoMarks() {
+		const next = markFuture.at(-1);
+		if (!next) return;
+		markFuture = markFuture.slice(0, -1);
+		markHistory = [...markHistory, marks];
+		marks = next;
+	}
+
+	const PLAYBACK_RATES = [1, 0.5, 0.25];
+
+	function cyclePlaybackRate() {
+		const index = PLAYBACK_RATES.indexOf(playbackRate);
+		playbackRate = PLAYBACK_RATES[(index + 1) % PLAYBACK_RATES.length];
 	}
 
 	function seekTo(time: number) {
@@ -328,9 +401,15 @@
 			return;
 		}
 		const key = event.key.toLowerCase();
-		if ((event.metaKey || event.ctrlKey) && key === 'z' && !event.shiftKey) {
+		if ((event.metaKey || event.ctrlKey) && key === 'z') {
 			event.preventDefault();
-			undoMarks();
+			if (event.shiftKey) redoMarks();
+			else undoMarks();
+			return;
+		}
+		if (event.ctrlKey && !event.metaKey && key === 'y') {
+			event.preventDefault();
+			redoMarks();
 			return;
 		}
 		if (event.metaKey || event.ctrlKey) return;
@@ -346,6 +425,9 @@
 		} else if (key === 'a') {
 			event.preventDefault();
 			panelOpen = !panelOpen;
+		} else if (key === 'r') {
+			event.preventDefault();
+			cyclePlaybackRate();
 		}
 	}
 
@@ -416,9 +498,10 @@
 <SessionsDialog
 	isOpen={sessionsOpen}
 	currentSessionId={sessionId}
-	onClose={() => (sessionsOpen = false)}
+	onClose={closeSessions}
 	onDeleted={handleSessionDeleted}
 	onImported={handleSessionsImported}
+	onOpen={handleSessionOpen}
 />
 
 <div
@@ -444,11 +527,22 @@
 		{/if}
 		<div class="header-actions">
 			<button
+				class="header-open header-icon"
+				onclick={() => (keybindsOpen = true)}
+				aria-label="Keyboard shortcuts"
+				title="Keyboard shortcuts (?)"
+			>
+				?
+			</button>
+			<button
 				class="header-open"
 				onclick={() => (sessionsOpen = true)}
-				title="Saved sessions, export and import"
+				title={backup?.due
+					? `${backup.notBackedUp} sessions are only saved in this browser — export a backup`
+					: 'Saved sessions, export and import'}
 			>
-				Sessions
+				Sessions{#if backup?.due}<span class="header-backup-dot" aria-label="Backup recommended"
+					></span>{/if}
 			</button>
 			{#if videoSrc}
 				<button
@@ -522,6 +616,7 @@
 					{isDragging ? 'Drop video here' : 'Open a video'}
 				</div>
 				<div class="empty-state-description">Click to browse or drag and drop a video file</div>
+				<div class="empty-state-hint">Press <kbd>?</kbd> for keyboard shortcuts</div>
 			</button>
 		{:else}
 			<div class="viewer-frame">
@@ -538,6 +633,8 @@
 					bind:volume
 					bind:isMuted
 					bind:zoomLevel
+					{playbackRate}
+					onFrameRateDetected={() => (frameRateSettled = true)}
 					onError={handleMediaError}
 				/>
 
@@ -556,15 +653,20 @@
 					</div>
 				{:else}
 					<div class="viewer-badge">
-						<span class="viewer-badge-dot"></span>{#if sourceFrameRate}
+						<span class="viewer-badge-dot" class:uncertain={!sourceFrameRate}
+						></span>{#if sourceFrameRate}
 							{sourceFrameRate} fps
 						{:else if playbackFrameRate}
 							<span title="Couldn't read the frame rate from the file; estimated from playback">
 								~{playbackFrameRate} fps (estimated)
 							</span>
+						{:else if frameRateSettled}
+							<span title="Couldn't detect the frame rate; frame math assumes 30 fps">
+								30 fps (assumed)
+							</span>
 						{:else}
 							Detecting fps…
-						{/if}
+						{/if}{#if playbackRate !== 1}<span class="viewer-badge-rate">{playbackRate}×</span>{/if}
 					</div>
 				{/if}
 
@@ -623,6 +725,8 @@
 								{videoElement}
 								bind:volume
 								bind:isMuted
+								{playbackRate}
+								onCyclePlaybackRate={cyclePlaybackRate}
 							/>
 
 							<div class="mark-actions">
@@ -676,6 +780,7 @@
 		type="file"
 		accept="video/*"
 		onchange={handleFileSelect}
+		oncancel={() => (expectedSession = null)}
 		class="sr-only"
 	/>
 </div>
