@@ -1,0 +1,352 @@
+{
+	"format": "airtime-export",
+	"schemaVersion": 1,
+	"exportedAt": "2026-10-04T12:00:00.000Z",
+	"about": "Jump timings marked by hand, frame by frame, on videos in Airtime. Each session is one video. Marks are the source data; everything under \"derived\", \"tables\" and \"overview\" is computed from them and can be recomputed. For analysis across sessions, start with \"tables\": flat rows that load directly into a dataframe or chart. Sessions are ordered by recordedAt, oldest first.",
+	"fields": {
+		"sessions[].marks[].seconds": "Media time of the mark in seconds (source of truth). Snapped to a frame boundary.",
+		"sessions[].marks[].frame": "Frame index, derived as round(seconds × frameRate.value).",
+		"sessions[].marks[].type": "\"takeoff\" = first frame the feet leave the ground; \"landing\" = first frame they touch down.",
+		"sessions[].frameRate": "Frames per second used for frame math. source: \"container\" = read from the file, \"playback-estimate\" = measured during playback, \"default\" = assumed 30 fps (low trust).",
+		"sessions[].timeScale": "Real seconds per media second. 1 = real-time footage; 0.25 = 4× slow motion.",
+		"sessions[].derived.intervals[]": "Consecutive takeoff→landing pairs are \"flight\", landing→takeoff pairs are \"contact\". seconds = media time; realSeconds = seconds × timeScale.",
+		"sessions[].derived.intervals[].heightCm": "Jump height from flight time, h = g·t²/8 with g = 9.81 m/s² and t = realSeconds. Assumes takeoff and landing at the same height.",
+		"sessions[].derived.precisionMs": "Real-time duration of one frame; each mark is accurate to about ±1 frame.",
+		"sessions[].derived.warnings[]": "\"out-of-sequence\" = this mark repeats the previous mark's type, so no interval was computed.",
+		"tables.intervals[]": "One row per flight or contact interval across every session, with session context repeated on each row. index = 1-based position among intervals of the same kind within its session.",
+		"tables.sessions[]": "One row per session with its summary statistics.",
+		"recordedAt": "The video file's last-modified time: usually when it was recorded, but changed by some edits or copies.",
+		"overview": "Totals and extremes across all exported sessions."
+	},
+	"overview": {
+		"sessionCount": 2,
+		"flightCount": 3,
+		"contactCount": 2,
+		"firstRecordedAt": "2026-10-01T16:55:40.000Z",
+		"lastRecordedAt": "2026-10-03T08:40:00.000Z",
+		"bestHeight": {
+			"heightCm": 30.7,
+			"sessionId": "b7e7a0de-4d0e-4a43-9d7c-2f1d1a6d3e01",
+			"sessionTitle": "CMJ set 1"
+		},
+		"meanHeightCm": 30,
+		"meanFlightRealSeconds": 0.4944,
+		"meanContactRealSeconds": 1,
+		"lowTrustSessionIds": []
+	},
+	"tables": {
+		"sessions": [
+			{
+				"sessionId": "b7e7a0de-4d0e-4a43-9d7c-2f1d1a6d3e01",
+				"title": "CMJ set 1",
+				"notes": "Countermovement jumps, felt good",
+				"recordedAt": "2026-10-01T16:55:40.000Z",
+				"savedAt": "2026-10-01T17:10:00.000Z",
+				"fileName": "cmj-set1.mov",
+				"frameRate": 60,
+				"frameRateSource": "container",
+				"timeScale": 1,
+				"markCount": 5,
+				"warningCount": 0,
+				"flightCount": 2,
+				"contactCount": 2,
+				"bestHeightCm": 30.7,
+				"meanHeightCm": 29.7,
+				"meanFlightRealSeconds": 0.4917,
+				"meanContactRealSeconds": 1
+			},
+			{
+				"sessionId": "c1d2e3f4-0000-4000-8000-000000000002",
+				"title": "Slow-mo drop jump",
+				"notes": "",
+				"recordedAt": "2026-10-03T08:40:00.000Z",
+				"savedAt": "2026-10-03T09:00:00.000Z",
+				"fileName": "drop.mov",
+				"frameRate": 240,
+				"frameRateSource": "playback-estimate",
+				"timeScale": 0.25,
+				"markCount": 3,
+				"warningCount": 1,
+				"flightCount": 1,
+				"contactCount": 0,
+				"bestHeightCm": 30.7,
+				"meanHeightCm": 30.7,
+				"meanFlightRealSeconds": 0.5,
+				"meanContactRealSeconds": null
+			}
+		],
+		"intervals": [
+			{
+				"sessionId": "b7e7a0de-4d0e-4a43-9d7c-2f1d1a6d3e01",
+				"sessionTitle": "CMJ set 1",
+				"recordedAt": "2026-10-01T16:55:40.000Z",
+				"fileName": "cmj-set1.mov",
+				"kind": "contact",
+				"index": 1,
+				"startSeconds": 0.5,
+				"frames": 15,
+				"seconds": 0.25,
+				"realSeconds": 0.25,
+				"heightCm": null,
+				"frameRate": 60,
+				"frameRateSource": "container",
+				"timeScale": 1,
+				"precisionMs": 16.67
+			},
+			{
+				"sessionId": "b7e7a0de-4d0e-4a43-9d7c-2f1d1a6d3e01",
+				"sessionTitle": "CMJ set 1",
+				"recordedAt": "2026-10-01T16:55:40.000Z",
+				"fileName": "cmj-set1.mov",
+				"kind": "flight",
+				"index": 1,
+				"startSeconds": 0.75,
+				"frames": 30,
+				"seconds": 0.5,
+				"realSeconds": 0.5,
+				"heightCm": 30.7,
+				"frameRate": 60,
+				"frameRateSource": "container",
+				"timeScale": 1,
+				"precisionMs": 16.67
+			},
+			{
+				"sessionId": "b7e7a0de-4d0e-4a43-9d7c-2f1d1a6d3e01",
+				"sessionTitle": "CMJ set 1",
+				"recordedAt": "2026-10-01T16:55:40.000Z",
+				"fileName": "cmj-set1.mov",
+				"kind": "contact",
+				"index": 2,
+				"startSeconds": 1.25,
+				"frames": 105,
+				"seconds": 1.75,
+				"realSeconds": 1.75,
+				"heightCm": null,
+				"frameRate": 60,
+				"frameRateSource": "container",
+				"timeScale": 1,
+				"precisionMs": 16.67
+			},
+			{
+				"sessionId": "b7e7a0de-4d0e-4a43-9d7c-2f1d1a6d3e01",
+				"sessionTitle": "CMJ set 1",
+				"recordedAt": "2026-10-01T16:55:40.000Z",
+				"fileName": "cmj-set1.mov",
+				"kind": "flight",
+				"index": 2,
+				"startSeconds": 3,
+				"frames": 29,
+				"seconds": 0.4833,
+				"realSeconds": 0.4833,
+				"heightCm": 28.6,
+				"frameRate": 60,
+				"frameRateSource": "container",
+				"timeScale": 1,
+				"precisionMs": 16.67
+			},
+			{
+				"sessionId": "c1d2e3f4-0000-4000-8000-000000000002",
+				"sessionTitle": "Slow-mo drop jump",
+				"recordedAt": "2026-10-03T08:40:00.000Z",
+				"fileName": "drop.mov",
+				"kind": "flight",
+				"index": 1,
+				"startSeconds": 2,
+				"frames": 480,
+				"seconds": 2,
+				"realSeconds": 0.5,
+				"heightCm": 30.7,
+				"frameRate": 240,
+				"frameRateSource": "playback-estimate",
+				"timeScale": 0.25,
+				"precisionMs": 1.04
+			}
+		]
+	},
+	"sessions": [
+		{
+			"schemaVersion": 1,
+			"notes": "Countermovement jumps, felt good",
+			"createdAt": "2026-10-01T17:02:11.000Z",
+			"media": {
+				"fileName": "cmj-set1.mov",
+				"mimeType": "video/quicktime",
+				"sizeBytes": 48211933,
+				"lastModified": "2026-10-01T16:55:40.000Z",
+				"durationSeconds": 6.2,
+				"width": 1920,
+				"height": 1080,
+				"fingerprint": "sha256:5b1f0c2a9e4d7a6b3c8e1f0a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d0e2f4a6b8c"
+			},
+			"frameRate": {
+				"value": 60,
+				"source": "container"
+			},
+			"timeScale": 1,
+			"id": "b7e7a0de-4d0e-4a43-9d7c-2f1d1a6d3e01",
+			"title": "CMJ set 1",
+			"updatedAt": "2026-10-01T17:10:00.000Z",
+			"marks": [
+				{
+					"id": "m1",
+					"type": "landing",
+					"seconds": 0.5,
+					"frame": 30
+				},
+				{
+					"id": "m2",
+					"type": "takeoff",
+					"seconds": 0.75,
+					"frame": 45
+				},
+				{
+					"id": "m3",
+					"type": "landing",
+					"seconds": 1.25,
+					"frame": 75
+				},
+				{
+					"id": "m4",
+					"type": "takeoff",
+					"seconds": 3,
+					"frame": 180
+				},
+				{
+					"id": "m5",
+					"type": "landing",
+					"seconds": 3.483333,
+					"frame": 209
+				}
+			],
+			"derived": {
+				"intervals": [
+					{
+						"kind": "contact",
+						"fromMarkId": "m1",
+						"toMarkId": "m2",
+						"startSeconds": 0.5,
+						"endSeconds": 0.75,
+						"frames": 15,
+						"seconds": 0.25,
+						"realSeconds": 0.25
+					},
+					{
+						"kind": "flight",
+						"fromMarkId": "m2",
+						"toMarkId": "m3",
+						"startSeconds": 0.75,
+						"endSeconds": 1.25,
+						"frames": 30,
+						"seconds": 0.5,
+						"realSeconds": 0.5,
+						"heightCm": 30.7
+					},
+					{
+						"kind": "contact",
+						"fromMarkId": "m3",
+						"toMarkId": "m4",
+						"startSeconds": 1.25,
+						"endSeconds": 3,
+						"frames": 105,
+						"seconds": 1.75,
+						"realSeconds": 1.75
+					},
+					{
+						"kind": "flight",
+						"fromMarkId": "m4",
+						"toMarkId": "m5",
+						"startSeconds": 3,
+						"endSeconds": 3.4833,
+						"frames": 29,
+						"seconds": 0.4833,
+						"realSeconds": 0.4833,
+						"heightCm": 28.6
+					}
+				],
+				"warnings": [],
+				"precisionMs": 16.67,
+				"summary": {
+					"flightCount": 2,
+					"contactCount": 2,
+					"bestHeightCm": 30.7,
+					"meanHeightCm": 29.7,
+					"meanFlightRealSeconds": 0.4917,
+					"meanContactRealSeconds": 1
+				}
+			}
+		},
+		{
+			"schemaVersion": 1,
+			"notes": "",
+			"createdAt": "2026-10-01T17:02:11.000Z",
+			"media": {
+				"fileName": "drop.mov",
+				"mimeType": "video/quicktime",
+				"sizeBytes": 48211933,
+				"lastModified": "2026-10-03T08:40:00.000Z",
+				"durationSeconds": 6.2,
+				"width": 1920,
+				"height": 1080,
+				"fingerprint": "meta:drop.mov:9123456:1759482000000"
+			},
+			"frameRate": {
+				"value": 240,
+				"source": "playback-estimate"
+			},
+			"timeScale": 0.25,
+			"id": "c1d2e3f4-0000-4000-8000-000000000002",
+			"title": "Slow-mo drop jump",
+			"updatedAt": "2026-10-03T09:00:00.000Z",
+			"marks": [
+				{
+					"id": "d1",
+					"type": "takeoff",
+					"seconds": 2,
+					"frame": 480
+				},
+				{
+					"id": "d2",
+					"type": "landing",
+					"seconds": 4,
+					"frame": 960
+				},
+				{
+					"id": "d3",
+					"type": "landing",
+					"seconds": 5,
+					"frame": 1200
+				}
+			],
+			"derived": {
+				"intervals": [
+					{
+						"kind": "flight",
+						"fromMarkId": "d1",
+						"toMarkId": "d2",
+						"startSeconds": 2,
+						"endSeconds": 4,
+						"frames": 480,
+						"seconds": 2,
+						"realSeconds": 0.5,
+						"heightCm": 30.7
+					}
+				],
+				"warnings": [
+					{
+						"markId": "d3",
+						"code": "out-of-sequence"
+					}
+				],
+				"precisionMs": 1.04,
+				"summary": {
+					"flightCount": 1,
+					"contactCount": 0,
+					"bestHeightCm": 30.7,
+					"meanHeightCm": 30.7,
+					"meanFlightRealSeconds": 0.5,
+					"meanContactRealSeconds": null
+				}
+			}
+		}
+	]
+}

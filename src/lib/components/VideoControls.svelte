@@ -7,6 +7,8 @@
 		volume: number;
 		isMuted: boolean;
 		videoElement: HTMLVideoElement | null;
+		playbackRate?: number;
+		onCyclePlaybackRate?: () => void;
 		onPlay?: () => void;
 		onPause?: () => void;
 		onFrameForward?: (time: number) => void;
@@ -23,6 +25,8 @@
 		volume = $bindable(1),
 		isMuted = $bindable(false),
 		videoElement,
+		playbackRate = 1,
+		onCyclePlaybackRate,
 		onPlay,
 		onPause,
 		onFrameForward,
@@ -61,8 +65,10 @@
 		return Math.min(safeDuration, Math.max(0, targetTime));
 	}
 
+	// Stepping while playing would be overtaken by playback, so a step always pauses first.
 	function stepFrameForward() {
 		if (!videoElement) return;
+		videoElement.pause();
 		const newTime = getSteppedTime(1);
 		videoElement.currentTime = newTime;
 		onFrameForward?.(newTime);
@@ -70,6 +76,7 @@
 
 	function stepFrameBack() {
 		if (!videoElement) return;
+		videoElement.pause();
 		const newTime = getSteppedTime(-1);
 		videoElement.currentTime = newTime;
 		onFrameBack?.(newTime);
@@ -116,8 +123,10 @@
 		) {
 			return;
 		}
+		if (event.metaKey || event.ctrlKey || event.altKey) return;
 
-		if (event.key === ' ' || event.key === 'k') {
+		const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+		if (key === ' ' || key === 'k') {
 			event.preventDefault();
 			togglePlayPause();
 		} else if (event.key === 'ArrowLeft' && event.shiftKey) {
@@ -136,7 +145,7 @@
 			event.preventDefault();
 			if (duration > 0 && currentTime >= duration - FRAME_EPSILON) return;
 			stepFrameForward();
-		} else if (event.key === 'm') {
+		} else if (key === 'm') {
 			event.preventDefault();
 			toggleMute();
 		} else if (event.key === 'ArrowUp' && !event.shiftKey) {
@@ -287,6 +296,17 @@
 				<path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
 			</svg>
 		</button>
+
+		<button
+			onclick={onCyclePlaybackRate}
+			disabled={!videoElement}
+			class="frame-btn rate-btn"
+			class:slowed={playbackRate !== 1}
+			aria-label="Playback speed {playbackRate}×"
+			title="Playback speed (R)"
+		>
+			{playbackRate}×
+		</button>
 	</div>
 </div>
 
@@ -382,6 +402,20 @@
 	.frame-btn:disabled {
 		opacity: 0.3;
 		cursor: not-allowed;
+	}
+
+	.rate-btn {
+		width: auto;
+		min-width: 34px;
+		padding: 0 6px;
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 11px;
+		font-weight: 700;
+	}
+
+	.rate-btn.slowed {
+		color: hsl(var(--at-fg));
+		background: hsl(var(--at-fg) / 0.12);
 	}
 
 	.play-btn {

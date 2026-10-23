@@ -10,6 +10,7 @@ export const KEYBIND_GROUPS: KeybindGroup[] = [
 			{ keys: ', / .', action: 'Step back / forward one frame' },
 			{ keys: 'Shift + ← / →', action: 'Step back / forward one frame' },
 			{ keys: '↑ / ↓', action: 'Volume up / down' },
+			{ keys: 'R', action: 'Playback speed 1× / ½× / ¼×' },
 			{ keys: 'M', action: 'Mute / unmute' }
 		]
 	},
@@ -28,7 +29,8 @@ export const KEYBIND_GROUPS: KeybindGroup[] = [
 			{ keys: '[ / ]', action: 'Previous / next mark' },
 			{ keys: 'Backspace / Delete', action: 'Delete mark at playhead' },
 			{ keys: 'Ctrl / ⌘ + Z', action: 'Undo mark change' },
-			{ keys: 'A', action: 'Show / hide marks panel' }
+			{ keys: 'Ctrl / ⌘ + Shift + Z', action: 'Redo mark change' },
+			{ keys: 'A', action: 'Show / hide analysis panel' }
 		]
 	},
 	{

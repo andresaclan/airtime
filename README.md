@@ -1,23 +1,21 @@
 # Airtime
 
-**A fast, private video timing tool for frame-accurate review in the browser.**
+**Measure jump height from video, frame by frame, in the browser.**
 
-Airtime helps editors, animators, engineers, and reviewers inspect local video without uploading it to a server. Open a file, move through it frame by frame, mark an in/out range, and inspect the exact timing details in a focused player UI.
+Airtime turns a clip of a jump into flight time, contact time and jump height. Open a local video, step to the frame the feet leave the ground and the frame they touch down, and Airtime does the math (h = g·t²/8), including for slow-motion footage.
 
 > **Privacy first:** videos are loaded from your device into the browser using local object URLs. Airtime does not include an upload API or application backend.
 
 ## What it does
 
 - Open a video from the file picker or drag and drop it into the app.
-- Play, pause, mute, and adjust volume.
-- Scrub through the timeline with pointer, touch, or keyboard controls.
-- Step backward and forward one frame at a time.
-- Detect source frame rates for supported MP4, M4V, and MOV files.
-- Show playback and source frame-rate information, including high-frame-rate video.
-- Mark **In** and **Out** points and review frame count and duration in milliseconds.
-- Zoom into the video up to 5x, pan around the frame, and reset the view.
-- Generate thumbnails for marked timing points.
-- Keep video playback inline and disable browser presentation modes such as Picture-in-Picture.
+- Step one frame at a time, and slow playback to ½× or ¼× to find the moment quickly.
+- Mark **takeoff** and **landing** frames; marks show on the timeline and can be nudged a frame at a time.
+- Report flight time, contact time, jump height and RSI for every jump in the clip, with the best jump highlighted.
+- Correct for slow-motion footage (2×, 4×, 8×) so times are real-world.
+- Detect the source frame rate from MP4, M4V and MOV files, or estimate it from playback for other formats.
+- Save sessions to the browser, reopen them by opening the same video again, and export or import them as JSON.
+- Zoom into the video up to 5x and pan around the frame.
 
 ## Quick start
 
@@ -44,29 +42,33 @@ The development server starts at `http://localhost:5173`.
 ## Basic workflow
 
 1. Open a local video with **Open video**, or drag it onto the app.
-2. Use the play controls and timeline to find the moment you want to inspect.
-3. Use `,` and `.` for frame stepping. `Shift+ArrowLeft` and `Shift+ArrowRight` are also supported.
-4. Turn on **Timing** and set the **In** and **Out** points.
-5. Open **View details** to see the selected range's frames, milliseconds, and thumbnails.
-6. Use the zoom controls or double-click/tap the viewer when you need to inspect image detail.
+2. Play (press `R` to slow down) until you're near the jump, then pause.
+3. Step with `,` and `.` to the first frame the feet leave the ground and press `T`.
+4. Step to the first frame they touch down and press `L`. The analysis panel shows the jump.
+5. For contact time, also mark the landing that comes before the takeoff.
+6. Press `⌘S` / `Ctrl+S` to save. Open the same file later to pick up where you left off.
 
 ## Keyboard shortcuts
 
-| Shortcut                   | Action                                         |
-| -------------------------- | ---------------------------------------------- |
-| `Space` or `K`             | Play or pause                                  |
-| `,`                        | Step one frame backward                        |
-| `.`                        | Step one frame forward                         |
-| `Shift` + `ArrowLeft`      | Step one frame backward                        |
-| `Shift` + `ArrowRight`     | Step one frame forward                         |
-| `ArrowUp`                  | Increase volume                                |
-| `ArrowDown`                | Decrease volume                                |
-| `M`                        | Mute or unmute                                 |
-| `T`                        | Toggle timing mode                             |
-| `I`                        | Mark the In point while timing mode is active  |
-| `O`                        | Mark the Out point while timing mode is active |
-| `ArrowLeft` / `ArrowRight` | Seek when the timeline has focus               |
-| `Escape`                   | Close the timing details drawer                |
+Press `?` in the app to see these at any time.
+
+| Shortcut                     | Action                               |
+| ---------------------------- | ------------------------------------ |
+| `Space` or `K`               | Play or pause                        |
+| `,` / `.`                    | Step one frame backward / forward    |
+| `Shift` + `←` / `→`          | Step one frame backward / forward    |
+| `R`                          | Cycle playback speed 1× / ½× / ¼×    |
+| `↑` / `↓`                    | Volume up / down                     |
+| `M`                          | Mute or unmute                       |
+| `T`                          | Mark takeoff on this frame           |
+| `L`                          | Mark landing on this frame           |
+| `[` / `]`                    | Jump to previous / next mark         |
+| `Backspace` / `Delete`       | Delete the mark at the playhead      |
+| `⌘` / `Ctrl` + `Z`           | Undo a mark change                   |
+| `⌘` / `Ctrl` + `Shift` + `Z` | Redo a mark change                   |
+| `A`                          | Show or hide the analysis panel      |
+| `⌘` / `Ctrl` + `S`           | Save the session to this browser     |
+| `←` / `→`, `Home` / `End`    | Scrub the timeline when it has focus |
 
 ## Supported files and browser behavior
 
@@ -87,7 +89,10 @@ Airtime is designed for local review:
 
 - Selected files are represented with browser-generated object URLs.
 - Video bytes are not sent to an Airtime server by the app.
-- Timing points and playback state are session-local and are not persisted.
+- Marks, titles and notes are saved only when you save, to this browser's IndexedDB. The video itself is never stored.
+- Exports are JSON files you download yourself.
+- Clearing site data deletes saved sessions. The Sessions dialog shows whether the browser has agreed to protect them from automatic clearing, and how many sessions haven't been exported yet; the Sessions button shows a dot when a backup is overdue.
+- Exports from older versions of Airtime can always be imported; sessions are upgraded to the current format automatically.
 - Object URLs are released when the active video is replaced or the page is unloaded.
 
 If you use a hosted deployment, the hosting provider may still collect normal website and infrastructure metadata. See the deployment configuration and hosting provider policies for those details.
@@ -105,6 +110,7 @@ Useful commands:
 ```sh
 bun run dev -- --open  # Start the Vite development server
 bun run check          # Run Svelte and TypeScript diagnostics
+bun run test           # Run unit tests
 bun run lint           # Check formatting and ESLint rules
 bun run format         # Format the repository
 bun run build          # Create the static production build
@@ -124,6 +130,7 @@ Before opening a pull request, run:
 
 ```sh
 bun run check
+bun run test
 bun run lint
 bun run build
 ```
@@ -135,8 +142,9 @@ These checks also run in GitHub Actions for pull requests targeting `main`.
 ```text
 src/
 ├── lib/
-│   ├── components/       # Video viewer, controls, scrubber, and timing UI
-│   └── video/            # Video metadata and frame-rate detection
+│   ├── components/       # Video viewer, controls, scrubber, analysis panel, dialogs
+│   ├── session/          # Saved sessions (IndexedDB), fingerprinting, export/import
+│   └── video/            # Frame-rate detection, timecode, marks and jump analysis
 └── routes/
     ├── +page.svelte     # Main application screen and local file lifecycle
     └── layout.css       # Application theme and shared styles

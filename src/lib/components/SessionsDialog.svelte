@@ -1,8 +1,16 @@
 <script lang="ts">
 	import { analyzeMarks } from '$lib/video/marks';
 	import type { Session } from '$lib/session/schema';
-	import { deleteSession, listSessions, putSessions } from '$lib/session/store';
+	import { deleteSession, putSessions, readSessions } from '$lib/session/store';
 	import { downloadExport, parseImport, sessionsToImport } from '$lib/session/exportFile';
+	import {
+		backupStatus,
+		lastBackupAt,
+		protectStorage,
+		recordBackup,
+		storageProtection,
+		type StorageProtection
+	} from '$lib/session/backup';
 
 	interface Props {
 		isOpen: boolean;
@@ -10,19 +18,28 @@
 		onClose: () => void;
 		onDeleted: (id: string) => void;
 		onImported: () => void;
+		/** Asks for the session's video; the session restores once the matching file is opened. */
+		onOpen: (session: Session) => void;
 	}
 
-	let { isOpen, currentSessionId, onClose, onDeleted, onImported }: Props = $props();
+	let { isOpen, currentSessionId, onClose, onDeleted, onImported, onOpen }: Props = $props();
 
 	let sessions: Session[] = $state([]);
 	let loading = $state(false);
 	let message: { text: string; error?: boolean } | null = $state(null);
 	let importInput: HTMLInputElement | null = $state(null);
+	let protection: StorageProtection = $state('unknown');
+	let protectDeclined = $state(false);
+	let lastBackup: string | null = $state(null);
+	let unreadableIds: string[] = $state([]);
+	let backup = $derived(backupStatus(sessions, lastBackup, { unreadable: unreadableIds.length }));
 
 	async function refresh() {
 		loading = true;
+		lastBackup = lastBackupAt();
+		protection = await storageProtection();
 		try {
-			sessions = await listSessions();
+			({ sessions, unreadableIds } = await readSessions());
 		} catch {
 			message = { text: "Couldn't read saved sessions from this browser.", error: true };
 		} finally {
@@ -86,7 +103,8 @@
 		message = null;
 		try {
 			const incoming = parseImport(await file.text());
-			const toImport = sessionsToImport(incoming, await listSessions());
+			const stored = await readSessions();
+			const toImport = sessionsToImport(incoming, stored.sessions, stored.unreadableIds);
 			await putSessions(toImport);
 			const skipped = incoming.length - toImport.length;
 			message = {
@@ -102,6 +120,17 @@
 				error: true
 			};
 		}
+	}
+
+	async function handleProtect() {
+		protectDeclined = !(await protectStorage());
+		protection = await storageProtection();
+	}
+
+	function handleExportAll() {
+		downloadExport(sessions);
+		recordBackup();
+		lastBackup = lastBackupAt();
 	}
 
 	function handleBackdropClick(event: MouseEvent) {
@@ -138,17 +167,61 @@
 			</div>
 
 			<p class="sessions-hint">
-				Stored in this browser only. Videos aren't saved — drop the same file in again to reopen its
-				marks. Export to back up or to hand the data to an agent.
+				Stored in this browser only. Videos aren't saved — choose Open… and pick the same file (or
+				drop it in) to reopen its marks. Export to back up or to hand the data to an agent.
 			</p>
 
 			{#if message}
 				<p class="sessions-message" class:error={message.error}>{message.text}</p>
 			{/if}
 
+			{#if sessions.length > 0 || backup.unreadable > 0}
+				<div class="sessions-status">
+					{#if protection === 'protected'}
+						<p class="status-line ok">
+							<span class="status-dot"></span>Protected: the browser won't clear these to free
+							space.
+						</p>
+					{:else if protection === 'unprotected'}
+						<p class="status-line warn">
+							<span class="status-dot"></span>
+							{protectDeclined
+								? 'The browser declined to protect these; it may still clear them if space runs low.'
+								: 'The browser may clear these if space runs low.'}
+							{#if !protectDeclined}<button class="link-btn" onclick={handleProtect}>Protect</button
+								>{/if}
+						</p>
+					{/if}
+					{#if sessions.length > 0}
+						<p class="status-line" class:warn={backup.notBackedUp > 0 && backup.due}>
+							<span class="status-dot"></span>
+							{#if backup.notBackedUp === 0}
+								All sessions backed up {formatDate(backup.lastBackupAt ?? '')}.
+							{:else}
+								{backup.lastBackupAt
+									? `Last backup ${formatDate(backup.lastBackupAt)}`
+									: 'Never backed up'} · {backup.notBackedUp} session{backup.notBackedUp === 1
+									? ''
+									: 's'} only in this browser. Clearing browser data deletes them; Export all keeps a
+								copy.
+							{/if}
+						</p>
+					{/if}
+					{#if backup.unreadable > 0}
+						<p class="status-line warn">
+							<span class="status-dot"></span>
+							{backup.unreadable === 1
+								? "1 session was saved by a newer version of Airtime and can't be shown or exported here. It's kept safe"
+								: `${backup.unreadable} sessions were saved by a newer version of Airtime and can't be shown or exported here. They're kept safe`}
+							— reload the page to update the app.
+						</p>
+					{/if}
+				</div>
+			{/if}
+
 			{#if loading && sessions.length === 0}
 				<p class="sessions-empty">Loading…</p>
-			{:else if sessions.length === 0}
+			{:else if sessions.length === 0 && unreadableIds.length === 0}
 				<p class="sessions-empty">No saved sessions yet. Mark a video and press ⌘/Ctrl + S.</p>
 			{:else}
 				<ul class="sessions-list">
@@ -170,6 +243,15 @@
 								</span>
 							</div>
 							<div class="session-actions">
+								{#if session.id !== currentSessionId}
+									<button
+										class="text-btn"
+										onclick={() => onOpen(session)}
+										title="Choose {session.media.fileName} to reopen its marks"
+									>
+										Open…
+									</button>
+								{/if}
 								<button class="text-btn" onclick={() => downloadExport([session])}>Export</button>
 								<button class="text-btn danger" onclick={() => handleDelete(session)}>Delete</button
 								>
@@ -181,11 +263,7 @@
 
 			<div class="sessions-footer">
 				<button class="text-btn" onclick={() => importInput?.click()}>Import…</button>
-				<button
-					class="primary-btn"
-					onclick={() => downloadExport(sessions)}
-					disabled={sessions.length === 0}
-				>
+				<button class="primary-btn" onclick={handleExportAll} disabled={sessions.length === 0}>
 					Export all
 				</button>
 			</div>
@@ -271,6 +349,53 @@
 		color: hsl(var(--at-fg-muted));
 		font-size: 12px;
 		line-height: 1.5;
+	}
+
+	.sessions-status {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		margin-bottom: 12px;
+	}
+
+	.status-line {
+		display: flex;
+		align-items: baseline;
+		gap: 7px;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 12px;
+		line-height: 1.45;
+	}
+
+	.status-dot {
+		flex: 0 0 auto;
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: hsl(var(--at-fg-muted));
+		transform: translateY(-1px);
+	}
+
+	.status-line.ok .status-dot {
+		background: hsl(var(--at-success));
+	}
+
+	.status-line.warn .status-dot {
+		background: hsl(var(--at-warning));
+	}
+
+	.link-btn {
+		padding: 0;
+		border: none;
+		background: none;
+		color: hsl(var(--at-accent));
+		font: inherit;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.link-btn:hover {
+		text-decoration: underline;
 	}
 
 	.sessions-message {
