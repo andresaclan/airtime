@@ -1,4 +1,5 @@
 /** IndexedDB persistence for saved sessions. */
+import { migrateSession } from './migrate';
 import type { Session } from './schema';
 
 const DB_NAME = 'airtime';
@@ -10,11 +11,24 @@ let dbPromise: Promise<IDBDatabase> | null = null;
 function openDb(): Promise<IDBDatabase> {
 	dbPromise ??= new Promise((resolve, reject) => {
 		const request = indexedDB.open(DB_NAME, DB_VERSION);
-		request.onupgradeneeded = () => {
-			const store = request.result.createObjectStore(STORE, { keyPath: 'id' });
-			store.createIndex('fingerprint', 'media.fingerprint');
+		// Runs once per version the database is behind, so returning users are upgraded in
+		// place. When bumping DB_VERSION, append a step; never change an existing one.
+		request.onupgradeneeded = (event) => {
+			const db = request.result;
+			if (event.oldVersion < 1) {
+				const store = db.createObjectStore(STORE, { keyPath: 'id' });
+				store.createIndex('fingerprint', 'media.fingerprint');
+			}
 		};
-		request.onsuccess = () => resolve(request.result);
+		request.onsuccess = () => {
+			const db = request.result;
+			// Another tab running a newer version needs this connection closed to upgrade.
+			db.onversionchange = () => {
+				db.close();
+				dbPromise = null;
+			};
+			resolve(db);
+		};
 		request.onerror = () => {
 			dbPromise = null;
 			reject(request.error);
@@ -52,15 +66,29 @@ export function deleteSession(id: string): Promise<undefined> {
 	return run('readwrite', (store) => store.delete(id));
 }
 
+/**
+ * Records are upgraded to the current schema as they're read; the next save writes the
+ * new shape. A record that can't be upgraded is skipped but left in storage.
+ */
+function readable(records: Record<string, unknown>[]): Session[] {
+	return records.flatMap((record) => {
+		try {
+			return [migrateSession(record) as Session];
+		} catch {
+			return [];
+		}
+	});
+}
+
 export async function listSessions(): Promise<Session[]> {
-	const sessions = await run<Session[]>('readonly', (store) => store.getAll());
+	const sessions = readable(await run('readonly', (store) => store.getAll()));
 	return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 /** Most recently updated session for a file, if any. */
 export async function findSessionByFingerprint(fingerprint: string): Promise<Session | undefined> {
-	const matches = await run<Session[]>('readonly', (store) =>
-		store.index('fingerprint').getAll(fingerprint)
+	const matches = readable(
+		await run('readonly', (store) => store.index('fingerprint').getAll(fingerprint))
 	);
 	return matches.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
 }
