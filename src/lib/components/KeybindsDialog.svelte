@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { KEYBIND_GROUPS } from '$lib/keybinds';
+	import { dialogFocus, trapTab } from '$lib/dialogFocus';
 
 	interface Props {
 		isOpen: boolean;
@@ -7,6 +8,8 @@
 	}
 
 	let { isOpen, onClose }: Props = $props();
+
+	let card: HTMLElement | null = $state(null);
 
 	// While open, the overlay owns the keyboard: only Esc and ? (to close) get through,
 	// so playback and marking shortcuts don't fire behind it.
@@ -23,6 +26,7 @@
 			if (event.key !== 'Tab') {
 				event.preventDefault();
 			}
+			trapTab(event, card);
 			event.stopImmediatePropagation();
 		}
 
@@ -53,7 +57,7 @@
 		aria-label="Keyboard shortcuts"
 		tabindex="-1"
 	>
-		<div class="keybinds-card">
+		<div class="keybinds-card" bind:this={card} use:dialogFocus tabindex="-1">
 			<div class="keybinds-header">
 				<h2 class="keybinds-title">Keyboard Shortcuts</h2>
 				<button class="close-btn" onclick={onClose} aria-label="Close">
@@ -123,6 +127,7 @@
 		border: 1px solid hsl(var(--at-border));
 		border-radius: 16px;
 		box-shadow: 0 24px 60px hsl(var(--at-shadow) / 0.5);
+		outline: none;
 	}
 
 	.keybinds-header {

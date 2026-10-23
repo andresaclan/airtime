@@ -2,6 +2,7 @@
 	import { analyzeMarks } from '$lib/video/marks';
 	import type { Session } from '$lib/session/schema';
 	import { deleteSession, putSessions, readSessions } from '$lib/session/store';
+	import { dialogFocus, focusFirst, trapTab } from '$lib/dialogFocus';
 	import { downloadExport, parseImport, sessionsToImport } from '$lib/session/exportFile';
 	import {
 		backupStatus,
@@ -28,6 +29,7 @@
 	let loading = $state(false);
 	let message: { text: string; error?: boolean } | null = $state(null);
 	let importInput: HTMLInputElement | null = $state(null);
+	let card: HTMLElement | null = $state(null);
 	let protection: StorageProtection = $state('unknown');
 	let protectDeclined = $state(false);
 	let lastBackup: string | null = $state(null);
@@ -63,6 +65,7 @@
 				event.preventDefault();
 				onClose();
 			}
+			trapTab(event, card);
 			event.stopImmediatePropagation();
 		}
 
@@ -93,6 +96,8 @@
 		await deleteSession(session.id);
 		onDeleted(session.id);
 		await refresh();
+		// The focused Delete button is gone; keep keyboard focus inside the dialog.
+		if (card && !card.contains(document.activeElement)) focusFirst(card);
 	}
 
 	async function handleImport(event: Event) {
@@ -148,7 +153,7 @@
 		aria-label="Saved sessions"
 		tabindex="-1"
 	>
-		<div class="sessions-card">
+		<div class="sessions-card" bind:this={card} use:dialogFocus tabindex="-1">
 			<div class="sessions-header">
 				<h2 class="sessions-title">Saved sessions</h2>
 				<button class="close-btn" onclick={onClose} aria-label="Close">
@@ -312,6 +317,7 @@
 		border: 1px solid hsl(var(--at-border));
 		border-radius: 16px;
 		box-shadow: 0 24px 60px hsl(var(--at-shadow) / 0.5);
+		outline: none;
 	}
 
 	.sessions-header {
