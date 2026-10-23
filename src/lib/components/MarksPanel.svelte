@@ -18,7 +18,12 @@
 		onRemove: (id: string) => void;
 		onUndo: () => void;
 		onClear: () => void;
-		onClose: () => void;
+		/** Stacked under the video (narrow screens) instead of a sidebar. */
+		sheet?: boolean;
+		/** Sheet only: show everything rather than the one-line summary. */
+		expanded?: boolean;
+		/** Hides the sidebar, or expands/collapses the sheet. */
+		onToggle: () => void;
 	}
 
 	let {
@@ -36,8 +41,12 @@
 		onRemove,
 		onUndo,
 		onClear,
-		onClose
+		sheet = false,
+		expanded = true,
+		onToggle
 	}: Props = $props();
+
+	let showDetails = $derived(!sheet || expanded);
 
 	let grouped = $derived(groupJumps(marks, analysis));
 	let bestJump = $derived(
@@ -111,147 +120,219 @@
 	</div>
 {/snippet}
 
-<aside class="marks-panel" aria-label="Jump analysis">
-	<header class="mp-header">
-		<h2>Analysis</h2>
-		<button
-			class="mp-icon-btn"
-			onclick={onClose}
-			aria-label="Hide analysis"
-			title="Hide analysis (A)"
-		>
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-				><path d="M9 6l6 6-6 6" /></svg
-			>
-		</button>
-	</header>
-
-	<div class="mp-body">
-		{#if bestJump?.flight}
-			<div class="mp-summary">
-				<div class="mp-stat mp-stat-primary">
-					<span class="mp-stat-label"
-						>{completedJumps > 1 ? 'Best jump height' : 'Jump height'}</span
-					>
-					<span class="mp-stat-value">{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span>
-					<span class="mp-stat-sub">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span>
-				</div>
-				<div class="mp-stat">
-					<span class="mp-stat-label">Flight time</span>
-					<span class="mp-stat-value">{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span
-					>
-					<span class="mp-stat-sub">{bestJump.flight.frames} fr</span>
-				</div>
-				<div class="mp-stat">
-					<span class="mp-stat-label">Contact time</span>
-					{#if bestJump.contact}
-						<span class="mp-stat-value"
-							>{formatMs(bestJump.contact.realSeconds)}<small>ms</small></span
-						>
-						<span class="mp-stat-sub">{bestJump.contact.frames} fr</span>
+<aside class="marks-panel" class:sheet class:collapsed={!showDetails} aria-label="Jump analysis">
+	{#if sheet}
+		<!-- One button for both states, so focus stays put when the sheet expands or collapses. -->
+		<h2 class="mp-sheet-heading">
+			<button class="mp-sheet-toggle" onclick={onToggle} aria-expanded={expanded}>
+				{#if expanded}
+					<span class="mp-sheet-title">Analysis</span>
+				{:else}
+					<span class="sr-only">Analysis:</span>
+					{#if bestJump?.flight}
+						<span class="mp-peek-stat mp-peek-primary">
+							<span class="mp-peek-label">{completedJumps > 1 ? 'Best height' : 'Height'}</span>
+							<span class="mp-peek-value"
+								>{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span
+							>
+						</span>
+						<span class="mp-peek-stat">
+							<span class="mp-peek-label">Flight</span>
+							<span class="mp-peek-value"
+								>{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span
+							>
+						</span>
+						<span class="mp-peek-stat">
+							<span class="mp-peek-label">Contact</span>
+							<span class="mp-peek-value"
+								>{#if bestJump.contact}{formatMs(bestJump.contact.realSeconds)}<small>ms</small
+									>{:else}—{/if}</span
+							>
+						</span>
 					{:else}
-						<span class="mp-stat-value">—</span>
-						<span class="mp-stat-sub">No contact</span>
+						<span class="mp-peek-hint"
+							>{marks.length > 0
+								? 'Mark a landing to measure the jump'
+								: 'Mark takeoff and landing to measure a jump'}</span
+						>
+					{/if}
+				{/if}
+				<svg
+					class="mp-sheet-chevron"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg
+				>
+			</button>
+		</h2>
+	{:else}
+		<header class="mp-header">
+			<h2>Analysis</h2>
+			<button
+				class="mp-icon-btn"
+				onclick={onToggle}
+				aria-label="Hide analysis"
+				title="Hide analysis (A)"
+			>
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+					><path d="M9 6l6 6-6 6" /></svg
+				>
+			</button>
+		</header>
+	{/if}
+
+	{#if showDetails}
+		<div class="mp-body">
+			{#if bestJump?.flight}
+				<div class="mp-summary">
+					<div class="mp-stat mp-stat-primary">
+						<span class="mp-stat-label"
+							>{completedJumps > 1 ? 'Best jump height' : 'Jump height'}</span
+						>
+						<span class="mp-stat-value"
+							>{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span
+						>
+						<span class="mp-stat-sub">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span
+						>
+					</div>
+					<div class="mp-stat">
+						<span class="mp-stat-label">Flight time</span>
+						<span class="mp-stat-value"
+							>{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span
+						>
+						<span class="mp-stat-sub">{bestJump.flight.frames} fr</span>
+					</div>
+					<div class="mp-stat">
+						<span class="mp-stat-label">Contact time</span>
+						{#if bestJump.contact}
+							<span class="mp-stat-value"
+								>{formatMs(bestJump.contact.realSeconds)}<small>ms</small></span
+							>
+							<span class="mp-stat-sub">{bestJump.contact.frames} fr</span>
+						{:else}
+							<span class="mp-stat-value">—</span>
+							<span class="mp-stat-sub">No contact</span>
+						{/if}
+					</div>
+				</div>
+			{/if}
+			<div class="mp-calibration">
+				<p class="mp-precision">
+					±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps{#if slowMotion}
+						· real time ({slowMotion.label.toLowerCase()}){/if}
+				</p>
+				<label class="mp-scale">
+					<span>Footage</span>
+					<select class="mp-field" bind:value={timeScale}>
+						{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
+								>{scale.label}</option
+							>{/each}
+					</select>
+				</label>
+			</div>
+
+			{#if marks.length === 0}
+				<div class="mp-empty">
+					<p class="mp-empty-title">Mark a jump</p>
+					<ol>
+						<li>
+							Pause on the first frame the feet leave the ground and <span class="pointer-only"
+								>press <kbd>T</kbd></span
+							><span class="touch-only">tap Takeoff</span>.
+						</li>
+						<li>
+							Step to the first frame they touch down and <span class="pointer-only"
+								>press <kbd>L</kbd></span
+							><span class="touch-only">tap Landing</span>.
+						</li>
+					</ol>
+					<p class="mp-empty-hint">
+						<span class="pointer-only">Step frames with <kbd>,</kbd> <kbd>.</kbd></span><span
+							class="touch-only">Hold the frame buttons to step quickly</span
+						> · mark a landing before the takeoff to also get contact time.
+					</p>
+				</div>
+			{:else}
+				<div class="mp-results">
+					{#each grouped.jumps as jump, index (jump.takeoff.id)}
+						<section
+							class="mp-jump"
+							class:mp-best={jump === bestJump}
+							aria-label="Jump {index + 1}"
+						>
+							<h3>
+								<span class="mp-jump-title">{jumpTitle(jump, index)}</span>
+								{#if completedJumps >= 2 && jump === bestJump}<span>Best</span>{/if}
+							</h3>
+							{#if jump.contact}
+								{@render markRow(jump.contact.from, 'Touchdown')}
+								<div
+									class="mp-interval mp-interval-contact"
+									title={intervalDescription(jump.contact)}
+								>
+									{intervalDescription(jump.contact)}
+								</div>
+							{/if}
+							{@render markRow(jump.takeoff, 'Takeoff')}
+							{#if jump.flight}
+								<div
+									class="mp-interval mp-interval-flight"
+									title={intervalDescription(jump.flight)}
+								>
+									{intervalDescription(jump.flight)}
+								</div>
+								{@render markRow(jump.flight.to, 'Landing')}
+							{:else}
+								<p class="mp-incomplete">Mark a landing to complete this jump.</p>
+							{/if}
+						</section>
+					{/each}
+					{#if outOfSequenceMarks.length > 0}
+						<div class="mp-warning">
+							Repeated marks have no timing interval: {outOfSequenceMarks
+								.map((mark) => (mark.type === 'landing' ? 'Landing' : 'Takeoff'))
+								.join(', ')}
+						</div>
+					{/if}
+					{#if grouped.strayMarks.length > 0}
+						<section class="mp-strays" aria-label="Unpaired marks">
+							<h3>Unpaired marks</h3>
+							{#each grouped.strayMarks as mark (mark.id)}{@render markRow(
+									mark,
+									mark.type === 'landing' ? 'Landing' : 'Takeoff'
+								)}{/each}
+						</section>
 					{/if}
 				</div>
+			{/if}
+
+			<div class="mp-session">
+				<input
+					class="mp-field mp-title"
+					bind:value={title}
+					placeholder={titlePlaceholder}
+					aria-label="Session title"
+					spellcheck="false"
+				/>
+				<textarea
+					class="mp-field mp-notes"
+					bind:value={notes}
+					placeholder="Notes (exercise, attempt, how it felt…)"
+					aria-label="Session notes"
+					rows="2"
+				></textarea>
 			</div>
-		{/if}
-		<div class="mp-calibration">
-			<p class="mp-precision">
-				±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps{#if slowMotion}
-					· real time ({slowMotion.label.toLowerCase()}){/if}
-			</p>
-			<label class="mp-scale">
-				<span>Footage</span>
-				<select class="mp-field" bind:value={timeScale}>
-					{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
-							>{scale.label}</option
-						>{/each}
-				</select>
-			</label>
 		</div>
 
-		{#if marks.length === 0}
-			<div class="mp-empty">
-				<p class="mp-empty-title">Mark a jump</p>
-				<ol>
-					<li>Pause on the first frame the feet leave the ground and press <kbd>T</kbd>.</li>
-					<li>Step to the first frame they touch down and press <kbd>L</kbd>.</li>
-				</ol>
-				<p class="mp-empty-hint">
-					Step frames with <kbd>,</kbd> <kbd>.</kbd> · mark a landing before the takeoff to also get contact
-					time.
-				</p>
-			</div>
-		{:else}
-			<div class="mp-results">
-				{#each grouped.jumps as jump, index (jump.takeoff.id)}
-					<section class="mp-jump" class:mp-best={jump === bestJump} aria-label="Jump {index + 1}">
-						<h3>
-							<span class="mp-jump-title">{jumpTitle(jump, index)}</span>
-							{#if completedJumps >= 2 && jump === bestJump}<span>Best</span>{/if}
-						</h3>
-						{#if jump.contact}
-							{@render markRow(jump.contact.from, 'Touchdown')}
-							<div
-								class="mp-interval mp-interval-contact"
-								title={intervalDescription(jump.contact)}
-							>
-								{intervalDescription(jump.contact)}
-							</div>
-						{/if}
-						{@render markRow(jump.takeoff, 'Takeoff')}
-						{#if jump.flight}
-							<div class="mp-interval mp-interval-flight" title={intervalDescription(jump.flight)}>
-								{intervalDescription(jump.flight)}
-							</div>
-							{@render markRow(jump.flight.to, 'Landing')}
-						{:else}
-							<p class="mp-incomplete">Mark a landing to complete this jump.</p>
-						{/if}
-					</section>
-				{/each}
-				{#if outOfSequenceMarks.length > 0}
-					<div class="mp-warning">
-						Repeated marks have no timing interval: {outOfSequenceMarks
-							.map((mark) => (mark.type === 'landing' ? 'Landing' : 'Takeoff'))
-							.join(', ')}
-					</div>
-				{/if}
-				{#if grouped.strayMarks.length > 0}
-					<section class="mp-strays" aria-label="Unpaired marks">
-						<h3>Unpaired marks</h3>
-						{#each grouped.strayMarks as mark (mark.id)}{@render markRow(
-								mark,
-								mark.type === 'landing' ? 'Landing' : 'Takeoff'
-							)}{/each}
-					</section>
-				{/if}
-			</div>
-		{/if}
-
-		<div class="mp-session">
-			<input
-				class="mp-field mp-title"
-				bind:value={title}
-				placeholder={titlePlaceholder}
-				aria-label="Session title"
-				spellcheck="false"
-			/>
-			<textarea
-				class="mp-field mp-notes"
-				bind:value={notes}
-				placeholder="Notes (exercise, attempt, how it felt…)"
-				aria-label="Session notes"
-				rows="2"
-			></textarea>
-		</div>
-	</div>
-
-	<footer class="mp-footer">
-		<button class="mp-text-btn" onclick={onUndo} disabled={!canUndo} title="Undo (⌘Z)">Undo</button>
-		<button class="mp-text-btn" onclick={onClear} disabled={marks.length === 0}>Clear all</button>
-	</footer>
+		<footer class="mp-footer">
+			<button class="mp-text-btn" onclick={onUndo} disabled={!canUndo} title="Undo (⌘Z)"
+				>Undo</button
+			>
+			<button class="mp-text-btn" onclick={onClear} disabled={marks.length === 0}>Clear all</button>
+		</footer>
+	{/if}
 </aside>
 
 <style>
@@ -681,28 +762,137 @@
 			gap: 0;
 			padding-right: 0;
 		}
+
+		.mp-footer {
+			padding-block: 2px;
+		}
+
+		.mp-text-btn {
+			min-height: 44px;
+		}
 	}
 
-	@media (max-width: 900px) {
-		.marks-panel {
-			flex: 0 0 auto;
-			width: 100%;
-			height: auto;
-			max-height: 38vh;
-			overflow: hidden;
-		}
+	/* Sheet: stacked under the video on narrow screens. Collapsed it is just the
+	   summary toggle; expanded it scrolls between a pinned toggle and footer. */
+	.marks-panel.sheet {
+		flex: 0 0 auto;
+		width: 100%;
+		height: auto;
+		max-height: min(55dvh, 560px);
+		overflow: hidden;
+	}
 
-		/* Header and footer stay pinned; everything between them scrolls. */
-		.mp-body {
-			display: block;
-			flex: 1 1 auto;
-			min-height: 0;
-			overflow-y: auto;
-			overscroll-behavior: contain;
-		}
+	.sheet .mp-body {
+		display: block;
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+	}
 
-		.mp-results {
-			overflow-y: visible;
+	.sheet .mp-results {
+		overflow-y: visible;
+	}
+
+	.mp-sheet-heading {
+		margin: 0;
+		font: inherit;
+	}
+
+	.mp-sheet-toggle {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr)) 44px;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		min-height: 56px;
+		padding: 6px 2px 6px 14px;
+		border: none;
+		border-radius: 14px;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+		touch-action: manipulation;
+	}
+
+	.sheet:not(.collapsed) .mp-sheet-toggle {
+		min-height: 48px;
+		border-radius: 14px 14px 0 0;
+	}
+
+	.mp-sheet-title,
+	.mp-peek-hint {
+		grid-column: 1 / 4;
+	}
+
+	.mp-sheet-title {
+		font-size: 13px;
+		font-weight: 600;
+	}
+
+	.mp-peek-hint {
+		color: hsl(var(--at-fg-secondary));
+		font-size: 13px;
+	}
+
+	.mp-sheet-chevron {
+		grid-column: 4;
+		justify-self: center;
+		width: 18px;
+		height: 18px;
+		color: hsl(var(--at-fg-secondary));
+		transition: transform 160ms ease;
+	}
+
+	.sheet:not(.collapsed) .mp-sheet-chevron {
+		transform: rotate(180deg);
+	}
+
+	.mp-peek-stat {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		min-width: 0;
+	}
+
+	.mp-peek-label {
+		overflow: hidden;
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.mp-peek-value {
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 15px;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+
+	.mp-peek-primary .mp-peek-value {
+		font-size: 18px;
+	}
+
+	.mp-peek-value small {
+		margin-left: 2px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 10px;
+		font-weight: 500;
+	}
+
+	@media (hover: hover) {
+		.mp-sheet-toggle:hover {
+			background: hsl(var(--at-surface));
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.mp-sheet-chevron {
+			transition: none;
 		}
 	}
 </style>

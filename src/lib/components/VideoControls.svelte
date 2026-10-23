@@ -65,6 +65,66 @@
 		return Math.min(safeDuration, Math.max(0, targetTime));
 	}
 
+	function canStep(direction: 1 | -1, time = currentTime): boolean {
+		if (!videoElement) return false;
+		return direction > 0
+			? !(duration > 0 && time >= duration - FRAME_EPSILON)
+			: time > FRAME_EPSILON;
+	}
+
+	function step(direction: 1 | -1) {
+		if (direction > 0) stepFrameForward();
+		else stepFrameBack();
+	}
+
+	// Holding a step button repeats it, so walking through a jump on a touchscreen
+	// doesn't take a tap per frame. A short press steps once, on click.
+	const HOLD_DELAY_MS = 350;
+	const HOLD_REPEAT_MS = 80;
+	let holdTimer: ReturnType<typeof setTimeout> | undefined;
+	let holdRepeat: ReturnType<typeof setInterval> | undefined;
+	// Set once a press has turned into a hold, so the click on release doesn't step again.
+	let heldDirection: 1 | -1 | null = null;
+
+	function startHold(event: PointerEvent, direction: 1 | -1) {
+		if (event.button !== 0) return;
+		stopHold();
+		heldDirection = null;
+		holdTimer = setTimeout(() => {
+			heldDirection = direction;
+			repeatStep(direction);
+			holdRepeat = setInterval(() => repeatStep(direction), HOLD_REPEAT_MS);
+		}, HOLD_DELAY_MS);
+	}
+
+	// Reads the element's time: the prop only catches up on the next timeupdate.
+	function repeatStep(direction: 1 | -1) {
+		if (videoElement && canStep(direction, videoElement.currentTime)) {
+			step(direction);
+		} else {
+			// The button is about to disable, so no click will follow to clear the hold.
+			stopHold();
+			heldDirection = null;
+		}
+	}
+
+	function stopHold() {
+		clearTimeout(holdTimer);
+		clearInterval(holdRepeat);
+	}
+
+	// Clicks without a hold (a tap, the keyboard, assistive tech) step once. Keyboard
+	// clicks (detail 0) never follow a press, so a hold released off the button can't eat them.
+	function handleStepClick(event: MouseEvent, direction: 1 | -1) {
+		if (event.detail !== 0 && heldDirection === direction) {
+			heldDirection = null;
+			return;
+		}
+		step(direction);
+	}
+
+	$effect(() => stopHold);
+
 	// Stepping while playing would be overtaken by playback, so a step always pauses first.
 	function stepFrameForward() {
 		if (!videoElement) return;
@@ -234,14 +294,18 @@
 		/>
 	</div>
 
-	<!-- Center: Playback controls -->
+	<!-- Center: frame stepping and play -->
 	<div class="playback-controls">
 		<button
-			onclick={stepFrameBack}
-			disabled={!videoElement || currentTime <= FRAME_EPSILON}
-			class="frame-btn"
+			onclick={(event) => handleStepClick(event, -1)}
+			onpointerdown={(event) => startHold(event, -1)}
+			onpointerup={stopHold}
+			onpointerleave={stopHold}
+			onpointercancel={stopHold}
+			disabled={!canStep(-1)}
+			class="frame-btn step-btn"
 			aria-label="Previous frame"
-			title="Previous frame"
+			title="Previous frame (hold to repeat)"
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -281,11 +345,15 @@
 		</button>
 
 		<button
-			onclick={stepFrameForward}
-			disabled={!videoElement || (duration > 0 && currentTime >= duration - FRAME_EPSILON)}
-			class="frame-btn"
+			onclick={(event) => handleStepClick(event, 1)}
+			onpointerdown={(event) => startHold(event, 1)}
+			onpointerup={stopHold}
+			onpointerleave={stopHold}
+			onpointercancel={stopHold}
+			disabled={!canStep(1)}
+			class="frame-btn step-btn"
 			aria-label="Next frame"
-			title="Next frame"
+			title="Next frame (hold to repeat)"
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -296,18 +364,18 @@
 				<path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
 			</svg>
 		</button>
-
-		<button
-			onclick={onCyclePlaybackRate}
-			disabled={!videoElement}
-			class="frame-btn rate-btn"
-			class:slowed={playbackRate !== 1}
-			aria-label="Playback speed {playbackRate}×"
-			title="Playback speed (R)"
-		>
-			{playbackRate}×
-		</button>
 	</div>
+
+	<button
+		onclick={onCyclePlaybackRate}
+		disabled={!videoElement}
+		class="frame-btn rate-btn"
+		class:slowed={playbackRate !== 1}
+		aria-label="Playback speed {playbackRate}×"
+		title="Playback speed (R)"
+	>
+		{playbackRate}×
+	</button>
 </div>
 
 <style>
@@ -404,6 +472,14 @@
 		cursor: not-allowed;
 	}
 
+	/* Long presses repeat the step, so keep them from selecting text or zooming. */
+	.step-btn {
+		touch-action: manipulation;
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-touch-callout: none;
+	}
+
 	.rate-btn {
 		width: auto;
 		min-width: 34px;
@@ -455,13 +531,18 @@
 		}
 	}
 
-	@media (max-width: 480px) {
-		.volume-slider {
+	/* In a narrow control bar the groups dissolve so the host toolbar grid can place
+	   the transport and speed buttons itself. Volume goes: phones ignore it (iOS
+	   can't set it at all) and M still mutes. */
+	@container control-bar (max-width: 700px) {
+		.playback-section {
+			display: contents;
+		}
+		.volume-section {
 			display: none;
 		}
-		.play-btn {
-			width: 34px;
-			height: 34px;
+		.playback-controls {
+			gap: 6px;
 		}
 	}
 </style>

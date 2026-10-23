@@ -224,7 +224,10 @@ body {
 	isolation: isolate;
 }
 
+/* The toolbar lays itself out from the bar's own width (see the control-bar
+   container query), so it can't collide whether the bar floats or is docked. */
 .control-bar {
+	container: control-bar / inline-size;
 	position: absolute;
 	z-index: 30;
 	bottom: max(14px, env(safe-area-inset-bottom));
@@ -338,6 +341,58 @@ body {
 		monospace;
 }
 
+/* Narrow bar: time and speed on one row, then marking and stepping on a thumb row
+   with Takeoff and Landing either side of the frame steppers. One grid spans this
+   toolbar and the VideoControls buttons, which dissolve their groups at this width. */
+@container control-bar (max-width: 700px) {
+	.control-toolbar {
+		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+		grid-template-areas:
+			'time time rate'
+			'takeoff transport landing';
+		column-gap: 8px;
+		row-gap: 2px;
+	}
+	.time-readout {
+		grid-area: time;
+		font-size: 11px;
+	}
+	.control-toolbar .playback-controls {
+		grid-area: transport;
+	}
+	.control-toolbar .rate-btn {
+		grid-area: rate;
+		justify-self: end;
+	}
+	.mark-actions {
+		display: contents;
+	}
+	.mark-action {
+		justify-content: center;
+		min-width: 0;
+		min-height: 44px;
+		font-size: 13px;
+	}
+	.mark-action-takeoff {
+		grid-area: takeoff;
+	}
+	.mark-action-landing {
+		grid-area: landing;
+	}
+	.mark-action kbd {
+		display: none;
+	}
+}
+
+@container control-bar (max-width: 340px) {
+	.mark-action {
+		padding-inline: 4px;
+	}
+	.mark-action-dot {
+		display: none;
+	}
+}
+
 .header-actions {
 	display: flex;
 	align-items: center;
@@ -372,6 +427,44 @@ body {
 
 .header-status.unsaved {
 	color: hsl(var(--at-warning));
+}
+
+/* Shown in the header only on phones, where the file name and status are hidden. */
+.header-dirty-dot {
+	display: none;
+	width: 7px;
+	height: 7px;
+	margin-left: -2px;
+	border-radius: 50%;
+	background: hsl(var(--at-warning));
+}
+
+/* Announces save and restore notices. Visually hidden except on phones, where it
+   stands in for the header status as a toast. */
+.app-notice {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+/* Copy that differs between keyboard-and-mouse and touch-only devices. */
+.touch-only {
+	display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+	.touch-only {
+		display: inline;
+	}
+	.pointer-only,
+	.header-open.header-icon,
+	.empty-state-hint,
+	.mark-action kbd {
+		display: none;
+	}
 }
 
 /* ========================================
@@ -449,6 +542,29 @@ body {
 	.viewer-stage {
 		flex-direction: column;
 	}
+
+	/* Stacked layouts dock the controls under the picture instead of floating them
+	   over its lower edge, where the feet are at takeoff and landing. */
+	.viewer-frame {
+		display: flex;
+		flex-direction: column;
+	}
+	.control-bar,
+	.control-bar:hover,
+	.control-bar:focus-within {
+		position: relative;
+		bottom: auto;
+		left: auto;
+		flex: 0 0 auto;
+		width: auto;
+		transform: none;
+		border: 0;
+		border-top: 1px solid hsl(var(--at-border) / 0.82);
+		border-radius: 0;
+		background: hsl(var(--at-bg-elevated));
+		box-shadow: none;
+		backdrop-filter: none;
+	}
 }
 
 @media (max-width: 640px) {
@@ -474,24 +590,44 @@ body {
 		font-size: 11px;
 	}
 	.viewer-stage {
+		gap: 8px;
 		padding: 0 8px 8px;
 	}
 	.header-file {
 		display: none;
 	}
-	.mark-actions {
-		grid-column: 1 / -1;
-		justify-self: stretch;
-		padding-bottom: 2px;
+	.header-actions {
+		gap: 6px;
 	}
-	.mark-action {
-		flex: 1;
-		justify-content: center;
-		min-height: 36px;
-		font-size: 13px;
-	}
-	.mark-action kbd {
+	/* The analysis sheet's own toggle replaces this on phones. */
+	.header-analysis {
 		display: none;
+	}
+	.header-open-label {
+		display: none;
+	}
+	.header-dirty-dot {
+		display: block;
+	}
+	.app-notice.visible {
+		top: calc(100% + 44px);
+		left: 50%;
+		z-index: 40;
+		width: max-content;
+		max-width: calc(100% - 32px);
+		height: auto;
+		padding: 7px 12px;
+		border: 1px solid hsl(var(--at-border-hover) / 0.8);
+		border-radius: 9px;
+		background: hsl(var(--at-bg-elevated) / 0.94);
+		box-shadow: 0 6px 18px hsl(var(--at-shadow) / 0.4);
+		color: hsl(var(--at-fg));
+		font-size: 12px;
+		white-space: normal;
+		text-align: center;
+		clip-path: none;
+		transform: translateX(-50%);
+		pointer-events: none;
 	}
 	.viewer-frame {
 		border-radius: 9px;
@@ -502,20 +638,19 @@ body {
 		padding: 5px 8px;
 		font-size: 10px;
 	}
-	.control-bar {
-		bottom: max(10px, env(safe-area-inset-bottom));
-		width: calc(100% - 20px);
-		border-radius: 12px;
-	}
 	.control-bar-inner {
 		padding: 3px 10px 6px;
 	}
-	.control-toolbar {
-		min-height: 34px;
-		gap: 6px;
+}
+
+/* Header buttons meet the 44px touch minimum; the header grows to fit.
+   Last so it wins over the narrow-screen sizing above. */
+@media (pointer: coarse) {
+	.app-header {
+		padding-block: 4px;
 	}
-	.time-readout {
-		gap: 3px;
-		font-size: 9px;
+	.header-open {
+		min-height: 44px;
+		min-width: 44px;
 	}
 }
