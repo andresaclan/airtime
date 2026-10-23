@@ -6,6 +6,7 @@
 	import KeybindsDialog from '$lib/components/KeybindsDialog.svelte';
 	import SessionsDialog from '$lib/components/SessionsDialog.svelte';
 	import { onMount } from 'svelte';
+	import { MediaQuery } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
 	import { detectSourceFrameRateFromFile } from '$lib/video/frameRate';
 	import { formatTimecode } from '$lib/video/timecode';
@@ -64,6 +65,9 @@
 	let marks: Mark[] = $state([]);
 	let markHistory: Mark[][] = $state([]);
 	let markFuture: Mark[][] = $state([]);
+	// Below 900px the panel stacks under the video as a sheet (keep in sync with
+	// layout.css). There panelOpen means expanded; collapsed it is a one-line summary.
+	const stacked = new MediaQuery('max-width: 900px');
 	let panelOpen = $state(true);
 	let keybindsOpen = $state(false);
 	let sessionsOpen = $state(false);
@@ -281,6 +285,8 @@
 	}
 
 	onMount(() => {
+		// Phones start with the sheet collapsed so the video gets the height.
+		if (stacked.current) panelOpen = false;
 		void refreshBackup();
 	});
 
@@ -603,10 +609,10 @@
 					disabled={!isDirty || isSaving}
 					title="Save marks to this browser (⌘S)"
 				>
-					Save
+					Save{#if isDirty}<span class="header-dirty-dot" aria-hidden="true"></span>{/if}
 				</button>
 				<button
-					class="header-open"
+					class="header-open header-analysis"
 					class:active={panelOpen}
 					onclick={() => (panelOpen = !panelOpen)}
 					aria-pressed={panelOpen}
@@ -619,6 +625,7 @@
 				onclick={openFilePicker}
 				class="header-open"
 				aria-label={videoSrc ? 'Replace video' : 'Open video'}
+				title={videoSrc ? 'Change video' : 'Open video'}
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
@@ -633,9 +640,10 @@
 						d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
 					/></svg
 				>
-				<span>{videoSrc ? 'Change video' : 'Open video'}</span>
+				<span class="header-open-label">{videoSrc ? 'Change video' : 'Open video'}</span>
 			</button>
 		</div>
+		<div class="app-notice" class:visible={notice} role="status">{notice ?? ''}</div>
 	</header>
 	{#if showBackupReminder && backup}
 		<section class="backup-reminder" aria-label="Backup reminder">
@@ -695,7 +703,11 @@
 					<div class="empty-state-title">
 						{isDragging ? 'Drop video here' : 'Open a video'}
 					</div>
-					<div class="empty-state-description">Click to browse or drag and drop a video file</div>
+					<div class="empty-state-description">
+						<span class="pointer-only">Click to browse or drag and drop a video file</span><span
+							class="touch-only">Tap to choose a video from your library or files</span
+						>
+					</div>
 					<div class="empty-state-hint">Press <kbd>?</kbd> for keyboard shortcuts</div>
 				</button>
 				{#if isAppEmpty}
@@ -842,7 +854,7 @@
 					</div>
 				</div>
 			</div>
-			{#if panelOpen}
+			{#if panelOpen || stacked.current}
 				<MarksPanel
 					{marks}
 					{analysis}
@@ -858,7 +870,9 @@
 					onRemove={deleteMark}
 					onUndo={undoMarks}
 					onClear={clearMarks}
-					onClose={() => (panelOpen = false)}
+					sheet={stacked.current}
+					expanded={panelOpen}
+					onToggle={() => (panelOpen = !panelOpen)}
 				/>
 			{/if}
 		{/if}
