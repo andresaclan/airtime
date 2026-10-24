@@ -43,7 +43,7 @@ gh pr edit 123 --repo andresaclan/airtime --title "Updated title"
 
 ## Agent skills
 
-Skills live in `.agents/skills/`; `.claude/skills` is a symlink to it. Add or update skills there, not in `.claude/`. They're copied from upstream unchanged, so Prettier skips them.
+Skills are installed locally (user-level `~/.claude/skills`), not stored in the repo. `.agents/`, `.claude/` and `skills-lock.json` are gitignored; don't commit skills.
 
 ### Issue tracker
 
