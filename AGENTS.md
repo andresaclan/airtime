@@ -43,13 +43,7 @@ gh pr edit 123 --repo andresaclan/airtime --title "Updated title"
 
 ## Agent skills
 
-Skills are installed with the `skills` CLI into `.agents/skills/`, with per-skill symlinks in `.claude/skills/`. `skills-lock.json` records each skill's source. Don't edit them by hand; Prettier skips them. Run the CLI with `bunx --bun` (it needs Node 22.20+ otherwise):
-
-```bash
-bunx --bun skills add <owner/repo> -s <skill> -a claude-code -a codex -y
-bunx --bun skills check
-bunx --bun skills update -p -y
-```
+Skills live in `.agents/skills/`; `.claude/skills` is a symlink to it. Add or update skills there, not in `.claude/`. They're copied from upstream unchanged, so Prettier skips them.
 
 ### Issue tracker
 

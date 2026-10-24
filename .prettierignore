@@ -8,6 +8,5 @@ bun.lockb
 # Miscellaneous
 /static/
 
-# Agent skills and lockfile, written by the skills CLI
+# Vendored agent skills, kept byte-identical to upstream
 /.agents/skills/
-/skills-lock.json
