@@ -13,8 +13,9 @@ Airtime turns a clip of a jump into flight time, contact time and jump height. O
 - Mark **takeoff** and **landing** frames; marks show on the timeline and can be nudged a frame at a time.
 - Report flight time, contact time, jump height and RSI for every jump in the clip, with the best jump highlighted.
 - Correct for slow-motion footage (2×, 4×, 8×) so times are real-world.
-- Detect the source frame rate from MP4, M4V and MOV files, or estimate it from playback for other formats.
+- Detect the source frame rate from MP4, M4V and MOV files, or measure it during playback for other formats. A video whose frame rate can't be read or measured can be watched but not marked.
 - Save sessions to the browser, reopen them by opening the same video again, and export or import them as JSON.
+- Correct when each video was recorded, so sessions sort in the right order.
 - Zoom into the video up to 5x and pan around the frame.
 
 ## Quick start
@@ -74,7 +75,7 @@ Press `?` in the app to see these at any time.
 
 Airtime accepts common video extensions such as MP4, M4V, MOV, WebM, MKV, AVI, WMV, FLV, MPEG, 3GP, and OGV. Actual playback depends on the codecs supported by the browser and operating system.
 
-Source frame-rate parsing is currently implemented for ISO Base Media File Format containers, including MP4, M4V, and MOV. Other formats can still play when supported by the browser, but may fall back to the default or runtime-detected frame rate.
+Source frame-rate parsing is currently implemented for ISO Base Media File Format containers, including MP4, M4V, and MOV. Other formats can still play when supported by the browser, and their frame rate is measured during playback. If that fails too, Airtime won't mark the video rather than guess its frame rate.
 
 For best results:
 

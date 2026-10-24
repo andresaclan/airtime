@@ -3,7 +3,7 @@ import { buildExport, parseImport, sessionsToImport } from './exportFile';
 import { migrateSession, NewerSchemaError } from './migrate';
 import {
 	backUp,
-	backupAfterRestore,
+	backupAfterImport,
 	backupMethod,
 	backupStatus,
 	importSummary,
@@ -11,7 +11,8 @@ import {
 	lastBackupAt,
 	needsBackup
 } from './backup';
-import { SCHEMA_VERSION, type Session } from './schema';
+import { hasMeaningfulContact, SCHEMA_VERSION, type Session } from './schema';
+import type { Mark, MarkType } from '$lib/video/marks';
 // A real export from schema v1, frozen. Never regenerate it: it stands in for the backups
 // users already have, which every future version must still import.
 import exportV1 from './fixtures/export-v1.json';
@@ -38,8 +39,34 @@ describe('importing old exports', () => {
 
 	test('timings recomputed from a v1 export match what it recorded', () => {
 		const recomputed = buildExport(parseImport(v1Text));
-		expect(recomputed.tables.intervals).toEqual(exportV1.tables.intervals);
-		expect(recomputed.overview).toEqual(exportV1.overview);
+		// jumpType arrived in v3; v1 rows don't have it, and every other column is unchanged.
+		expect(recomputed.tables.intervals.map((row) => ({ ...row, jumpType: undefined }))).toEqual(
+			exportV1.tables.intervals.map((row) => ({ ...row, jumpType: undefined }))
+		);
+		// Renamed in v2; the values are unchanged.
+		const { lowTrustSessionIds, ...overview } = exportV1.overview;
+		expect(recomputed.overview).toEqual({
+			...overview,
+			assumedFrameRateSessionIds: lowTrustSessionIds
+		});
+	});
+
+	test("a v1 session's recorded date starts as the file's date", () => {
+		for (const session of parseImport(v1Text)) {
+			expect(session.recordedAt).toBe(session.media.lastModified);
+		}
+	});
+
+	test('a v1 session has no jump type rather than a guessed one', () => {
+		for (const session of parseImport(v1Text)) expect(session.jumpType).toBeNull();
+		const exported = buildExport(parseImport(v1Text));
+		for (const row of [
+			...exported.tables.sessions,
+			...exported.tables.jumps,
+			...exported.tables.intervals
+		]) {
+			expect(row.jumpType).toBeNull();
+		}
 	});
 
 	test('sessions without their own version use the file version', () => {
@@ -65,7 +92,7 @@ describe('migrateSession', () => {
 		expect(migrateSession(raw)).toEqual(raw);
 	});
 
-	// MIGRATIONS is empty until the first schema change, so exercise the chain with stand-ins.
+	// Stand-in steps exercise the chain independently of the real migrations.
 	test('runs each step in order, from the stored version up to the target', () => {
 		const steps = {
 			1: (session: Record<string, unknown>) => ({ ...session, notes: session.notes ?? '' }),
@@ -89,6 +116,25 @@ describe('migrateSession', () => {
 		expect(v1).toEqual({ schemaVersion: 1, id: 'x', timeScale: 0.25 });
 	});
 
+	test('v2 sessions gain a null jump type and keep everything else', () => {
+		const v2 = { schemaVersion: 2, id: 'x', title: 'Set 1', marks: [] };
+		expect(migrateSession(v2)).toEqual({ ...v2, schemaVersion: 3, jumpType: null });
+	});
+
+	test('v1 sessions pass through both real steps', () => {
+		const v1 = { schemaVersion: 1, id: 'x', media: { lastModified: '2026-01-01T00:00:00.000Z' } };
+		expect(migrateSession(v1)).toMatchObject({
+			schemaVersion: 3,
+			recordedAt: '2026-01-01T00:00:00.000Z',
+			jumpType: null
+		});
+	});
+
+	test('a session that already has a jump type is not overwritten by the v2 step', () => {
+		const current = { schemaVersion: SCHEMA_VERSION, id: 'x', jumpType: 'drop' };
+		expect(migrateSession(current)).toEqual(current);
+	});
+
 	test('fails loudly when a step is missing', () => {
 		expect(() => migrateSession({ schemaVersion: 1 }, {}, 2)).toThrow(/No migration from/);
 	});
@@ -97,6 +143,102 @@ describe('migrateSession', () => {
 		expect(() => migrateSession({ schemaVersion: SCHEMA_VERSION + 1 })).toThrow(NewerSchemaError);
 		expect(() => migrateSession({ schemaVersion: 0 })).toThrow();
 		expect(() => migrateSession({ schemaVersion: 1.5 })).toThrow();
+	});
+});
+
+describe('exported jumps and unpaired marks', () => {
+	const [base] = parseImport(v1Text);
+	const at = (id: string, type: MarkType, time: number): Mark => ({ id, type, time });
+	const session = (marks: Mark[]): Session => ({
+		...base,
+		frameRate: { value: 30, source: 'container' },
+		timeScale: 1,
+		marks
+	});
+
+	test('lists every jump, including incomplete ones, with RSI only after a contact', () => {
+		const [cmj] = buildExport(parseImport(v1Text)).sessions;
+		expect(cmj.derived.jumps).toHaveLength(2);
+		for (const jump of cmj.derived.jumps) {
+			expect(jump.incomplete).toBe(false);
+			expect(jump.rsi).toBeCloseTo(jump.heightCm! / 100 / jump.contactRealSeconds!, 2);
+		}
+
+		const [exported] = buildExport([
+			session([
+				at('t1', 'takeoff', 1),
+				at('t2', 'takeoff', 1.5),
+				at('l1', 'landing', 2),
+				at('l2', 'landing', 2.5),
+				at('t3', 'takeoff', 5)
+			])
+		]).sessions;
+		expect(exported.derived.jumps).toMatchObject([
+			{ index: 1, takeoffMarkId: 't2', landingMarkId: 'l1', incomplete: false, rsi: null },
+			{ index: 2, takeoffMarkId: 't3', contactStartMarkId: 'l2', incomplete: true, rsi: null }
+		]);
+		expect(exported.derived.unpairedMarks).toEqual([{ markId: 't1', reason: 'out-of-sequence' }]);
+	});
+
+	test('a lone landing is unpaired because it has nothing to pair with', () => {
+		const exported = buildExport([session([at('l', 'landing', 1)])]);
+		expect(exported.sessions[0].derived.unpairedMarks).toEqual([{ markId: 'l', reason: 'alone' }]);
+		expect(exported.tables.jumps).toEqual([]);
+	});
+
+	test('the jumps table repeats session context on every row', () => {
+		const exported = buildExport(parseImport(v1Text));
+		expect(exported.tables.jumps).toHaveLength(
+			exported.sessions.reduce((sum, s) => sum + s.derived.jumps.length, 0)
+		);
+		for (const row of exported.tables.jumps) {
+			const owner = exported.sessions.find((s) => s.id === row.sessionId)!;
+			expect(row.recordedAt).toBe(owner.recordedAt);
+			expect(row).not.toHaveProperty('takeoffMarkId');
+		}
+	});
+
+	test('sessions are ordered by their corrected recorded date', () => {
+		const [cmj, drop] = parseImport(v1Text);
+		const exported = buildExport([{ ...cmj, recordedAt: '2027-01-01T00:00:00.000Z' }, drop]);
+		expect(exported.sessions.map((s) => s.id)).toEqual([drop.id, cmj.id]);
+		expect(exported.overview.lastRecordedAt).toBe('2027-01-01T00:00:00.000Z');
+	});
+});
+
+describe('jump type', () => {
+	const [base] = parseImport(v1Text);
+	const typed = { ...base, jumpType: 'drop' as const };
+
+	test('is exported on sessions and on every table row', () => {
+		const exported = buildExport([typed]);
+		expect(exported.sessions[0].jumpType).toBe('drop');
+		const rows = [
+			...exported.tables.sessions,
+			...exported.tables.jumps,
+			...exported.tables.intervals
+		];
+		expect(rows.length).toBeGreaterThan(1);
+		for (const row of rows) expect(row.jumpType).toBe('drop');
+		expect(exported.fields).toHaveProperty(['sessions[].jumpType']);
+	});
+
+	test('survives an export and import', () => {
+		const text = JSON.stringify(buildExport([typed, { ...base, id: 'unset' }]));
+		const types = parseImport(text).map((session) => session.jumpType);
+		expect(types).toEqual(expect.arrayContaining(['drop', null]));
+	});
+
+	test('an unrecognised type is rejected', () => {
+		const data = JSON.parse(JSON.stringify(buildExport([typed])));
+		data.sessions[0].jumpType = 'box';
+		expect(() => parseImport(JSON.stringify(data))).toThrow(/jumpType is not recognised/);
+	});
+
+	test('only drop and rebound jumps have a meaningful contact', () => {
+		expect(
+			(['countermovement', 'squat', 'drop', 'rebound', null] as const).map(hasMeaningfulContact)
+		).toEqual([false, false, true, true, false]);
 	});
 });
 
@@ -216,21 +358,21 @@ describe('backUp', () => {
 	});
 });
 
-describe('backupAfterRestore', () => {
+describe('backupAfterImport', () => {
 	const sessions = parseImport(v1Text);
 	const newest = sessions.map((session) => session.updatedAt).sort()[1];
 
-	test('a restore into an empty browser is backed up as of its newest session', () => {
-		expect(backupAfterRestore([], sessions, null)).toBe(newest);
+	test('an import into an empty browser is backed up as of its newest session', () => {
+		expect(backupAfterImport([], sessions, null)).toBe(newest);
 	});
 
 	test('never marks local work as backed up', () => {
-		expect(backupAfterRestore([sessions[0]], [sessions[1]], null)).toBeNull();
-		expect(backupAfterRestore([], [], null)).toBeNull();
+		expect(backupAfterImport([sessions[0]], [sessions[1]], null)).toBeNull();
+		expect(backupAfterImport([], [], null)).toBeNull();
 	});
 
 	test('never moves the last backup backwards', () => {
-		expect(backupAfterRestore([], sessions, '2027-01-01T00:00:00.000Z')).toBeNull();
+		expect(backupAfterImport([], sessions, '2027-01-01T00:00:00.000Z')).toBeNull();
 	});
 });
 

@@ -1,15 +1,35 @@
 /** A saved marking session for one video. The video itself is never stored. */
 import type { Mark } from '$lib/video/marks';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 3;
 
+/**
+ * `default` means 30 fps was assumed because the frame rate couldn't be read or measured.
+ * Only older versions of Airtime did that; it now refuses to mark such videos.
+ */
 export type FrameRateSource = 'container' | 'playback-estimate' | 'default';
+
+export type JumpType = 'countermovement' | 'squat' | 'drop' | 'rebound';
+
+export const JUMP_TYPES: readonly { value: JumpType; label: string }[] = [
+	{ value: 'countermovement', label: 'Countermovement' },
+	{ value: 'squat', label: 'Squat' },
+	{ value: 'drop', label: 'Drop' },
+	{ value: 'rebound', label: 'Rebound' }
+];
+
+export const DEFAULT_JUMP_TYPE: JumpType = 'countermovement';
+
+/** Contact time and RSI only mean something for these; for other types they're just numbers. */
+export function hasMeaningfulContact(jumpType: JumpType | null): boolean {
+	return jumpType === 'drop' || jumpType === 'rebound';
+}
 
 export type SessionMedia = {
 	fileName: string;
 	mimeType: string;
 	sizeBytes: number;
-	/** ISO timestamp of the file's last-modified date, a rough stand-in for when it was recorded. */
+	/** ISO timestamp of the file's last-modified date; the initial recorded date. */
 	lastModified: string;
 	durationSeconds: number;
 	width: number;
@@ -23,8 +43,12 @@ export type Session = {
 	id: string;
 	title: string;
 	notes: string;
+	/** One per session. `null` for sessions saved before jump types existed. */
+	jumpType: JumpType | null;
 	createdAt: string;
 	updatedAt: string;
+	/** ISO timestamp of when the video was filmed, as corrected by the athlete. */
+	recordedAt: string;
 	media: SessionMedia;
 	frameRate: { value: number; source: FrameRateSource };
 	/** Real seconds per media second: 1 for real time, 0.25 for 4× slow motion. */

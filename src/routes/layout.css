@@ -595,12 +595,12 @@ body {
 	align-items: center;
 }
 
-.empty-restore {
+.empty-import {
 	color: hsl(var(--at-fg-muted));
 	font-size: 13px;
 }
 
-.empty-restore-btn {
+.empty-import-btn {
 	min-height: 32px;
 	padding: 0 2px;
 	border: none;
@@ -611,11 +611,11 @@ body {
 	cursor: pointer;
 }
 
-.empty-restore-btn:hover {
+.empty-import-btn:hover {
 	text-decoration: underline;
 }
 
-.empty-restore-message {
+.empty-import-message {
 	max-width: 320px;
 	min-height: 1.5em;
 	margin-top: 8px;
@@ -625,7 +625,7 @@ body {
 	text-align: center;
 }
 
-.empty-restore-message.error {
+.empty-import-message.error {
 	color: hsl(var(--at-error));
 }
 

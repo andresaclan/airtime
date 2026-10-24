@@ -11,7 +11,15 @@ type RawSession = Record<string, unknown>;
  * schema changes, bump SCHEMA_VERSION and add one step here. Never edit a released step:
  * exports made by that version still depend on it.
  */
-const MIGRATIONS: Record<number, (session: RawSession) => RawSession> = {};
+const MIGRATIONS: Record<number, (session: RawSession) => RawSession> = {
+	// v2 makes the recorded date editable, starting from the file's last-modified time.
+	1: (session) => ({
+		...session,
+		recordedAt: (session.media as RawSession | undefined)?.lastModified
+	}),
+	// v3 adds the jump type. Earlier sessions get none rather than a guess from their marks.
+	2: (session) => ({ ...session, jumpType: null })
+};
 
 export class NewerSchemaError extends Error {
 	constructor(version: number) {

@@ -32,8 +32,14 @@ export type Jump = {
 export type JumpGroups = {
 	jumps: Jump[];
 	/** Marks that do not belong to a usable contact or flight interval. */
-	strayMarks: Mark[];
+	unpairedMarks: Mark[];
 };
+
+/**
+ * Why a mark is unpaired: next to a mark of the same type, or with no neighbour at all
+ * (a lone landing).
+ */
+export type UnpairedReason = 'out-of-sequence' | 'alone';
 
 export const GRAVITY = 9.81;
 
@@ -133,7 +139,22 @@ export function groupJumps(marks: Mark[], analysis: Analysis): JumpGroups {
 		if (flight) used.add(flight.to.id);
 	}
 
-	return { jumps, strayMarks: sorted.filter((mark) => !used.has(mark.id)) };
+	return { jumps, unpairedMarks: sorted.filter((mark) => !used.has(mark.id)) };
+}
+
+export function unpairedReason(marks: Mark[], mark: Mark): UnpairedReason {
+	const sorted = sortMarks(marks);
+	const position = sorted.findIndex((candidate) => candidate.id === mark.id);
+	const neighbours = [sorted[position - 1], sorted[position + 1]];
+	return neighbours.some((neighbour) => neighbour?.type === mark.type)
+		? 'out-of-sequence'
+		: 'alone';
+}
+
+/** Reactive strength index: jump height in metres over the contact before the jump. */
+export function rsi(jump: Jump): number | undefined {
+	if (jump.flight?.heightCm === undefined || !jump.contact) return undefined;
+	return jump.flight.heightCm / 100 / jump.contact.realSeconds;
 }
 
 /** Random ID; falls back when `crypto.randomUUID` is missing (non-secure contexts such as LAN http). */

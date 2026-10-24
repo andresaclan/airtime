@@ -2,9 +2,25 @@
  * The portable export file: saved sessions plus timings recomputed at export time,
  * written so an agent can read it without any other context.
  */
-import { analyzeMarks, frameOf, GRAVITY, sortMarks, type MarkType } from '$lib/video/marks';
+import {
+	analyzeMarks,
+	frameOf,
+	GRAVITY,
+	groupJumps,
+	rsi,
+	sortMarks,
+	unpairedReason,
+	type MarkType,
+	type UnpairedReason
+} from '$lib/video/marks';
 import { migrateSession } from './migrate';
-import { SCHEMA_VERSION, type FrameRateSource, type Session } from './schema';
+import {
+	JUMP_TYPES,
+	SCHEMA_VERSION,
+	type FrameRateSource,
+	type JumpType,
+	type Session
+} from './schema';
 
 export const EXPORT_FORMAT = 'airtime-export';
 
@@ -22,7 +38,12 @@ const FIELDS = {
 		'"takeoff" = first frame the feet leave the ground; "landing" = first frame they touch down.',
 	'sessions[].frameRate':
 		'Frames per second used for frame math. source: "container" = read from the file, ' +
-		'"playback-estimate" = measured during playback, "default" = assumed 30 fps (low trust).',
+		'"playback-estimate" = measured during playback, "default" = 30 fps assumed by an older ' +
+		'version of Airtime because the frame rate could not be read or measured.',
+	'sessions[].jumpType':
+		'What kind of jump the session holds, one per session: "countermovement", "squat", "drop" or ' +
+		'"rebound"; null = not set (saved before jump types existed). Compare like with like: ' +
+		'contact time and rsi only mean something for "drop" and "rebound".',
 	'sessions[].timeScale':
 		'Real seconds per media second. 1 = real-time footage; 0.25 = 4× slow motion.',
 	'sessions[].derived.intervals[]':
@@ -33,15 +54,24 @@ const FIELDS = {
 		'Assumes takeoff and landing at the same height.',
 	'sessions[].derived.precisionMs':
 		'Real-time duration of one frame; each mark is accurate to about ±1 frame.',
-	'sessions[].derived.warnings[]':
-		'"out-of-sequence" = this mark repeats the previous mark\'s type, so no interval was computed.',
+	'sessions[].derived.jumps[]':
+		'One per takeoff: the flight after it and the contact before it, when there is one. ' +
+		'incomplete = no landing marked after the takeoff yet. rsi = heightCm / 100 / contact ' +
+		'realSeconds; only meaningful for rebound and drop jumps.',
+	'sessions[].derived.unpairedMarks[]':
+		'Marks that are part of no flight or contact. reason: "out-of-sequence" = next to a mark of ' +
+		'the same type, such as two takeoffs in a row; "alone" = no mark next to it to pair with.',
 	'tables.intervals[]':
 		'One row per flight or contact interval across every session, with session context repeated ' +
 		'on each row. index = 1-based position among intervals of the same kind within its session.',
+	'tables.jumps[]':
+		'One row per jump across every session, with session context repeated on each row. ' +
+		'index = 1-based position of the jump within its session.',
 	'tables.sessions[]': 'One row per session with its summary statistics.',
+	'tables.*[].jumpType': "The owning session's jumpType, repeated on every row.",
 	recordedAt:
-		"The video file's last-modified time: usually when it was recorded, but changed by some edits " +
-		'or copies.',
+		"When the video was recorded. Starts as the video file's last-modified time and may have " +
+		'been corrected by hand.',
 	overview: 'Totals and extremes across all exported sessions.'
 };
 
@@ -59,11 +89,27 @@ export type ExportedInterval = {
 	heightCm?: number;
 };
 
+export type ExportedJump = {
+	index: number;
+	takeoffMarkId: string;
+	landingMarkId: string | null;
+	contactStartMarkId: string | null;
+	takeoffSeconds: number;
+	incomplete: boolean;
+	flightFrames: number | null;
+	flightRealSeconds: number | null;
+	contactFrames: number | null;
+	contactRealSeconds: number | null;
+	heightCm: number | null;
+	rsi: number | null;
+};
+
 export type ExportedSession = Omit<Session, 'marks'> & {
 	marks: ExportedMark[];
 	derived: {
 		intervals: ExportedInterval[];
-		warnings: { markId: string; code: 'out-of-sequence' }[];
+		jumps: ExportedJump[];
+		unpairedMarks: { markId: string; reason: UnpairedReason }[];
 		precisionMs: number;
 		summary: {
 			flightCount: number;
@@ -81,6 +127,7 @@ export type IntervalRow = {
 	sessionTitle: string;
 	recordedAt: string;
 	fileName: string;
+	jumpType: JumpType | null;
 	kind: 'flight' | 'contact';
 	index: number;
 	startSeconds: number;
@@ -94,6 +141,18 @@ export type IntervalRow = {
 	precisionMs: number;
 };
 
+export type JumpRow = {
+	sessionId: string;
+	sessionTitle: string;
+	recordedAt: string;
+	fileName: string;
+	jumpType: JumpType | null;
+	frameRate: number;
+	frameRateSource: FrameRateSource;
+	timeScale: number;
+	precisionMs: number;
+} & Omit<ExportedJump, 'takeoffMarkId' | 'landingMarkId' | 'contactStartMarkId'>;
+
 export type SessionRow = {
 	sessionId: string;
 	title: string;
@@ -101,11 +160,13 @@ export type SessionRow = {
 	recordedAt: string;
 	savedAt: string;
 	fileName: string;
+	jumpType: JumpType | null;
 	frameRate: number;
 	frameRateSource: FrameRateSource;
 	timeScale: number;
 	markCount: number;
-	warningCount: number;
+	jumpCount: number;
+	unpairedMarkCount: number;
 } & ExportedSession['derived']['summary'];
 
 export type ExportOverview = {
@@ -118,8 +179,8 @@ export type ExportOverview = {
 	meanHeightCm: number | null;
 	meanFlightRealSeconds: number | null;
 	meanContactRealSeconds: number | null;
-	/** Sessions whose frame rate was assumed rather than read or measured. */
-	lowTrustSessionIds: string[];
+	/** Sessions whose frame rate an older version of Airtime assumed rather than read or measured. */
+	assumedFrameRateSessionIds: string[];
 };
 
 export type AirtimeExport = {
@@ -129,7 +190,7 @@ export type AirtimeExport = {
 	about: string;
 	fields: typeof FIELDS;
 	overview: ExportOverview;
-	tables: { sessions: SessionRow[]; intervals: IntervalRow[] };
+	tables: { sessions: SessionRow[]; jumps: JumpRow[]; intervals: IntervalRow[] };
 	sessions: ExportedSession[];
 };
 
@@ -161,6 +222,24 @@ function exportSession(session: Session): ExportedSession {
 	const flights = analysis.intervals.filter((interval) => interval.kind === 'flight');
 	const contacts = analysis.intervals.filter((interval) => interval.kind === 'contact');
 	const heights = flights.map((flight) => flight.heightCm ?? 0);
+	const grouped = groupJumps(marks, analysis);
+	const jumps: ExportedJump[] = grouped.jumps.map((jump, i) => {
+		const index = rsi(jump);
+		return {
+			index: i + 1,
+			takeoffMarkId: jump.takeoff.id,
+			landingMarkId: jump.landing?.id ?? null,
+			contactStartMarkId: jump.contact?.from.id ?? null,
+			takeoffSeconds: round(jump.takeoff.time, 4),
+			incomplete: !jump.flight,
+			flightFrames: jump.flight?.frames ?? null,
+			flightRealSeconds: jump.flight ? round(jump.flight.realSeconds, 4) : null,
+			contactFrames: jump.contact?.frames ?? null,
+			contactRealSeconds: jump.contact ? round(jump.contact.realSeconds, 4) : null,
+			heightCm: jump.flight?.heightCm !== undefined ? round(jump.flight.heightCm, 1) : null,
+			rsi: index !== undefined ? round(index, 2) : null
+		};
+	});
 
 	return {
 		...session,
@@ -172,9 +251,10 @@ function exportSession(session: Session): ExportedSession {
 		})),
 		derived: {
 			intervals,
-			warnings: [...analysis.outOfSequence].map((markId) => ({
-				markId,
-				code: 'out-of-sequence' as const
+			jumps,
+			unpairedMarks: grouped.unpairedMarks.map((mark) => ({
+				markId: mark.id,
+				reason: unpairedReason(marks, mark)
 			})),
 			precisionMs: round((1000 / fps) * session.timeScale, 2),
 			summary: {
@@ -200,16 +280,41 @@ function sessionRow(session: ExportedSession): SessionRow {
 		sessionId: session.id,
 		title: session.title,
 		notes: session.notes,
-		recordedAt: session.media.lastModified,
+		recordedAt: session.recordedAt,
 		savedAt: session.updatedAt,
 		fileName: session.media.fileName,
+		jumpType: session.jumpType,
 		frameRate: session.frameRate.value,
 		frameRateSource: session.frameRate.source,
 		timeScale: session.timeScale,
 		markCount: session.marks.length,
-		warningCount: session.derived.warnings.length,
+		jumpCount: session.derived.jumps.length,
+		unpairedMarkCount: session.derived.unpairedMarks.length,
 		...session.derived.summary
 	};
+}
+
+function jumpRows(session: ExportedSession): JumpRow[] {
+	return session.derived.jumps.map((jump) => ({
+		sessionId: session.id,
+		sessionTitle: session.title,
+		recordedAt: session.recordedAt,
+		fileName: session.media.fileName,
+		jumpType: session.jumpType,
+		frameRate: session.frameRate.value,
+		frameRateSource: session.frameRate.source,
+		timeScale: session.timeScale,
+		precisionMs: session.derived.precisionMs,
+		index: jump.index,
+		takeoffSeconds: jump.takeoffSeconds,
+		incomplete: jump.incomplete,
+		flightFrames: jump.flightFrames,
+		flightRealSeconds: jump.flightRealSeconds,
+		contactFrames: jump.contactFrames,
+		contactRealSeconds: jump.contactRealSeconds,
+		heightCm: jump.heightCm,
+		rsi: jump.rsi
+	}));
 }
 
 function intervalRows(session: ExportedSession): IntervalRow[] {
@@ -217,8 +322,9 @@ function intervalRows(session: ExportedSession): IntervalRow[] {
 	return session.derived.intervals.map((interval) => ({
 		sessionId: session.id,
 		sessionTitle: session.title,
-		recordedAt: session.media.lastModified,
+		recordedAt: session.recordedAt,
 		fileName: session.media.fileName,
+		jumpType: session.jumpType,
 		kind: interval.kind,
 		index: ++counts[interval.kind],
 		startSeconds: interval.startSeconds,
@@ -244,8 +350,8 @@ function overview(sessions: ExportedSession[], intervals: IntervalRow[]): Export
 		sessionCount: sessions.length,
 		flightCount: flights.length,
 		contactCount: contacts.length,
-		firstRecordedAt: sessions[0]?.media.lastModified ?? null,
-		lastRecordedAt: sessions.at(-1)?.media.lastModified ?? null,
+		firstRecordedAt: sessions[0]?.recordedAt ?? null,
+		lastRecordedAt: sessions.at(-1)?.recordedAt ?? null,
 		bestHeight: best
 			? { heightCm: best.heightCm ?? 0, sessionId: best.sessionId, sessionTitle: best.sessionTitle }
 			: null,
@@ -261,7 +367,7 @@ function overview(sessions: ExportedSession[], intervals: IntervalRow[]): Export
 			contacts.map((row) => row.realSeconds),
 			4
 		),
-		lowTrustSessionIds: sessions
+		assumedFrameRateSessionIds: sessions
 			.filter((session) => session.frameRate.source === 'default')
 			.map((session) => session.id)
 	};
@@ -269,7 +375,7 @@ function overview(sessions: ExportedSession[], intervals: IntervalRow[]): Export
 
 export function buildExport(sessions: Session[]): AirtimeExport {
 	const exported = [...sessions]
-		.sort((a, b) => a.media.lastModified.localeCompare(b.media.lastModified))
+		.sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))
 		.map(exportSession);
 	const intervals = exported.flatMap(intervalRows);
 	return {
@@ -279,7 +385,7 @@ export function buildExport(sessions: Session[]): AirtimeExport {
 		about: ABOUT,
 		fields: FIELDS,
 		overview: overview(exported, intervals),
-		tables: { sessions: exported.map(sessionRow), intervals },
+		tables: { sessions: exported.map(sessionRow), jumps: exported.flatMap(jumpRows), intervals },
 		sessions: exported
 	};
 }
@@ -342,6 +448,14 @@ function num(object: Json, key: string, where: string): number {
 
 const FRAME_RATE_SOURCES: FrameRateSource[] = ['container', 'playback-estimate', 'default'];
 
+function parseJumpType(raw: Json, where: string): JumpType | null {
+	const value = raw.jumpType;
+	if (value === null || value === undefined) return null;
+	const type = JUMP_TYPES.find((jumpType) => jumpType.value === value);
+	expect(type, `${where}.jumpType is not recognised`);
+	return type.value;
+}
+
 function parseSession(raw: unknown, index: number): Session {
 	const where = `sessions[${index}]`;
 	expect(isObject(raw), `${where} must be an object`);
@@ -373,8 +487,10 @@ function parseSession(raw: unknown, index: number): Session {
 		id: str(raw, 'id', where),
 		title: str(raw, 'title', where),
 		notes: str(raw, 'notes', where),
+		jumpType: parseJumpType(raw, where),
 		createdAt: str(raw, 'createdAt', where),
 		updatedAt: str(raw, 'updatedAt', where),
+		recordedAt: str(raw, 'recordedAt', where),
 		media: {
 			fileName: str(media, 'fileName', `${where}.media`),
 			mimeType: str(media, 'mimeType', `${where}.media`),
