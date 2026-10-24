@@ -40,3 +40,13 @@ These rules apply to every agent working in this repo, whatever the provider.
 gh pr view 123 --repo andresaclan/airtime
 gh pr edit 123 --repo andresaclan/airtime --title "Updated title"
 ```
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues for `andresaclan/airtime`, managed with `gh`. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: one root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/domain.md`.
