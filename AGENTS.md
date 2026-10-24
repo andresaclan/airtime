@@ -43,6 +43,8 @@ gh pr edit 123 --repo andresaclan/airtime --title "Updated title"
 
 ## Agent skills
 
+Skills live in `.agents/skills/`; `.claude/skills` is a symlink to it. Add or update skills there, not in `.claude/`. They're copied from upstream unchanged, so Prettier skips them.
+
 ### Issue tracker
 
 Issues and specs live in GitHub Issues for `andresaclan/airtime`, managed with `gh`. See `docs/agents/issue-tracker.md`.
