@@ -413,6 +413,7 @@
 			frameRate = sourceFrameRate;
 			onFrameRateDetected?.(sourceFrameRate);
 		} else {
+			// 30 only keeps frame stepping usable; the page won't mark an unknown frame rate.
 			frameRate = detectedRate ?? 30;
 			onFrameRateDetected?.(detectedRate ?? 30);
 		}

@@ -1,7 +1,7 @@
 /**
  * Tracks how much saved work exists only in this browser, so the app can say whether
  * storage is protected and nudge for an "Export all" before anything can be lost.
- * A backup is a full export; restoring one is an import.
+ * A backup is an export of every session; reading one back in is an import.
  */
 import { downloadFile, exportFile, parseImport, sessionsToImport } from './exportFile';
 import type { Session } from './schema';
@@ -122,10 +122,10 @@ export async function backUp(sessions: Session[], readAt: string): Promise<Backu
 }
 
 /**
- * When a backup is restored into an empty browser, everything stored came from that file,
+ * When a backup is imported into an empty browser, everything stored came from that file,
  * so it's backed up as of its newest session. Returns the time to record, if any.
  */
-export function backupAfterRestore(
+export function backupAfterImport(
 	existing: Session[],
 	imported: Session[],
 	lastBackup: string | null
@@ -146,7 +146,7 @@ export async function importBackup(file: File): Promise<ImportResult> {
 	const stored = await readSessions();
 	const toImport = sessionsToImport(incoming, stored.sessions, stored.unreadableIds);
 	await putSessions(toImport);
-	const backedUpAt = backupAfterRestore(stored.sessions, toImport, lastBackupAt());
+	const backedUpAt = backupAfterImport(stored.sessions, toImport, lastBackupAt());
 	if (backedUpAt) recordBackup(backedUpAt);
 	return { imported: toImport.length, skipped: incoming.length - toImport.length };
 }
