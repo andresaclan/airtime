@@ -322,6 +322,9 @@ export function buildFrameTimestamps(tables: SampleTables): number[] {
 	return gap > 0 ? times.map((time) => time - gap) : times;
 }
 
+// Longer gaps (a pause in recording) say nothing about the frame rate.
+const MAX_FRAMES_PER_GAP = 8;
+
 function median(values: number[]): number {
 	const sorted = [...values].sort((a, b) => a - b);
 	const mid = Math.floor(sorted.length / 2);
@@ -341,11 +344,12 @@ export function snapFrameRate(fps: number, tolerance = 0.015): number {
 }
 
 /**
- * Fits one frame rate to frame timestamps and checks whether it describes them. The
- * rate is the mean over frame durations within half of the median, so dropped frames
- * and a low-rate pre-roll don't drag it down, while durations that alternate because
- * timestamps were rounded (2 and 3 ticks for 240 fps at 600 ticks/s) still average
- * out. `timescale` is the ticks per second the timestamps were rounded to.
+ * Fits one frame rate to frame timestamps and checks whether it describes them. A frame
+ * duration comes from the durations within half of the median, so durations that
+ * alternate because timestamps were rounded (2 and 3 ticks for 240 fps at 600 ticks/s)
+ * average out. The rate then counts how many frames each gap spans, so dropped frames
+ * and a low-rate pre-roll don't drag it down and rounding only matters at the ends of
+ * the run. `timescale` is the ticks per second the timestamps were rounded to.
  */
 export function analyzeFrameTimestamps(
 	frameTimes: number[],
@@ -356,7 +360,16 @@ export function analyzeFrameTimestamps(
 	if (!(typical > 0)) return null;
 
 	const regular = deltas.filter((delta) => Math.abs(delta - typical) <= 0.5 * typical);
-	const measuredFps = regular.length / regular.reduce((sum, delta) => sum + delta, 0);
+	const duration = regular.reduce((sum, delta) => sum + delta, 0) / regular.length;
+	let frames = 0;
+	let span = 0;
+	for (const delta of deltas) {
+		const spanned = Math.round(delta / duration);
+		if (spanned < 1 || spanned > MAX_FRAMES_PER_GAP) continue;
+		frames += spanned;
+		span += delta;
+	}
+	const measuredFps = frames / span;
 	if (!Number.isFinite(measuredFps) || measuredFps < 1 || measuredFps > 1000) return null;
 
 	const fps = snapFrameRate(measuredFps);
@@ -377,6 +390,18 @@ export function analyzeFrameTimestamps(
 		variableFrameRate: uneven || maxDriftFrames > 0.5,
 		maxDriftFrames
 	};
+}
+
+/**
+ * Frame rate from the media times of frames presented during playback, snapped more
+ * loosely than container rates. Skipped frames are left out of the fit, and WebM's
+ * millisecond timestamps average out across the run.
+ */
+export function estimatePlaybackFrameRate(mediaTimes: number[]): number | null {
+	const times = mediaTimes.filter((time, i) => i === 0 || time > mediaTimes[i - 1]);
+	if (times.length < 4) return null;
+	const analysis = analyzeFrameTimestamps(times, 1000);
+	return analysis ? snapFrameRate(analysis.measuredFps, 0.04) : null;
 }
 
 /** Frame timing of the first video track, or null when it can't be read. */

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { estimatePlaybackFrameRate } from '$lib/video/frameRate';
+
 	interface VideoElementWithFrameCallback extends HTMLVideoElement {
 		requestVideoFrameCallback(
 			callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
@@ -51,11 +53,7 @@
 		onError
 	}: Props = $props();
 
-	let frameCount = $state(0);
-	let lastFrameTime = $state(0);
-	let framesForDetection: number[] = $state([]);
 	let detectionId = 0;
-	let detectionTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	// Zoom and pan state
 	const MIN_ZOOM = 1;
@@ -375,38 +373,6 @@
 		}
 	}
 
-	// Playback timing is noisy, so estimates snap to a standard rate when they're close to one.
-	const COMMON_FRAME_RATES = [
-		15,
-		24000 / 1001,
-		24,
-		25,
-		30000 / 1001,
-		30,
-		48,
-		50,
-		60000 / 1001,
-		60,
-		90,
-		100,
-		120,
-		240
-	];
-
-	function median(values: number[]): number {
-		const sorted = [...values].sort((a, b) => a - b);
-		return sorted[Math.floor(sorted.length / 2)];
-	}
-
-	function snapFrameRate(rate: number): number {
-		if (Math.abs(120 - rate) / 120 <= 0.1) return 120;
-		const nearest = COMMON_FRAME_RATES.reduce((best, candidate) =>
-			Math.abs(candidate - rate) < Math.abs(best - rate) ? candidate : best
-		);
-		if (Math.abs(nearest - rate) / nearest <= 0.04) return Math.round(nearest * 1000) / 1000;
-		return Math.round(rate * 100) / 100;
-	}
-
 	function applyDetectedFrameRate(detectedRate: number | null) {
 		playbackFrameRate = detectedRate;
 		if (sourceFrameRate && sourceFrameRate > 0) {
@@ -419,84 +385,91 @@
 		}
 	}
 
-	function detectFrameRate() {
-		detectionId += 1;
-		const currentDetectionId = detectionId;
-		if (detectionTimeout) clearTimeout(detectionTimeout);
+	// Frame callbacks arrive at most once per display refresh, so a clip faster than the
+	// display (240 fps on a 120 Hz screen) reads as the refresh rate. Fast clips are
+	// sampled again at quarter speed, which tells rates up to 4× the refresh rate apart.
+	const FAST_FRAME_RATE = 50;
+	const SLOW_PROBE_RATE = 0.25;
+	// The mute setting from before a probe muted the video. Kept outside the probe so one
+	// cut short by the next video doesn't leave the video muted.
+	let mutedBeforeProbe: boolean | null = null;
 
-		if (!videoElement || !('requestVideoFrameCallback' in HTMLVideoElement.prototype)) {
+	function endProbeMute(video: HTMLVideoElement) {
+		if (mutedBeforeProbe === null) return;
+		video.muted = mutedBeforeProbe;
+		mutedBeforeProbe = null;
+	}
+
+	/** Media times of up to 13 frames as they're presented, or fewer if `timeoutMs` passes. */
+	function sampleFrameTimes(
+		video: VideoElementWithFrameCallback,
+		id: number,
+		timeoutMs: number
+	): Promise<number[]> {
+		return new Promise((resolve) => {
+			const times: number[] = [];
+			let done = false;
+			// Low frame-rate clips may not deliver every frame in time; settle with what came.
+			const timeout = setTimeout(() => finish(), timeoutMs);
+			const finish = () => {
+				if (done) return;
+				done = true;
+				clearTimeout(timeout);
+				resolve(times);
+			};
+			const callback = (_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
+				if (done) return;
+				if (id !== detectionId) return finish();
+				times.push(metadata.mediaTime);
+				if (times.length < 13) video.requestVideoFrameCallback(callback);
+				else finish();
+			};
+			video.requestVideoFrameCallback(callback);
+		});
+	}
+
+	async function detectFrameRate() {
+		detectionId += 1;
+		const id = detectionId;
+
+		const video = videoElement as VideoElementWithFrameCallback | null;
+		if (!video || !('requestVideoFrameCallback' in HTMLVideoElement.prototype)) {
 			applyDetectedFrameRate(null);
 			return;
 		}
 
-		frameCount = 0;
-		lastFrameTime = 0;
-		framesForDetection = [];
-
-		const detectCallback = (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
-			if (settled || currentDetectionId !== detectionId || !videoElement) return;
-			if (frameCount === 0) {
-				lastFrameTime = metadata.mediaTime;
-			} else {
-				const delta = metadata.mediaTime - lastFrameTime;
-				if (delta > 0) {
-					framesForDetection.push(1 / delta);
-				}
-				lastFrameTime = metadata.mediaTime;
-			}
-
-			frameCount++;
-
-			if (frameCount < 12) {
-				(videoElement as VideoElementWithFrameCallback).requestVideoFrameCallback(detectCallback);
-			} else {
-				finishDetection();
-			}
-		};
-
-		// Low frame-rate clips may not deliver 12 frames before the probe pauses, so the
-		// timeout settles with whatever was sampled rather than leaving detection pending.
-		let settled = false;
-		const finishDetection = () => {
-			if (settled || currentDetectionId !== detectionId) return;
-			settled = true;
-			applyDetectedFrameRate(
-				framesForDetection.length >= 3 ? snapFrameRate(median(framesForDetection)) : null
-			);
-		};
-
-		const wasPlaying = !videoElement.paused;
-		const originalTime = videoElement.currentTime;
-		const originalMuted = videoElement.muted;
+		const wasPlaying = !video.paused;
+		const originalTime = video.currentTime;
 
 		if (!wasPlaying) {
-			videoElement.muted = true;
-			const playPromise = videoElement.play();
-			if (playPromise) {
-				playPromise
-					.then(() => {
-						(videoElement as VideoElementWithFrameCallback).requestVideoFrameCallback(
-							detectCallback
-						);
-						detectionTimeout = setTimeout(() => {
-							if (currentDetectionId === detectionId && videoElement && !wasPlaying) {
-								videoElement.pause();
-								videoElement.currentTime = originalTime;
-								videoElement.muted = originalMuted;
-							}
-							finishDetection();
-						}, 500);
-					})
-					.catch(() => {
-						applyDetectedFrameRate(null);
-						if (videoElement) {
-							videoElement.muted = originalMuted;
-						}
-					});
+			mutedBeforeProbe ??= video.muted;
+			video.muted = true;
+			try {
+				await video.play();
+			} catch {
+				if (id !== detectionId) return;
+				endProbeMute(video);
+				applyDetectedFrameRate(null);
+				return;
 			}
-		} else {
-			(videoElement as VideoElementWithFrameCallback).requestVideoFrameCallback(detectCallback);
 		}
+
+		let rate = estimatePlaybackFrameRate(await sampleFrameTimes(video, id, 500));
+		// Only while probing: slowing down a video the athlete is watching would be jarring.
+		if (!wasPlaying && rate !== null && rate >= FAST_FRAME_RATE && id === detectionId) {
+			video.playbackRate = SLOW_PROBE_RATE;
+			const slowRate = estimatePlaybackFrameRate(await sampleFrameTimes(video, id, 1000));
+			video.playbackRate = playbackRate;
+			if (slowRate !== null && slowRate > rate) rate = slowRate;
+		}
+
+		if (id !== detectionId) return;
+		if (!wasPlaying) {
+			video.pause();
+			video.currentTime = originalTime;
+		}
+		endProbeMute(video);
+		applyDetectedFrameRate(rate);
 	}
 
 	// Computed transform style

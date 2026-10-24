@@ -8,7 +8,7 @@
 	import { onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
-	import { detectSourceFrameRateFromFile } from '$lib/video/frameRate';
+	import { detectSourceTimingFromFile } from '$lib/video/frameRate';
 	import { formatTimecode } from '$lib/video/timecode';
 	import {
 		analyzeMarks,
@@ -55,6 +55,8 @@
 	let duration = $state(0);
 	let frameRate = $state(30);
 	let sourceFrameRate: number | null = $state(null);
+	// The file's frame durations vary, so one fps value only approximates its frame times.
+	let variableFrameRate = $state(false);
 	let playbackFrameRate: number | null = $state(null);
 	// False until the file has been checked for a frame rate.
 	let sourceFrameRateChecked = $state(false);
@@ -174,6 +176,7 @@
 		duration = 0;
 		frameRate = 30;
 		sourceFrameRate = null;
+		variableFrameRate = false;
 		playbackFrameRate = null;
 		sourceFrameRateChecked = false;
 		frameRateSettled = false;
@@ -196,14 +199,17 @@
 		void restoreSession(loadId, fingerprintPromise, expectedSession ?? undefined);
 		expectedSession = null;
 
-		void detectSourceFrameRateFromFile(file)
-			.then((detectedFps) => {
+		void detectSourceTimingFromFile(file)
+			.then((timing) => {
 				if (loadId !== activeVideoLoadId) return;
+				const detectedFps = timing?.fps ?? null;
 				sourceFrameRate = detectedFps;
+				variableFrameRate = timing?.variableFrameRate ?? false;
 				sourceFrameRateChecked = true;
 				if (detectedFps) {
 					frameRate = detectedFps;
 				}
+				if (variableFrameRate) showNotice(VARIABLE_FRAME_RATE);
 			})
 			.catch(() => {
 				if (loadId !== activeVideoLoadId) return;
@@ -322,6 +328,10 @@
 		sessionsOpen = false;
 		void refreshBackup();
 	}
+
+	const VARIABLE_FRAME_RATE =
+		'This video has a variable frame rate, so frame times are approximate and timings ' +
+		'may be off by a frame or more';
 
 	const FRAME_RATE_FAILED =
 		"This video can't be marked: its frame rate couldn't be read or measured";
@@ -801,8 +811,10 @@
 					</div>
 				{:else}
 					<div class="viewer-badge">
-						<span class="viewer-badge-dot" class:uncertain={!sourceFrameRate}
-						></span>{#if sourceFrameRate}
+						<span class="viewer-badge-dot" class:uncertain={!sourceFrameRate || variableFrameRate}
+						></span>{#if sourceFrameRate && variableFrameRate}
+							<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps (variable)</span>
+						{:else if sourceFrameRate}
 							{sourceFrameRate} fps
 						{:else if playbackFrameRate}
 							<span title="Couldn't read the frame rate from the file; estimated from playback">
