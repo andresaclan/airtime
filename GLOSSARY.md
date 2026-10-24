@@ -4,11 +4,11 @@ Airtime measures one athlete's jumps from video. The athlete marks the frames wh
 
 ## Language
 
-### Clips and marks
+### Sessions and marks
 
-**Clip**:
-One video of jumps, together with the marks, title and notes saved for it. Each video has exactly one clip.
-_Avoid_: Session, training session, recording
+**Session**:
+The marks, title and notes saved for one video. Each video has exactly one session.
+_Avoid_: Clip, training session, recording
 
 **Mark**:
 A frame the athlete flags as a takeoff or a landing.
@@ -46,18 +46,31 @@ _Avoid_: Ground time
 **Jump height**:
 How high the athlete rose, estimated from flight time on the assumption that they took off and landed in the same position.
 
+**RSI**:
+Reactive strength index: a jump's height divided by the contact before it. Only jumps with a contact have one, and it only means something for rebound and drop jumps.
+
+**Best jump**:
+The jump with the greatest jump height in a session.
+
+**Best height**:
+The greatest jump height across several sessions.
+
 ### Time
 
 **Media time**:
 Time as the video file counts it.
 
 **Real time**:
-Time as it passed when the clip was recorded. It equals media time unless the clip is slow motion.
+Time as it passed when the video was recorded. It equals media time unless the video is slow motion.
 
 **Slow-motion factor**:
-How many times slower than real time a clip plays back (1×, 2×, 4× or 8×).
+How many times slower than real time a video plays back (1×, 2×, 4× or 8×).
 _Avoid_: Speed, time scale
 
 **Playback speed**:
-How fast the clip plays while you review it. It is only a viewing aid and never changes any timing.
+How fast the video plays while you review it. It is only a viewing aid and never changes any timing.
 _Avoid_: Slow motion
+
+**Assumed frame rate**:
+The 30 fps Airtime uses when it can neither read a video's frame rate from the file nor measure it during playback.
+_Avoid_: Default frame rate, low trust
