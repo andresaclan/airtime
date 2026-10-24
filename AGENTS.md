@@ -40,3 +40,21 @@ These rules apply to every agent working in this repo, whatever the provider.
 gh pr view 123 --repo andresaclan/airtime
 gh pr edit 123 --repo andresaclan/airtime --title "Updated title"
 ```
+
+## Agent skills
+
+Skills are installed with the `skills` CLI into `.agents/skills/`, with per-skill symlinks in `.claude/skills/`. `skills-lock.json` records each skill's source. Don't edit them by hand; Prettier skips them. Run the CLI with `bunx --bun` (it needs Node 22.20+ otherwise):
+
+```bash
+bunx --bun skills add <owner/repo> -s <skill> -a claude-code -a codex -y
+bunx --bun skills check
+bunx --bun skills update -p -y
+```
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues for `andresaclan/airtime`, managed with `gh`. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: one root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/domain.md`.
