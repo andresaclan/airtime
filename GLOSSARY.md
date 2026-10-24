@@ -26,11 +26,14 @@ A mark on the first frame where the feet have left the ground.
 A mark on the first frame where the feet touch the ground again.
 
 **Unpaired mark**:
-A mark that isn't part of any flight or contact.
+A mark that isn't part of any flight or contact, either because it is out of sequence or because it is alone.
 _Avoid_: Stray mark
 
 **Out of sequence**:
-Why a mark is unpaired when it has the same type as the mark before it, such as two takeoffs in a row.
+A mark next to another mark of the same type, such as two takeoffs in a row.
+
+**Alone**:
+Why a mark is unpaired when no mark comes before or after it, such as a single landing.
 
 ### Jumps
 
@@ -46,11 +49,8 @@ The time from a takeoff to the next landing.
 _Avoid_: Air time, hang time
 
 **Contact**:
-The time on the ground from a landing to the next takeoff, when it lasts 1 s of real time or less.
+The time from a landing to the next takeoff, while the feet are on the ground.
 _Avoid_: Ground time
-
-**Rest**:
-Time on the ground from a landing to the next takeoff that lasts longer than 1 s of real time. It separates jumps instead of linking them.
 
 **Jump height**:
 How high the athlete rose, estimated from flight time on the assumption that they took off and landed in the same position.
@@ -80,9 +80,9 @@ _Avoid_: Speed, time scale
 How fast the video plays while you review it. It is only a viewing aid and never changes any timing.
 _Avoid_: Slow motion
 
-**Assumed frame rate**:
-The 30 fps Airtime uses when it can neither read a video's frame rate from the file nor measure it during playback.
-_Avoid_: Default frame rate, low trust
+**Frame rate**:
+How many frames per second a video holds, either read from the file or measured during playback. A video whose frame rate can't be found can't be marked.
+_Avoid_: Assumed frame rate, default frame rate
 
 ### Keeping data
 

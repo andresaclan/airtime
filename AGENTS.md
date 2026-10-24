@@ -22,7 +22,7 @@ These rules apply to every agent working in this repo, whatever the provider.
 - The unsaved-changes `confirm()` makes uploads and navigation hang for 15 seconds. Answer it with `preview_dialog`.
 - `preview_press` takes key names (`"Space"`, not `" "`).
 - Generate test clips into `/tmp/airtime-test`, for example `ffmpeg -f lavfi -i "testsrc2=size=1280x720:rate=60:duration=6" -pix_fmt yuv420p clip60.mp4`. Don't use the user's personal videos unless asked.
-- Wait for the frame-rate badge to settle before placing marks; until then the app assumes 30 fps.
+- Wait for the frame-rate badge to settle before placing marks; marking is disabled until the frame rate is read or measured, and stays disabled if neither works.
 
 ## macOS shell
 

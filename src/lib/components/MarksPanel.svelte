@@ -1,6 +1,13 @@
 <script lang="ts">
 	import { formatTimecode } from '$lib/video/timecode';
-	import { groupJumps, type Analysis, type Interval, type Jump, type Mark } from '$lib/video/marks';
+	import {
+		groupJumps,
+		rsi,
+		type Analysis,
+		type Interval,
+		type Jump,
+		type Mark
+	} from '$lib/video/marks';
 	import { TIME_SCALES } from '$lib/session/schema';
 
 	interface Props {
@@ -11,6 +18,8 @@
 		notes: string;
 		timeScale: number;
 		titlePlaceholder: string;
+		/** ISO timestamp of when the video was filmed. */
+		recordedAt: string;
 		activeMarkId: string | null;
 		canUndo: boolean;
 		onSeek: (time: number) => void;
@@ -32,6 +41,7 @@
 		frameRate,
 		title = $bindable(),
 		notes = $bindable(),
+		recordedAt = $bindable(),
 		timeScale = $bindable(),
 		titlePlaceholder,
 		activeMarkId,
@@ -66,7 +76,7 @@
 	// A landing followed by the next attempt's touchdown is normal; only warn about
 	// repeated marks that no jump could use.
 	let outOfSequenceMarks = $derived(
-		grouped.strayMarks.filter((mark) => analysis.outOfSequence.has(mark.id))
+		grouped.unpairedMarks.filter((mark) => analysis.outOfSequence.has(mark.id))
 	);
 	let completedJumps = $derived(grouped.jumps.filter((jump) => jump.flight).length);
 
@@ -74,11 +84,23 @@
 		const parts = [`Jump ${index + 1}`];
 		if (jump.flight?.heightCm !== undefined) {
 			parts.push(`${jump.flight.heightCm.toFixed(1)} cm`);
-			if (jump.contact) {
-				parts.push(`RSI ${(jump.flight.heightCm / 100 / jump.contact.realSeconds).toFixed(2)}`);
-			}
+			const index = rsi(jump);
+			if (index !== undefined) parts.push(`RSI ${index.toFixed(2)}`);
 		}
 		return parts.join(' · ');
+	}
+
+	// datetime-local works in local time without a zone, so convert to and from ISO.
+	function toLocalInput(iso: string): string {
+		const date = new Date(iso);
+		if (Number.isNaN(date.getTime())) return '';
+		const offset = date.getTimezoneOffset() * 60_000;
+		return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+	}
+
+	function fromLocalInput(value: string) {
+		const date = new Date(value);
+		if (!Number.isNaN(date.getTime())) recordedAt = date.toISOString();
 	}
 
 	function formatMs(seconds: number): string {
@@ -296,10 +318,10 @@
 								.join(', ')}
 						</div>
 					{/if}
-					{#if grouped.strayMarks.length > 0}
-						<section class="mp-strays" aria-label="Unpaired marks">
+					{#if grouped.unpairedMarks.length > 0}
+						<section class="mp-unpaired" aria-label="Unpaired marks">
 							<h3>Unpaired marks</h3>
-							{#each grouped.strayMarks as mark (mark.id)}{@render markRow(
+							{#each grouped.unpairedMarks as mark (mark.id)}{@render markRow(
 									mark,
 									mark.type === 'landing' ? 'Landing' : 'Takeoff'
 								)}{/each}
@@ -316,6 +338,14 @@
 					aria-label="Session title"
 					spellcheck="false"
 				/>
+				<label class="mp-recorded">
+					<span>Recorded</span>
+					<input
+						class="mp-field"
+						type="datetime-local"
+						bind:value={() => toLocalInput(recordedAt), fromLocalInput}
+					/>
+				</label>
 				<textarea
 					class="mp-field mp-notes"
 					bind:value={notes}
@@ -399,6 +429,20 @@
 
 	.mp-title {
 		font-weight: 600;
+	}
+
+	.mp-recorded {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+	}
+
+	.mp-recorded input {
+		width: auto;
+		padding: 4px 7px;
 	}
 
 	.mp-notes {
@@ -548,7 +592,7 @@
 	}
 
 	.mp-jump,
-	.mp-strays {
+	.mp-unpaired {
 		margin-bottom: 4px;
 		padding: 6px 2px 7px;
 		border-bottom: 1px solid hsl(var(--at-border) / 0.8);
@@ -559,7 +603,7 @@
 	}
 
 	.mp-jump h3,
-	.mp-strays h3 {
+	.mp-unpaired h3 {
 		display: flex;
 		justify-content: space-between;
 		margin: 0 0 2px;

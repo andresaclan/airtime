@@ -50,8 +50,14 @@
 	let frameRate = $state(30);
 	let sourceFrameRate: number | null = $state(null);
 	let playbackFrameRate: number | null = $state(null);
-	// False until the viewer has either measured a rate or given up and fallen back to 30.
+	// False until the file has been checked for a frame rate.
+	let sourceFrameRateChecked = $state(false);
+	// False until the viewer has either measured a rate or given up.
 	let frameRateSettled = $state(false);
+	// Marks snap to frames, so a video can only be marked once its frame rate is read or
+	// measured. `frameRate` keeps 30 until then purely so frame stepping still works.
+	let frameRateKnown = $derived(Boolean(sourceFrameRate || playbackFrameRate));
+	let frameRateFailed = $derived(frameRateSettled && sourceFrameRateChecked && !frameRateKnown);
 	let playbackRate = $state(1);
 	let volume = $state(1);
 	let isMuted = $state(false);
@@ -78,8 +84,8 @@
 	let reminderDismissed = $state(false);
 	let showBackupReminder = $derived(needsBackup(backup) && !reminderDismissed);
 	let isAppEmpty = $derived.by(() => savedSessions?.length === 0 && backup?.unreadable === 0);
-	let restoreInput: HTMLInputElement | null = $state(null);
-	let restoreMessage: { text: string; error?: boolean } | null = $state(null);
+	let importInput: HTMLInputElement | null = $state(null);
+	let importMessage: { text: string; error?: boolean } | null = $state(null);
 
 	// Saving is explicit (⌘S). The session is "dirty" whenever the marks or details
 	// differ from what was last saved or restored for this video.
@@ -89,6 +95,7 @@
 	let sessionCreatedAt: string | null = null;
 	let sessionTitle = $state('');
 	let sessionNotes = $state('');
+	let sessionRecordedAt = $state('');
 	let timeScale = $state(1);
 	let savedSignature: string | null = $state(null);
 	let isSaving = $state(false);
@@ -96,11 +103,17 @@
 	let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 	let defaultTitle = $derived(videoFileName.replace(/\.[^.]+$/, '') || 'Untitled');
 	let signature = $derived(
-		JSON.stringify({ marks, title: sessionTitle, notes: sessionNotes, timeScale })
+		JSON.stringify({
+			marks,
+			title: sessionTitle,
+			notes: sessionNotes,
+			recordedAt: sessionRecordedAt,
+			timeScale
+		})
 	);
 	let isDirty = $derived(videoSrc !== null && signature !== savedSignature);
 	let frameRateSource: FrameRateSource = $derived(
-		sourceFrameRate ? 'container' : playbackFrameRate ? 'playback-estimate' : 'default'
+		sourceFrameRate ? 'container' : 'playback-estimate'
 	);
 
 	let analysis = $derived(analyzeMarks(marks, frameRate, timeScale));
@@ -154,6 +167,7 @@
 		frameRate = 30;
 		sourceFrameRate = null;
 		playbackFrameRate = null;
+		sourceFrameRateChecked = false;
 		frameRateSettled = false;
 
 		marks = [];
@@ -166,6 +180,7 @@
 		sessionCreatedAt = null;
 		sessionTitle = defaultTitle;
 		sessionNotes = '';
+		sessionRecordedAt = new Date(file.lastModified).toISOString();
 		timeScale = 1;
 		savedSignature = signature;
 		fingerprintPromise = fingerprintFile(file);
@@ -176,6 +191,7 @@
 			.then((detectedFps) => {
 				if (loadId !== activeVideoLoadId) return;
 				sourceFrameRate = detectedFps;
+				sourceFrameRateChecked = true;
 				if (detectedFps) {
 					frameRate = detectedFps;
 				}
@@ -183,6 +199,7 @@
 			.catch(() => {
 				if (loadId !== activeVideoLoadId) return;
 				sourceFrameRate = null;
+				sourceFrameRateChecked = true;
 			});
 	}
 
@@ -218,6 +235,7 @@
 			sessionCreatedAt = saved.createdAt;
 			sessionTitle = saved.title;
 			sessionNotes = saved.notes;
+			sessionRecordedAt = saved.recordedAt;
 			timeScale = saved.timeScale;
 			marks = sortMarks(saved.marks);
 			markHistory = [];
@@ -260,22 +278,22 @@
 		showNotice(outcome === 'shared' ? 'Backup shared' : 'Backup downloaded');
 	}
 
-	async function handleRestore(event: Event) {
+	async function handleImport(event: Event) {
 		const input = event.target as HTMLInputElement;
 		const file = input.files?.[0];
 		input.value = '';
 		if (!file) return;
-		restoreMessage = null;
+		importMessage = null;
 		try {
 			const result = await importBackup(file);
-			restoreMessage = {
+			importMessage = {
 				text:
 					importSummary(result) +
 					(result.imported ? ' — open each video to bring back its marks.' : '')
 			};
 			await refreshBackup();
 		} catch (error) {
-			restoreMessage = { text: importFailure(error), error: true };
+			importMessage = { text: importFailure(error), error: true };
 		}
 	}
 
@@ -295,8 +313,23 @@
 		void refreshBackup();
 	}
 
+	const FRAME_RATE_FAILED =
+		"This video can't be marked: its frame rate couldn't be read or measured";
+
+	$effect(() => {
+		if (frameRateFailed) showNotice(FRAME_RATE_FAILED);
+	});
+
+	/** Says why not when the frame rate isn't known yet, or never will be. */
+	function canMark(): boolean {
+		if (frameRateKnown) return true;
+		showNotice(frameRateFailed ? FRAME_RATE_FAILED : 'Detecting the frame rate…');
+		return false;
+	}
+
 	async function save() {
 		if (!videoFile || !fingerprintPromise || !isDirty || isSaving) return;
+		if (!canMark()) return;
 		const loadId = activeVideoLoadId;
 		const savingSignature = signature;
 		const now = new Date().toISOString();
@@ -309,6 +342,7 @@
 				notes: sessionNotes,
 				createdAt: sessionCreatedAt ?? now,
 				updatedAt: now,
+				recordedAt: sessionRecordedAt,
 				media: {
 					fileName: videoFile.name,
 					mimeType: videoFile.type,
@@ -374,7 +408,7 @@
 	}
 
 	function addMark(type: MarkType) {
-		if (!videoElement) return;
+		if (!videoElement || !canMark()) return;
 		// Marking while playing would land between frames; pause on the frame instead.
 		if (!videoElement.paused) videoElement.pause();
 		commitMarks(placeMark(marks, type, videoElement.currentTime, frameRate));
@@ -382,7 +416,7 @@
 
 	function nudgeMark(id: string, frames: number) {
 		const mark = marks.find((candidate) => candidate.id === id);
-		if (!mark) return;
+		if (!mark || !canMark()) return;
 		const maxFrame = duration > 0 ? Math.floor(duration * frameRate) : Infinity;
 		const frame = Math.max(0, Math.min(maxFrame, frameOf(mark.time, frameRate) + frames));
 		commitMarks(moveMark(marks, id, frame / frameRate));
@@ -711,14 +745,14 @@
 					<div class="empty-state-hint">Press <kbd>?</kbd> for keyboard shortcuts</div>
 				</button>
 				{#if isAppEmpty}
-					<p class="empty-restore at-reveal" style="--delay: 100ms">
-						Have a backup? <button class="empty-restore-btn" onclick={() => restoreInput?.click()}
-							>Restore it</button
+					<p class="empty-import at-reveal" style="--delay: 100ms">
+						Have a backup? <button class="empty-import-btn" onclick={() => importInput?.click()}
+							>Import it</button
 						>
 					</p>
 				{/if}
-				<p class="empty-restore-message" class:error={restoreMessage?.error} role="status">
-					{restoreMessage?.text ?? ''}
+				<p class="empty-import-message" class:error={importMessage?.error} role="status">
+					{importMessage?.text ?? ''}
 				</p>
 			</div>
 		{:else}
@@ -763,10 +797,8 @@
 							<span title="Couldn't read the frame rate from the file; estimated from playback">
 								~{playbackFrameRate} fps (estimated)
 							</span>
-						{:else if frameRateSettled}
-							<span title="Couldn't detect the frame rate; frame math assumes 30 fps">
-								30 fps (assumed)
-							</span>
+						{:else if frameRateFailed}
+							<span title={FRAME_RATE_FAILED}>Frame rate unknown</span>
 						{:else}
 							Detecting fps…
 						{/if}{#if playbackRate !== 1}<span class="viewer-badge-rate">{playbackRate}×</span>{/if}
@@ -861,6 +893,7 @@
 					{frameRate}
 					bind:title={sessionTitle}
 					bind:notes={sessionNotes}
+					bind:recordedAt={sessionRecordedAt}
 					bind:timeScale
 					titlePlaceholder={defaultTitle}
 					activeMarkId={activeMark?.id ?? null}
@@ -889,10 +922,10 @@
 		class="sr-only"
 	/>
 	<input
-		bind:this={restoreInput}
+		bind:this={importInput}
 		type="file"
 		accept="application/json,.json"
-		onchange={handleRestore}
+		onchange={handleImport}
 		class="sr-only"
 	/>
 </div>

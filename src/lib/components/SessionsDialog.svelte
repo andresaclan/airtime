@@ -222,9 +222,9 @@
 			{:else if sessions.length === 0 && unreadableIds.length === 0}
 				<div class="sessions-empty">
 					<p>No saved sessions yet. Mark a video and press ⌘/Ctrl + S.</p>
-					<p class="sessions-empty-restore">
+					<p class="sessions-empty-import">
 						Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
-							>Restore it</button
+							>Import it</button
 						>
 					</p>
 				</div>
@@ -424,7 +424,7 @@
 		text-align: center;
 	}
 
-	.sessions-empty-restore {
+	.sessions-empty-import {
 		margin-top: 8px;
 		color: hsl(var(--at-fg-muted));
 		font-size: 12px;
