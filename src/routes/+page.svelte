@@ -10,6 +10,8 @@
 	import { resolve } from '$app/paths';
 	import { detectSourceFrameRateFromFile } from '$lib/video/frameRate';
 	import { formatTimecode } from '$lib/video/timecode';
+	import { clampFrame, frameAt, frameSeekTime, frameStartTime } from '$lib/video/frames';
+	import { displayedFrame, settledDisplayedFrame } from '$lib/video/presentedFrame';
 	import {
 		analyzeMarks,
 		frameOf,
@@ -418,20 +420,23 @@
 		marks = next;
 	}
 
-	function addMark(type: MarkType) {
+	async function addMark(type: MarkType) {
 		if (!videoElement || !canMark()) return;
-		// Marking while playing would land between frames; pause on the frame instead.
+		const loadId = activeVideoLoadId;
+		// Marking while playing would land between frames; pause on the frame instead,
+		// and mark the frame left on screen.
 		if (!videoElement.paused) videoElement.pause();
-		commitMarks(placeMark(marks, type, videoElement.currentTime, frameRate));
+		const frame = await settledDisplayedFrame(videoElement, frameRate);
+		if (loadId !== activeVideoLoadId) return;
+		commitMarks(placeMark(marks, type, frameStartTime(frame, frameRate), frameRate));
 	}
 
 	function nudgeMark(id: string, frames: number) {
 		const mark = marks.find((candidate) => candidate.id === id);
 		if (!mark || !canMark()) return;
-		const maxFrame = duration > 0 ? Math.floor(duration * frameRate) : Infinity;
-		const frame = Math.max(0, Math.min(maxFrame, frameOf(mark.time, frameRate) + frames));
-		commitMarks(moveMark(marks, id, frame / frameRate));
-		seekTo(frame / frameRate);
+		const frame = clampFrame(frameOf(mark.time, frameRate) + frames, duration, frameRate);
+		commitMarks(moveMark(marks, id, frameStartTime(frame, frameRate)));
+		seekToFrame(frame);
 	}
 
 	function deleteMark(id: string) {
@@ -465,15 +470,23 @@
 		playbackRate = PLAYBACK_RATES[(index + 1) % PLAYBACK_RATES.length];
 	}
 
-	function seekTo(time: number) {
+	/** Shows the frame by seeking to its middle (see frames.ts). */
+	function seekToFrame(frame: number) {
 		if (!videoElement) return;
 		videoElement.pause();
+		const time = frameSeekTime(clampFrame(frame, duration, frameRate), frameRate, duration);
 		videoElement.currentTime = time;
 		currentTime = time;
 	}
 
+	function seekTo(time: number) {
+		seekToFrame(frameAt(time, frameRate));
+	}
+
 	function seekAdjacentMark(direction: 1 | -1) {
-		const frame = frameOf(currentTime, frameRate);
+		const frame = videoElement
+			? displayedFrame(videoElement, frameRate)
+			: frameAt(currentTime, frameRate);
 		const target =
 			direction > 0
 				? marks.find((mark) => frameOf(mark.time, frameRate) > frame)
@@ -849,6 +862,7 @@
 						<VideoScrubber
 							{currentTime}
 							{duration}
+							{frameRate}
 							{videoElement}
 							{marks}
 							intervals={analysis.intervals}

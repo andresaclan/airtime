@@ -1,6 +1,8 @@
 /** Manually marked jump events and the timings derived from them. */
+import { frameAt, frameStartTime } from './frames';
+
 export type MarkType = 'takeoff' | 'landing';
-/** `time` is media seconds, snapped to a frame boundary when placed. */
+/** `time` is media seconds: the start of the marked frame (`k / fps`, see frames.ts). */
 export type Mark = { id: string; type: MarkType; time: number };
 
 export type Interval = {
@@ -43,8 +45,9 @@ export type UnpairedReason = 'out-of-sequence' | 'alone';
 
 export const GRAVITY = 9.81;
 
+/** The frame a time falls in; see frames.ts for the convention. */
 export function frameOf(time: number, fps: number): number {
-	return Math.round(time * fps);
+	return frameAt(time, fps);
 }
 
 export function sortMarks(marks: Mark[]): Mark[] {
@@ -60,7 +63,7 @@ export function placeMark(marks: Mark[], type: MarkType, time: number, fps: numb
 	const existing = marks.find((mark) => frameOf(mark.time, fps) === frame);
 	const rest = marks.filter((mark) => mark !== existing);
 	if (existing?.type === type) return rest;
-	return sortMarks([...rest, { id: newId(), type, time: frame / fps }]);
+	return sortMarks([...rest, { id: newId(), type, time: frameStartTime(frame, fps) }]);
 }
 
 export function moveMark(marks: Mark[], id: string, time: number): Mark[] {
