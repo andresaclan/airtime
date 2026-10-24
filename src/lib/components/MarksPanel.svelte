@@ -8,7 +8,12 @@
 		type Jump,
 		type Mark
 	} from '$lib/video/marks';
-	import { TIME_SCALES } from '$lib/session/schema';
+	import {
+		hasMeaningfulContact,
+		JUMP_TYPES,
+		TIME_SCALES,
+		type JumpType
+	} from '$lib/session/schema';
 
 	interface Props {
 		marks: Mark[];
@@ -17,6 +22,8 @@
 		title: string;
 		notes: string;
 		timeScale: number;
+		/** `null` = not set, for sessions saved before jump types existed. */
+		jumpType: JumpType | null;
 		titlePlaceholder: string;
 		/** ISO timestamp of when the video was filmed. */
 		recordedAt: string;
@@ -43,6 +50,7 @@
 		notes = $bindable(),
 		recordedAt = $bindable(),
 		timeScale = $bindable(),
+		jumpType = $bindable(),
 		titlePlaceholder,
 		activeMarkId,
 		canUndo,
@@ -78,13 +86,16 @@
 	let outOfSequenceMarks = $derived(
 		grouped.unpairedMarks.filter((mark) => analysis.outOfSequence.has(mark.id))
 	);
+	// Contact and RSI are only meaningful for drop and rebound jumps. An unset type says nothing.
+	let contactApplies = $derived(jumpType === null || hasMeaningfulContact(jumpType));
+	let jumpTypeLabel = $derived(JUMP_TYPES.find((type) => type.value === jumpType)?.label);
 	let completedJumps = $derived(grouped.jumps.filter((jump) => jump.flight).length);
 
 	function jumpTitle(jump: Jump, index: number): string {
 		const parts = [`Jump ${index + 1}`];
 		if (jump.flight?.heightCm !== undefined) {
 			parts.push(`${jump.flight.heightCm.toFixed(1)} cm`);
-			const index = rsi(jump);
+			const index = contactApplies ? rsi(jump) : undefined;
 			if (index !== undefined) parts.push(`RSI ${index.toFixed(2)}`);
 		}
 		return parts.join(' · ');
@@ -226,13 +237,16 @@
 						>
 						<span class="mp-stat-sub">{bestJump.flight.frames} fr</span>
 					</div>
-					<div class="mp-stat">
+					<div class="mp-stat" class:mp-stat-muted={!contactApplies}>
 						<span class="mp-stat-label">Contact time</span>
 						{#if bestJump.contact}
 							<span class="mp-stat-value"
 								>{formatMs(bestJump.contact.realSeconds)}<small>ms</small></span
 							>
-							<span class="mp-stat-sub">{bestJump.contact.frames} fr</span>
+							<span class="mp-stat-sub"
+								>{bestJump.contact.frames} fr{#if !contactApplies}
+									· not used for {jumpTypeLabel?.toLowerCase()}{/if}</span
+							>
 						{:else}
 							<span class="mp-stat-value">—</span>
 							<span class="mp-stat-sub">No contact</span>
@@ -253,6 +267,23 @@
 							>{/each}
 					</select>
 				</label>
+				<label class="mp-scale">
+					<span>Jump type</span>
+					<select
+						class="mp-field"
+						bind:value={jumpType}
+						aria-describedby={jumpType === null ? 'mp-jump-type-hint' : undefined}
+					>
+						{#if jumpType === null}<option value={null}>Not set</option>{/if}
+						{#each JUMP_TYPES as type (type.value)}<option value={type.value}>{type.label}</option
+							>{/each}
+					</select>
+				</label>
+				{#if jumpType === null}
+					<p id="mp-jump-type-hint" class="mp-precision">
+						Set the jump type to compare like with like.
+					</p>
+				{/if}
 			</div>
 
 			{#if marks.length === 0}
@@ -479,6 +510,11 @@
 		padding: 7px 7px;
 		border-radius: 8px;
 		background: hsl(var(--at-surface));
+	}
+
+	.mp-stat-muted .mp-stat-value,
+	.mp-stat-muted .mp-stat-sub {
+		color: hsl(var(--at-fg-muted));
 	}
 
 	.mp-stat-primary {

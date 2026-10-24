@@ -14,7 +14,13 @@ import {
 	type UnpairedReason
 } from '$lib/video/marks';
 import { migrateSession } from './migrate';
-import { SCHEMA_VERSION, type FrameRateSource, type Session } from './schema';
+import {
+	JUMP_TYPES,
+	SCHEMA_VERSION,
+	type FrameRateSource,
+	type JumpType,
+	type Session
+} from './schema';
 
 export const EXPORT_FORMAT = 'airtime-export';
 
@@ -34,6 +40,10 @@ const FIELDS = {
 		'Frames per second used for frame math. source: "container" = read from the file, ' +
 		'"playback-estimate" = measured during playback, "default" = 30 fps assumed by an older ' +
 		'version of Airtime because the frame rate could not be read or measured.',
+	'sessions[].jumpType':
+		'What kind of jump the session holds, one per session: "countermovement", "squat", "drop" or ' +
+		'"rebound"; null = not set (saved before jump types existed). Compare like with like: ' +
+		'contact time and rsi only mean something for "drop" and "rebound".',
 	'sessions[].timeScale':
 		'Real seconds per media second. 1 = real-time footage; 0.25 = 4× slow motion.',
 	'sessions[].derived.intervals[]':
@@ -58,6 +68,7 @@ const FIELDS = {
 		'One row per jump across every session, with session context repeated on each row. ' +
 		'index = 1-based position of the jump within its session.',
 	'tables.sessions[]': 'One row per session with its summary statistics.',
+	'tables.*[].jumpType': "The owning session's jumpType, repeated on every row.",
 	recordedAt:
 		"When the video was recorded. Starts as the video file's last-modified time and may have " +
 		'been corrected by hand.',
@@ -116,6 +127,7 @@ export type IntervalRow = {
 	sessionTitle: string;
 	recordedAt: string;
 	fileName: string;
+	jumpType: JumpType | null;
 	kind: 'flight' | 'contact';
 	index: number;
 	startSeconds: number;
@@ -134,6 +146,7 @@ export type JumpRow = {
 	sessionTitle: string;
 	recordedAt: string;
 	fileName: string;
+	jumpType: JumpType | null;
 	frameRate: number;
 	frameRateSource: FrameRateSource;
 	timeScale: number;
@@ -147,6 +160,7 @@ export type SessionRow = {
 	recordedAt: string;
 	savedAt: string;
 	fileName: string;
+	jumpType: JumpType | null;
 	frameRate: number;
 	frameRateSource: FrameRateSource;
 	timeScale: number;
@@ -269,6 +283,7 @@ function sessionRow(session: ExportedSession): SessionRow {
 		recordedAt: session.recordedAt,
 		savedAt: session.updatedAt,
 		fileName: session.media.fileName,
+		jumpType: session.jumpType,
 		frameRate: session.frameRate.value,
 		frameRateSource: session.frameRate.source,
 		timeScale: session.timeScale,
@@ -285,6 +300,7 @@ function jumpRows(session: ExportedSession): JumpRow[] {
 		sessionTitle: session.title,
 		recordedAt: session.recordedAt,
 		fileName: session.media.fileName,
+		jumpType: session.jumpType,
 		frameRate: session.frameRate.value,
 		frameRateSource: session.frameRate.source,
 		timeScale: session.timeScale,
@@ -308,6 +324,7 @@ function intervalRows(session: ExportedSession): IntervalRow[] {
 		sessionTitle: session.title,
 		recordedAt: session.recordedAt,
 		fileName: session.media.fileName,
+		jumpType: session.jumpType,
 		kind: interval.kind,
 		index: ++counts[interval.kind],
 		startSeconds: interval.startSeconds,
@@ -431,6 +448,14 @@ function num(object: Json, key: string, where: string): number {
 
 const FRAME_RATE_SOURCES: FrameRateSource[] = ['container', 'playback-estimate', 'default'];
 
+function parseJumpType(raw: Json, where: string): JumpType | null {
+	const value = raw.jumpType;
+	if (value === null || value === undefined) return null;
+	const type = JUMP_TYPES.find((jumpType) => jumpType.value === value);
+	expect(type, `${where}.jumpType is not recognised`);
+	return type.value;
+}
+
 function parseSession(raw: unknown, index: number): Session {
 	const where = `sessions[${index}]`;
 	expect(isObject(raw), `${where} must be an object`);
@@ -462,6 +487,7 @@ function parseSession(raw: unknown, index: number): Session {
 		id: str(raw, 'id', where),
 		title: str(raw, 'title', where),
 		notes: str(raw, 'notes', where),
+		jumpType: parseJumpType(raw, where),
 		createdAt: str(raw, 'createdAt', where),
 		updatedAt: str(raw, 'updatedAt', where),
 		recordedAt: str(raw, 'recordedAt', where),

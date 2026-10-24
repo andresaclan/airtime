@@ -10,7 +10,7 @@ Airtime measures one athlete's jumps from video. The athlete marks the frames wh
 One specific video file. Trimming, compressing or re-exporting it produces a different video.
 
 **Session**:
-The marks, title and notes saved for one video. Each video has exactly one session.
+The marks, title, notes and jump type saved for one video. Each video has exactly one session.
 _Avoid_: Clip, training session, recording
 
 **Recorded date**:
@@ -49,14 +49,30 @@ The time from a takeoff to the next landing.
 _Avoid_: Air time, hang time
 
 **Contact**:
-The time from a landing to the next takeoff, while the feet are on the ground.
+The time from a landing to the next takeoff, while the feet are on the ground. It only means something for drop and rebound jumps.
 _Avoid_: Ground time
 
 **Jump height**:
 How high the athlete rose, estimated from flight time on the assumption that they took off and landed in the same position.
 
 **RSI**:
-Reactive strength index: a jump's height divided by the contact before it. Only jumps with a contact have one, and it only means something for rebound and drop jumps.
+Reactive strength index: a jump's height divided by the contact before it. Only jumps with a contact have one, and it only means something for drop and rebound jumps.
+
+**Jump type**:
+What kind of jump a session holds: countermovement, squat, drop or rebound. A session has one jump type, so later comparisons set like against like. A session saved before jump types existed has none until the athlete sets one.
+_Avoid_: Drill, exercise
+
+**Countermovement jump**:
+A jump that starts standing, dips down, then drives straight up. The default jump type for a new session.
+
+**Squat jump**:
+A jump that starts from a held squat, with no dip beforehand.
+
+**Drop jump**:
+A jump that starts by stepping off a box, landing, and jumping again straight away.
+
+**Rebound jump**:
+One of several jumps in a row, each aiming for as little ground contact as possible before the next.
 
 **Best jump**:
 The jump with the greatest jump height in a session.
