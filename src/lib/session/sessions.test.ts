@@ -11,7 +11,7 @@ import {
 	lastBackupAt,
 	needsBackup
 } from './backup';
-import { SCHEMA_VERSION, type Session } from './schema';
+import { hasMeaningfulContact, SCHEMA_VERSION, type Session } from './schema';
 import type { Mark, MarkType } from '$lib/video/marks';
 // A real export from schema v1, frozen. Never regenerate it: it stands in for the backups
 // users already have, which every future version must still import.
@@ -39,7 +39,10 @@ describe('importing old exports', () => {
 
 	test('timings recomputed from a v1 export match what it recorded', () => {
 		const recomputed = buildExport(parseImport(v1Text));
-		expect(recomputed.tables.intervals).toEqual(exportV1.tables.intervals);
+		// jumpType arrived in v3; v1 rows don't have it, and every other column is unchanged.
+		expect(recomputed.tables.intervals.map((row) => ({ ...row, jumpType: undefined }))).toEqual(
+			exportV1.tables.intervals.map((row) => ({ ...row, jumpType: undefined }))
+		);
 		// Renamed in v2; the values are unchanged.
 		const { lowTrustSessionIds, ...overview } = exportV1.overview;
 		expect(recomputed.overview).toEqual({
@@ -51,6 +54,18 @@ describe('importing old exports', () => {
 	test("a v1 session's recorded date starts as the file's date", () => {
 		for (const session of parseImport(v1Text)) {
 			expect(session.recordedAt).toBe(session.media.lastModified);
+		}
+	});
+
+	test('a v1 session has no jump type rather than a guessed one', () => {
+		for (const session of parseImport(v1Text)) expect(session.jumpType).toBeNull();
+		const exported = buildExport(parseImport(v1Text));
+		for (const row of [
+			...exported.tables.sessions,
+			...exported.tables.jumps,
+			...exported.tables.intervals
+		]) {
+			expect(row.jumpType).toBeNull();
 		}
 	});
 
@@ -99,6 +114,25 @@ describe('migrateSession', () => {
 			playback: { timeScale: 1 }
 		});
 		expect(v1).toEqual({ schemaVersion: 1, id: 'x', timeScale: 0.25 });
+	});
+
+	test('v2 sessions gain a null jump type and keep everything else', () => {
+		const v2 = { schemaVersion: 2, id: 'x', title: 'Set 1', marks: [] };
+		expect(migrateSession(v2)).toEqual({ ...v2, schemaVersion: 3, jumpType: null });
+	});
+
+	test('v1 sessions pass through both real steps', () => {
+		const v1 = { schemaVersion: 1, id: 'x', media: { lastModified: '2026-01-01T00:00:00.000Z' } };
+		expect(migrateSession(v1)).toMatchObject({
+			schemaVersion: 3,
+			recordedAt: '2026-01-01T00:00:00.000Z',
+			jumpType: null
+		});
+	});
+
+	test('a session that already has a jump type is not overwritten by the v2 step', () => {
+		const current = { schemaVersion: SCHEMA_VERSION, id: 'x', jumpType: 'drop' };
+		expect(migrateSession(current)).toEqual(current);
 	});
 
 	test('fails loudly when a step is missing', () => {
@@ -169,6 +203,42 @@ describe('exported jumps and unpaired marks', () => {
 		const exported = buildExport([{ ...cmj, recordedAt: '2027-01-01T00:00:00.000Z' }, drop]);
 		expect(exported.sessions.map((s) => s.id)).toEqual([drop.id, cmj.id]);
 		expect(exported.overview.lastRecordedAt).toBe('2027-01-01T00:00:00.000Z');
+	});
+});
+
+describe('jump type', () => {
+	const [base] = parseImport(v1Text);
+	const typed = { ...base, jumpType: 'drop' as const };
+
+	test('is exported on sessions and on every table row', () => {
+		const exported = buildExport([typed]);
+		expect(exported.sessions[0].jumpType).toBe('drop');
+		const rows = [
+			...exported.tables.sessions,
+			...exported.tables.jumps,
+			...exported.tables.intervals
+		];
+		expect(rows.length).toBeGreaterThan(1);
+		for (const row of rows) expect(row.jumpType).toBe('drop');
+		expect(exported.fields).toHaveProperty(['sessions[].jumpType']);
+	});
+
+	test('survives an export and import', () => {
+		const text = JSON.stringify(buildExport([typed, { ...base, id: 'unset' }]));
+		const types = parseImport(text).map((session) => session.jumpType);
+		expect(types).toEqual(expect.arrayContaining(['drop', null]));
+	});
+
+	test('an unrecognised type is rejected', () => {
+		const data = JSON.parse(JSON.stringify(buildExport([typed])));
+		data.sessions[0].jumpType = 'box';
+		expect(() => parseImport(JSON.stringify(data))).toThrow(/jumpType is not recognised/);
+	});
+
+	test('only drop and rebound jumps have a meaningful contact', () => {
+		expect(
+			(['countermovement', 'squat', 'drop', 'rebound', null] as const).map(hasMeaningfulContact)
+		).toEqual([false, false, true, true, false]);
 	});
 });
 

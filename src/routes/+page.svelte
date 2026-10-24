@@ -22,7 +22,13 @@
 		type Mark,
 		type MarkType
 	} from '$lib/video/marks';
-	import { SCHEMA_VERSION, type FrameRateSource, type Session } from '$lib/session/schema';
+	import {
+		DEFAULT_JUMP_TYPE,
+		SCHEMA_VERSION,
+		type FrameRateSource,
+		type JumpType,
+		type Session
+	} from '$lib/session/schema';
 	import { fingerprintFile } from '$lib/session/fingerprint';
 	import {
 		findSessionByFingerprint,
@@ -95,6 +101,7 @@
 	let sessionCreatedAt: string | null = null;
 	let sessionTitle = $state('');
 	let sessionNotes = $state('');
+	let jumpType: JumpType | null = $state(DEFAULT_JUMP_TYPE);
 	let sessionRecordedAt = $state('');
 	let timeScale = $state(1);
 	let savedSignature: string | null = $state(null);
@@ -107,6 +114,7 @@
 			marks,
 			title: sessionTitle,
 			notes: sessionNotes,
+			jumpType,
 			recordedAt: sessionRecordedAt,
 			timeScale
 		})
@@ -180,6 +188,7 @@
 		sessionCreatedAt = null;
 		sessionTitle = defaultTitle;
 		sessionNotes = '';
+		jumpType = DEFAULT_JUMP_TYPE;
 		sessionRecordedAt = new Date(file.lastModified).toISOString();
 		timeScale = 1;
 		savedSignature = signature;
@@ -235,6 +244,7 @@
 			sessionCreatedAt = saved.createdAt;
 			sessionTitle = saved.title;
 			sessionNotes = saved.notes;
+			jumpType = saved.jumpType;
 			sessionRecordedAt = saved.recordedAt;
 			timeScale = saved.timeScale;
 			marks = sortMarks(saved.marks);
@@ -340,6 +350,7 @@
 				id: sessionId ?? newId(),
 				title: sessionTitle.trim() || defaultTitle,
 				notes: sessionNotes,
+				jumpType,
 				createdAt: sessionCreatedAt ?? now,
 				updatedAt: now,
 				recordedAt: sessionRecordedAt,
@@ -895,6 +906,7 @@
 					bind:notes={sessionNotes}
 					bind:recordedAt={sessionRecordedAt}
 					bind:timeScale
+					bind:jumpType
 					titlePlaceholder={defaultTitle}
 					activeMarkId={activeMark?.id ?? null}
 					canUndo={markHistory.length > 0}
