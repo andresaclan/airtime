@@ -6,9 +6,15 @@ Airtime measures one athlete's jumps from video. The athlete marks the frames wh
 
 ### Sessions and marks
 
+**Video**:
+One specific video file. Trimming, compressing or re-exporting it produces a different video.
+
 **Session**:
 The marks, title and notes saved for one video. Each video has exactly one session.
 _Avoid_: Clip, training session, recording
+
+**Recorded date**:
+When the video was filmed. It starts as the file's date and the athlete can correct it.
 
 **Mark**:
 A frame the athlete flags as a takeoff or a landing.
@@ -40,8 +46,11 @@ The time from a takeoff to the next landing.
 _Avoid_: Air time, hang time
 
 **Contact**:
-The time from a landing to the next takeoff, while the feet are on the ground.
+The time on the ground from a landing to the next takeoff, when it lasts 1 s of real time or less.
 _Avoid_: Ground time
+
+**Rest**:
+Time on the ground from a landing to the next takeoff that lasts longer than 1 s of real time. It separates jumps instead of linking them.
 
 **Jump height**:
 How high the athlete rose, estimated from flight time on the assumption that they took off and landed in the same position.
@@ -74,3 +83,18 @@ _Avoid_: Slow motion
 **Assumed frame rate**:
 The 30 fps Airtime uses when it can neither read a video's frame rate from the file nor measure it during playback.
 _Avoid_: Default frame rate, low trust
+
+### Keeping data
+
+**Save**:
+Store a session in this browser.
+
+**Export**:
+A file containing one or more sessions, which can be read back in on any browser.
+
+**Backup**:
+An export of every saved session.
+
+**Import**:
+Read the sessions from an export into this browser.
+_Avoid_: Restore
