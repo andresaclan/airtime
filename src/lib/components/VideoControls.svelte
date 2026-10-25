@@ -1,12 +1,18 @@
 <script lang="ts">
-	import { clampFrame, frameAt, frameSeekTime, lastFrameIndex } from '$lib/video/frames';
+	import {
+		clampFrame,
+		frameAt,
+		frameSeekTime,
+		lastFrameIndex,
+		type FrameTiming
+	} from '$lib/video/frames';
 	import { displayedFrame } from '$lib/video/presentedFrame';
 
 	interface Props {
 		isPlaying: boolean;
 		currentTime: number;
 		duration: number;
-		frameRate: number;
+		timing: FrameTiming;
 		volume: number;
 		isMuted: boolean;
 		videoElement: HTMLVideoElement | null;
@@ -24,7 +30,7 @@
 		isPlaying,
 		currentTime,
 		duration,
-		frameRate,
+		timing,
 		volume = $bindable(1),
 		isMuted = $bindable(false),
 		videoElement,
@@ -61,17 +67,17 @@
 	function getSteppedTime(direction: 1 | -1): number {
 		if (!videoElement) return currentTime;
 		const frame = clampFrame(
-			displayedFrame(videoElement, frameRate) + direction,
+			displayedFrame(videoElement, timing) + direction,
 			knownDuration(),
-			frameRate
+			timing
 		);
-		return frameSeekTime(frame, frameRate, knownDuration());
+		return frameSeekTime(frame, timing, knownDuration());
 	}
 
 	function canStep(direction: 1 | -1, time = currentTime): boolean {
 		if (!videoElement) return false;
-		const frame = frameAt(time, frameRate);
-		return direction > 0 ? frame < lastFrameIndex(knownDuration(), frameRate) : frame > 0;
+		const frame = frameAt(time, timing);
+		return direction > 0 ? frame < lastFrameIndex(knownDuration(), timing) : frame > 0;
 	}
 
 	function step(direction: 1 | -1) {
@@ -101,6 +107,7 @@
 
 	// Reads the element's time: the prop only catches up on the next timeupdate.
 	function repeatStep(direction: 1 | -1) {
+		if (stepInFlight()) return;
 		if (videoElement && canStep(direction, videoElement.currentTime)) {
 			step(direction);
 		} else {
@@ -126,6 +133,19 @@
 	}
 
 	$effect(() => stopHold);
+
+	// Repeated steps wait for the last seek to land. Seeking on a long-GOP clip can take
+	// longer than a repeat, and a new seek before then restarts the decode: the picture
+	// would freeze until the button is released.
+	function stepInFlight(): boolean {
+		return videoElement?.seeking ?? false;
+	}
+
+	function repeatKeyStep(event: KeyboardEvent, direction: 1 | -1) {
+		event.preventDefault();
+		if (event.repeat && stepInFlight()) return;
+		if (canStep(direction, videoElement?.currentTime)) step(direction);
+	}
 
 	// Stepping while playing would be overtaken by playback, so a step always pauses first.
 	function stepFrameForward() {
@@ -191,18 +211,10 @@
 		if (key === ' ' || key === 'k') {
 			event.preventDefault();
 			togglePlayPause();
-		} else if (event.key === 'ArrowLeft' && event.shiftKey) {
-			event.preventDefault();
-			if (canStep(-1, videoElement?.currentTime)) stepFrameBack();
-		} else if (event.key === 'ArrowRight' && event.shiftKey) {
-			event.preventDefault();
-			if (canStep(1, videoElement?.currentTime)) stepFrameForward();
-		} else if (event.key === ',') {
-			event.preventDefault();
-			if (canStep(-1, videoElement?.currentTime)) stepFrameBack();
-		} else if (event.key === '.') {
-			event.preventDefault();
-			if (canStep(1, videoElement?.currentTime)) stepFrameForward();
+		} else if ((event.key === 'ArrowLeft' && event.shiftKey) || event.key === ',') {
+			repeatKeyStep(event, -1);
+		} else if ((event.key === 'ArrowRight' && event.shiftKey) || event.key === '.') {
+			repeatKeyStep(event, 1);
 		} else if (key === 'm') {
 			event.preventDefault();
 			toggleMute();

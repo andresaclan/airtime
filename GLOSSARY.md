@@ -100,6 +100,9 @@ _Avoid_: Slow motion
 How many frames per second a video holds, either read from the file or measured during playback. A video whose frame rate can't be found can't be marked.
 _Avoid_: Assumed frame rate, default frame rate
 
+**Frame times**:
+When each frame of a video is shown, read from the file. When a video has them, stepping, marks and timings follow them, so a video whose frames aren't evenly spaced (a **variable frame rate**, such as slow motion with dropped frames) is still stepped one real frame at a time. Videos without them (WebM) are treated as evenly spaced at the frame rate.
+
 ### Keeping data
 
 **Save**:

@@ -1,4 +1,4 @@
-import { frameAt, frameOfPresentedTime, frameSeekTime } from './frames';
+import { frameAt, frameOfPresentedTime, frameSeekTime, type FrameTiming } from './frames';
 
 /**
  * Which frame is actually on screen. `currentTime` only says where the playhead
@@ -28,12 +28,12 @@ function supportsFrameCallbacks(video: HTMLVideoElement): video is FrameCallback
 }
 
 /** The frame on screen, falling back to the playhead where the browser can't say. */
-export function displayedFrame(video: HTMLVideoElement, fps: number): number {
+export function displayedFrame(video: HTMLVideoElement, timing: FrameTiming): number {
 	const mediaTime = presented.get(video);
 	if (video.paused && !video.seeking && mediaTime != null) {
-		return frameOfPresentedTime(mediaTime, fps);
+		return frameOfPresentedTime(mediaTime, timing);
 	}
-	return frameAt(video.currentTime, fps);
+	return frameAt(video.currentTime, timing);
 }
 
 /**
@@ -41,14 +41,17 @@ export function displayedFrame(video: HTMLVideoElement, fps: number): number {
  * frame after `pause()`, so while frames are still arriving this waits until none
  * has for a moment.
  */
-export async function settledDisplayedFrame(video: HTMLVideoElement, fps: number): Promise<number> {
+export async function settledDisplayedFrame(
+	video: HTMLVideoElement,
+	timing: FrameTiming
+): Promise<number> {
 	const start = performance.now();
 	while (performance.now() - start < MAX_SETTLE_MS) {
 		const quietFor = performance.now() - (presentedAt.get(video) ?? -Infinity);
 		if (quietFor >= QUIET_MS) break;
 		await new Promise((resolve) => setTimeout(resolve, QUIET_MS - quietFor));
 	}
-	return displayedFrame(video, fps);
+	return displayedFrame(video, timing);
 }
 
 /**
@@ -60,20 +63,24 @@ export async function settledDisplayedFrame(video: HTMLVideoElement, fps: number
  * land on that frame either (say, a duration that cuts it off), it gives up
  * rather than seeking forever.
  */
-export function trackPresentedFrames(video: HTMLVideoElement, getFps: () => number): () => void {
+export function trackPresentedFrames(
+	video: HTMLVideoElement,
+	getTiming: () => FrameTiming | null
+): () => void {
 	if (!supportsFrameCallbacks(video)) return () => {};
 
 	// True from our own correcting seek until the next seek or play that isn't ours.
 	let corrected = false;
 	let correcting = false;
 	const reconcile = () => {
-		const fps = getFps();
+		const timing = getTiming();
 		const mediaTime = presented.get(video);
-		if (corrected || !video.paused || video.seeking || mediaTime == null || !(fps > 0)) return;
-		const frame = frameOfPresentedTime(mediaTime, fps);
-		if (frameAt(video.currentTime, fps) !== frame) {
+		if (corrected || !video.paused || video.seeking || mediaTime == null) return;
+		if (!timing || !(timing.fps > 0)) return;
+		const frame = frameOfPresentedTime(mediaTime, timing);
+		if (frameAt(video.currentTime, timing) !== frame) {
 			correcting = true;
-			video.currentTime = frameSeekTime(frame, fps, video.duration);
+			video.currentTime = frameSeekTime(frame, timing, video.duration);
 		}
 	};
 	const onSeeking = () => {

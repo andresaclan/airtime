@@ -1,11 +1,17 @@
 <script lang="ts">
-	import { clampFrame, frameAt, frameSeekTime, lastFrameIndex } from '$lib/video/frames';
-	import type { Interval, Mark } from '$lib/video/marks';
+	import {
+		clampFrame,
+		frameAt,
+		frameSeekTime,
+		lastFrameIndex,
+		type FrameTiming
+	} from '$lib/video/frames';
+	import { frameOf, type Interval, type Mark } from '$lib/video/marks';
 
 	interface Props {
 		currentTime: number;
 		duration: number;
-		frameRate: number;
+		timing: FrameTiming;
 		videoElement: HTMLVideoElement | null;
 		isScrubbing?: boolean;
 		marks?: Mark[];
@@ -19,7 +25,7 @@
 	let {
 		currentTime,
 		duration,
-		frameRate,
+		timing,
 		videoElement,
 		isScrubbing = $bindable(false),
 		marks = [],
@@ -42,14 +48,14 @@
 
 	// Seeks land on the middle of a frame, so the frame shown is the frame recorded.
 	function frameSeek(frame: number): number {
-		return frameSeekTime(clampFrame(frame, duration, frameRate), frameRate, duration);
+		return frameSeekTime(clampFrame(frame, duration, timing), timing, duration);
 	}
 
 	function getTimeFromPosition(clientX: number): number {
 		if (!trackRef || duration <= 0) return 0;
 		const rect = trackRef.getBoundingClientRect();
 		const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-		return frameSeek(frameAt(percent * duration, frameRate));
+		return frameSeek(frameAt(percent * duration, timing));
 	}
 
 	function handlePointerDown(event: PointerEvent) {
@@ -106,8 +112,9 @@
 	function handleKeyDown(event: KeyboardEvent) {
 		if (duration <= 0) return;
 
-		const frame = frameAt(videoElement?.currentTime ?? currentTime, frameRate);
-		const step = Math.max(1, Math.round((duration / 100) * frameRate));
+		const frame = frameAt(videoElement?.currentTime ?? currentTime, timing);
+		const last = lastFrameIndex(duration, timing);
+		const step = Math.max(1, Math.round((last + 1) / 100));
 		switch (event.key) {
 			case 'ArrowLeft':
 				event.preventDefault();
@@ -123,7 +130,7 @@
 				break;
 			case 'End':
 				event.preventDefault();
-				seekToFrame(lastFrameIndex(duration, frameRate));
+				seekToFrame(last);
 				break;
 		}
 	}
@@ -132,7 +139,7 @@
 		// Seek to the exact marked frame instead of the pixel under the pointer.
 		event.stopPropagation();
 		event.preventDefault();
-		seekToFrame(frameAt(mark.time, frameRate));
+		seekToFrame(frameOf(mark.time, timing));
 	}
 </script>
 

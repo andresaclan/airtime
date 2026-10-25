@@ -1,15 +1,15 @@
 /** Manually marked jump events and the timings derived from them. */
-import { frameAt, frameStartTime } from './frames';
+import { frameAt, frameOfMarkTime, frameStartTime, markFrameStart, type Timing } from './frames';
 
 export type MarkType = 'takeoff' | 'landing';
-/** `time` is media seconds: the start of the marked frame (`k / fps`, see frames.ts). */
+/** `time` is media seconds: the start of the marked frame (see frames.ts). */
 export type Mark = { id: string; type: MarkType; time: number };
 
 export type Interval = {
 	kind: 'flight' | 'contact';
 	from: Mark;
 	to: Mark;
-	/** Media seconds between the marks. */
+	/** Media seconds between the marks' frames. */
 	seconds: number;
 	/** Real-world seconds: `seconds × timeScale`. Differs from `seconds` only for slow-motion footage. */
 	realSeconds: number;
@@ -45,9 +45,9 @@ export type UnpairedReason = 'out-of-sequence' | 'alone';
 
 export const GRAVITY = 9.81;
 
-/** The frame a time falls in; see frames.ts for the convention. */
-export function frameOf(time: number, fps: number): number {
-	return frameAt(time, fps);
+/** The frame a mark's stored time refers to; see frames.ts for the convention. */
+export function frameOf(time: number, timing: Timing): number {
+	return frameOfMarkTime(time, timing);
 }
 
 export function sortMarks(marks: Mark[]): Mark[] {
@@ -55,15 +55,15 @@ export function sortMarks(marks: Mark[]): Mark[] {
 }
 
 /**
- * Adds a mark at `time`. A mark already on the same frame is replaced, or
- * removed when it has the same type, so pressing a key twice toggles it.
+ * Adds a mark on the frame at playhead `time`. A mark already on the same frame is
+ * replaced, or removed when it has the same type, so pressing a key twice toggles it.
  */
-export function placeMark(marks: Mark[], type: MarkType, time: number, fps: number): Mark[] {
-	const frame = frameOf(time, fps);
-	const existing = marks.find((mark) => frameOf(mark.time, fps) === frame);
+export function placeMark(marks: Mark[], type: MarkType, time: number, timing: Timing): Mark[] {
+	const frame = frameAt(time, timing);
+	const existing = marks.find((mark) => frameOf(mark.time, timing) === frame);
 	const rest = marks.filter((mark) => mark !== existing);
 	if (existing?.type === type) return rest;
-	return sortMarks([...rest, { id: newId(), type, time: frameStartTime(frame, fps) }]);
+	return sortMarks([...rest, { id: newId(), type, time: frameStartTime(frame, timing) }]);
 }
 
 export function moveMark(marks: Mark[], id: string, time: number): Mark[] {
@@ -74,16 +74,18 @@ export function removeMark(marks: Mark[], id: string): Mark[] {
 	return marks.filter((mark) => mark.id !== id);
 }
 
-export function markAtFrame(marks: Mark[], time: number, fps: number): Mark | undefined {
-	const frame = frameOf(time, fps);
-	return marks.find((mark) => frameOf(mark.time, fps) === frame);
+/** The mark on the frame at playhead `time`. */
+export function markAtFrame(marks: Mark[], time: number, timing: Timing): Mark | undefined {
+	const frame = frameAt(time, timing);
+	return marks.find((mark) => frameOf(mark.time, timing) === frame);
 }
 
 /**
  * `timeScale` is real seconds per media second: 1 for real-time footage, 0.25 for
- * a clip that plays back 4× slower than it was captured.
+ * a clip that plays back 4× slower than it was captured. With a timing table,
+ * durations and frame counts come from the real times of the marked frames.
  */
-export function analyzeMarks(marks: Mark[], fps: number, timeScale = 1): Analysis {
+export function analyzeMarks(marks: Mark[], timing: Timing, timeScale = 1): Analysis {
 	const intervals: Interval[] = [];
 	const outOfSequence = new Set<string>();
 	for (let i = 1; i < marks.length; i += 1) {
@@ -93,7 +95,7 @@ export function analyzeMarks(marks: Mark[], fps: number, timeScale = 1): Analysi
 			outOfSequence.add(to.id);
 			continue;
 		}
-		const seconds = to.time - from.time;
+		const seconds = markFrameStart(to.time, timing) - markFrameStart(from.time, timing);
 		const realSeconds = seconds * timeScale;
 		const kind = from.type === 'takeoff' ? 'flight' : 'contact';
 		intervals.push({
@@ -102,7 +104,7 @@ export function analyzeMarks(marks: Mark[], fps: number, timeScale = 1): Analysi
 			to,
 			seconds,
 			realSeconds,
-			frames: frameOf(to.time, fps) - frameOf(from.time, fps),
+			frames: frameOf(to.time, timing) - frameOf(from.time, timing),
 			heightCm: kind === 'flight' ? ((GRAVITY * realSeconds * realSeconds) / 8) * 100 : undefined
 		});
 	}
