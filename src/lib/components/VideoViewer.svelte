@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { estimatePlaybackFrameRate } from '$lib/video/frameRate';
+	import { trackPresentedFrames } from '$lib/video/presentedFrame';
 
 	interface VideoElementWithFrameCallback extends HTMLVideoElement {
 		requestVideoFrameCallback(
@@ -174,6 +175,15 @@
 		if (videoSrc === null) {
 			playbackFrameRate = null;
 		}
+	});
+
+	// Keeps a paused playhead on the frame actually shown. Off until the frame rate is
+	// known, so an assumed rate can't drag the playhead onto its own frame grid.
+	$effect(() => {
+		if (!videoElement) return;
+		return trackPresentedFrames(videoElement, () =>
+			sourceFrameRate || playbackFrameRate ? frameRate : 0
+		);
 	});
 
 	// Zoom helper functions

@@ -1,4 +1,6 @@
 /** SMPTE timecode helpers. Drop-frame is supported for the NTSC-derived 29.97/59.94 rates. */
+import { frameAt } from './frames';
+
 export function nominalFrameRate(fps: number): number {
 	return Math.round(fps);
 }
@@ -15,7 +17,7 @@ export function formatTimecode(
 	if (!Number.isFinite(seconds) || seconds < 0 || !Number.isFinite(fps) || fps <= 0)
 		return '00:00:00:00';
 	const nominal = nominalFrameRate(fps);
-	let frame = Math.round(seconds * fps);
+	let frame = frameAt(seconds, fps);
 	if (dropFrame && isDropFrameRate(fps)) {
 		const drop = nominal === 60 ? 4 : 2;
 		const framesPer10Minutes = nominal * 600 - drop * 9;
