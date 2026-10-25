@@ -33,11 +33,12 @@ export function formatTimecode(
 	const ss = totalSeconds % 60;
 	const mm = Math.floor(totalSeconds / 60) % 60;
 	const hh = Math.floor(totalSeconds / 3600);
-	return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}${dropFrame && isDropFrameRate(fps) ? ';' : ':'}${String(ff).padStart(2, '0')}`;
+	return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}${dropFrame && isDropFrameRate(fps) ? ';' : ':'}${String(ff).padStart(Math.max(2, String(nominal - 1).length), '0')}`;
 }
 
 export function parseTimecode(input: string, fps: number): number | null {
-	const m = input.trim().match(/^(\d{1,}:)?(\d{1,2}):(\d{2})[:;](\d{2})$/);
+	// Frames take three digits above 99 fps (120 and 240 fps footage).
+	const m = input.trim().match(/^(\d{1,}:)?(\d{1,2}):(\d{2})[:;](\d{2,3})$/);
 	if (!m || !Number.isFinite(fps) || fps <= 0) return null;
 	const hours = Number((m[1] ?? '0:').slice(0, -1));
 	const minutes = Number(m[2]);
