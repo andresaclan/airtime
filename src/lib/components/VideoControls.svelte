@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { clampFrame, frameAt, frameSeekTime, lastFrameIndex } from '$lib/video/frames';
+	import { displayedFrame } from '$lib/video/presentedFrame';
+
 	interface Props {
 		isPlaying: boolean;
 		currentTime: number;
@@ -35,7 +38,6 @@
 		onMutedChange
 	}: Props = $props();
 
-	const FRAME_EPSILON = 0.0001;
 	let volumeBeforeMute = $state(1);
 
 	function togglePlayPause() {
@@ -51,25 +53,25 @@
 		}
 	}
 
+	function knownDuration(): number {
+		return duration > 0 ? duration : (videoElement?.duration ?? 0);
+	}
+
+	// Steps from the frame on screen to the middle of the next one (see frames.ts).
 	function getSteppedTime(direction: 1 | -1): number {
 		if (!videoElement) return currentTime;
-		const safeDuration =
-			Number.isFinite(duration) && duration > 0 ? duration : videoElement.duration || 0;
-		if (!Number.isFinite(safeDuration) || safeDuration <= 0) return 0;
-		const safeFrameRate = Number.isFinite(frameRate) && frameRate > 0 ? frameRate : 30;
-		let frameIndex = Math.round(videoElement.currentTime * safeFrameRate);
-		frameIndex += direction;
-		const maxFrameIndex = Math.floor(safeDuration * safeFrameRate);
-		frameIndex = Math.max(0, Math.min(maxFrameIndex, frameIndex));
-		const targetTime = frameIndex / safeFrameRate;
-		return Math.min(safeDuration, Math.max(0, targetTime));
+		const frame = clampFrame(
+			displayedFrame(videoElement, frameRate) + direction,
+			knownDuration(),
+			frameRate
+		);
+		return frameSeekTime(frame, frameRate, knownDuration());
 	}
 
 	function canStep(direction: 1 | -1, time = currentTime): boolean {
 		if (!videoElement) return false;
-		return direction > 0
-			? !(duration > 0 && time >= duration - FRAME_EPSILON)
-			: time > FRAME_EPSILON;
+		const frame = frameAt(time, frameRate);
+		return direction > 0 ? frame < lastFrameIndex(knownDuration(), frameRate) : frame > 0;
 	}
 
 	function step(direction: 1 | -1) {
@@ -191,20 +193,16 @@
 			togglePlayPause();
 		} else if (event.key === 'ArrowLeft' && event.shiftKey) {
 			event.preventDefault();
-			if (currentTime <= FRAME_EPSILON) return;
-			stepFrameBack();
+			if (canStep(-1, videoElement?.currentTime)) stepFrameBack();
 		} else if (event.key === 'ArrowRight' && event.shiftKey) {
 			event.preventDefault();
-			if (duration > 0 && currentTime >= duration - FRAME_EPSILON) return;
-			stepFrameForward();
+			if (canStep(1, videoElement?.currentTime)) stepFrameForward();
 		} else if (event.key === ',') {
 			event.preventDefault();
-			if (currentTime <= FRAME_EPSILON) return;
-			stepFrameBack();
+			if (canStep(-1, videoElement?.currentTime)) stepFrameBack();
 		} else if (event.key === '.') {
 			event.preventDefault();
-			if (duration > 0 && currentTime >= duration - FRAME_EPSILON) return;
-			stepFrameForward();
+			if (canStep(1, videoElement?.currentTime)) stepFrameForward();
 		} else if (key === 'm') {
 			event.preventDefault();
 			toggleMute();
