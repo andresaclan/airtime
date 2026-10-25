@@ -1,5 +1,5 @@
 /** SMPTE timecode helpers. Drop-frame is supported for the NTSC-derived 29.97/59.94 rates. */
-import { frameAt } from './frames';
+import { frameAt, frameLabel, type Timing } from './frames';
 
 export function nominalFrameRate(fps: number): number {
 	return Math.round(fps);
@@ -9,15 +9,27 @@ export function isDropFrameRate(fps: number): boolean {
 	return Math.abs(fps - 30000 / 1001) < 0.02 || Math.abs(fps - 60000 / 1001) < 0.03;
 }
 
+/** Timecode of the frame a playhead time falls in; with a timing table, see `frameLabel`. */
 export function formatTimecode(
 	seconds: number,
-	fps: number,
-	dropFrame = isDropFrameRate(fps)
+	timing: Timing,
+	dropFrame = isDropFrameRate(typeof timing === 'number' ? timing : timing.fps)
 ): string {
-	if (!Number.isFinite(seconds) || seconds < 0 || !Number.isFinite(fps) || fps <= 0)
+	if (!Number.isFinite(seconds) || seconds < 0) return '00:00:00:00';
+	return formatFrameTimecode(frameLabel(frameAt(seconds, timing), timing), timing, dropFrame);
+}
+
+/** Timecode of frame number `label` (a frame count at the nominal rate). */
+export function formatFrameTimecode(
+	label: number,
+	timing: Timing,
+	dropFrame = isDropFrameRate(typeof timing === 'number' ? timing : timing.fps)
+): string {
+	const fps = typeof timing === 'number' ? timing : timing.fps;
+	if (!Number.isFinite(label) || label < 0 || !Number.isFinite(fps) || fps <= 0)
 		return '00:00:00:00';
 	const nominal = nominalFrameRate(fps);
-	let frame = frameAt(seconds, fps);
+	let frame = Math.floor(label);
 	if (dropFrame && isDropFrameRate(fps)) {
 		const drop = nominal === 60 ? 4 : 2;
 		const framesPer10Minutes = nominal * 600 - drop * 9;

@@ -1,6 +1,8 @@
 <script lang="ts">
-	import { formatTimecode } from '$lib/video/timecode';
+	import { formatFrameTimecode } from '$lib/video/timecode';
+	import { frameDurationRange, frameLabel, type FrameTiming } from '$lib/video/frames';
 	import {
+		frameOf,
 		groupJumps,
 		rsi,
 		type Analysis,
@@ -18,7 +20,9 @@
 	interface Props {
 		marks: Mark[];
 		analysis: Analysis;
-		frameRate: number;
+		timing: FrameTiming;
+		/** The frames aren't evenly spaced, so a frame's length depends on where it is. */
+		variableFrameRate?: boolean;
 		title: string;
 		notes: string;
 		timeScale: number;
@@ -45,7 +49,8 @@
 	let {
 		marks,
 		analysis,
-		frameRate,
+		timing,
+		variableFrameRate = false,
 		title = $bindable(),
 		notes = $bindable(),
 		recordedAt = $bindable(),
@@ -76,8 +81,14 @@
 			null
 		)
 	);
+	let frameRate = $derived(timing.fps);
 	// Real time per frame, so precision is honest for slow-motion footage too.
 	let frameMs = $derived(frameRate > 0 ? (1000 / frameRate) * timeScale : 0);
+	// On variable-frame-rate footage the longest frame bounds the precision.
+	let longestFrameMs = $derived.by(() => {
+		const range = variableFrameRate ? frameDurationRange(timing) : null;
+		return range ? range[1] * 1000 * timeScale : 0;
+	});
 	let slowMotion = $derived(
 		TIME_SCALES.find((scale) => scale.value === timeScale && scale.value !== 1)
 	);
@@ -128,7 +139,9 @@
 		<button class="mp-mark-main" onclick={() => onSeek(mark.time)} title="Go to this frame">
 			<span class="mp-dot"></span>
 			<span class="mp-mark-type">{label}</span>
-			<span class="mp-mark-time">{formatTimecode(mark.time, frameRate)}</span>
+			<span class="mp-mark-time"
+				>{formatFrameTimecode(frameLabel(frameOf(mark.time, timing), timing), timing)}</span
+			>
 		</button>
 		<div class="mp-mark-actions">
 			<button
@@ -256,7 +269,11 @@
 			{/if}
 			<div class="mp-calibration">
 				<p class="mp-precision">
-					±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps{#if slowMotion}
+					{#if longestFrameMs > frameMs + 0.05}
+						±1 frame = ±{frameMs.toFixed(1)}–{longestFrameMs.toFixed(1)} ms (variable frame rate)
+					{:else}
+						±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
+					{/if}{#if slowMotion}
 						· real time ({slowMotion.label.toLowerCase()}){/if}
 				</p>
 				<label class="mp-scale">

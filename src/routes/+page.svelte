@@ -9,8 +9,15 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
 	import { detectSourceTimingFromFile } from '$lib/video/frameRate';
-	import { formatTimecode } from '$lib/video/timecode';
-	import { clampFrame, frameAt, frameSeekTime, frameStartTime } from '$lib/video/frames';
+	import { formatFrameTimecode, formatTimecode } from '$lib/video/timecode';
+	import {
+		clampFrame,
+		frameAt,
+		frameLabel,
+		frameSeekTime,
+		frameStartTime,
+		type FrameTiming
+	} from '$lib/video/frames';
 	import { displayedFrame, settledDisplayedFrame } from '$lib/video/presentedFrame';
 	import {
 		analyzeMarks,
@@ -57,7 +64,10 @@
 	let duration = $state(0);
 	let frameRate = $state(30);
 	let sourceFrameRate: number | null = $state(null);
-	// The file's frame durations vary, so one fps value only approximates its frame times.
+	// The time of every frame, read from the file. Frame math uses it whenever it's there,
+	// so frames that aren't evenly spaced (variable frame rate) are still stepped one by one.
+	let frameTimes: number[] | null = $state.raw(null);
+	// The file's frame durations vary, so one fps value doesn't describe its frame times.
 	let variableFrameRate = $state(false);
 	let playbackFrameRate: number | null = $state(null);
 	// False until the file has been checked for a frame rate.
@@ -128,8 +138,12 @@
 		sourceFrameRate ? 'container' : 'playback-estimate'
 	);
 
-	let analysis = $derived(analyzeMarks(marks, frameRate, timeScale));
-	let activeMark = $derived(markAtFrame(marks, currentTime, frameRate));
+	let timing: FrameTiming = $derived({
+		fps: frameRate,
+		frameTimes: sourceFrameRate ? frameTimes : null
+	});
+	let analysis = $derived(analyzeMarks(marks, timing, timeScale));
+	let activeMark = $derived(markAtFrame(marks, currentTime, timing));
 
 	// Zoom state
 	let zoomLevel = $state(1);
@@ -178,6 +192,7 @@
 		duration = 0;
 		frameRate = 30;
 		sourceFrameRate = null;
+		frameTimes = null;
 		variableFrameRate = false;
 		playbackFrameRate = null;
 		sourceFrameRateChecked = false;
@@ -206,6 +221,7 @@
 				if (loadId !== activeVideoLoadId) return;
 				const detectedFps = timing?.fps ?? null;
 				sourceFrameRate = detectedFps;
+				frameTimes = timing?.frameTimes ?? null;
 				variableFrameRate = timing?.variableFrameRate ?? false;
 				sourceFrameRateChecked = true;
 				if (detectedFps) {
@@ -332,8 +348,8 @@
 	}
 
 	const VARIABLE_FRAME_RATE =
-		'This video has a variable frame rate, so frame times are approximate and timings ' +
-		'may be off by a frame or more';
+		"This video's frames aren't evenly spaced (variable frame rate). Stepping follows " +
+		'its real frames, and timings use their actual times';
 
 	const FRAME_RATE_FAILED =
 		"This video can't be marked: its frame rate couldn't be read or measured";
@@ -436,16 +452,16 @@
 		// Marking while playing would land between frames; pause on the frame instead,
 		// and mark the frame left on screen.
 		if (!videoElement.paused) videoElement.pause();
-		const frame = await settledDisplayedFrame(videoElement, frameRate);
+		const frame = await settledDisplayedFrame(videoElement, timing);
 		if (loadId !== activeVideoLoadId) return;
-		commitMarks(placeMark(marks, type, frameStartTime(frame, frameRate), frameRate));
+		commitMarks(placeMark(marks, type, frameStartTime(frame, timing), timing));
 	}
 
 	function nudgeMark(id: string, frames: number) {
 		const mark = marks.find((candidate) => candidate.id === id);
 		if (!mark || !canMark()) return;
-		const frame = clampFrame(frameOf(mark.time, frameRate) + frames, duration, frameRate);
-		commitMarks(moveMark(marks, id, frameStartTime(frame, frameRate)));
+		const frame = clampFrame(frameOf(mark.time, timing) + frames, duration, timing);
+		commitMarks(moveMark(marks, id, frameStartTime(frame, timing)));
 		seekToFrame(frame);
 	}
 
@@ -484,24 +500,25 @@
 	function seekToFrame(frame: number) {
 		if (!videoElement) return;
 		videoElement.pause();
-		const time = frameSeekTime(clampFrame(frame, duration, frameRate), frameRate, duration);
+		const time = frameSeekTime(clampFrame(frame, duration, timing), timing, duration);
 		videoElement.currentTime = time;
 		currentTime = time;
 	}
 
-	function seekTo(time: number) {
-		seekToFrame(frameAt(time, frameRate));
+	/** Shows the frame a mark's stored time refers to. */
+	function seekToMark(time: number) {
+		seekToFrame(frameOf(time, timing));
 	}
 
 	function seekAdjacentMark(direction: 1 | -1) {
 		const frame = videoElement
-			? displayedFrame(videoElement, frameRate)
-			: frameAt(currentTime, frameRate);
+			? displayedFrame(videoElement, timing)
+			: frameAt(currentTime, timing);
 		const target =
 			direction > 0
-				? marks.find((mark) => frameOf(mark.time, frameRate) > frame)
-				: marks.findLast((mark) => frameOf(mark.time, frameRate) < frame);
-		if (target) seekTo(target.time);
+				? marks.find((mark) => frameOf(mark.time, timing) > frame)
+				: marks.findLast((mark) => frameOf(mark.time, timing) < frame);
+		if (target) seekToMark(target.time);
 	}
 
 	function handleMarkKeyDown(event: KeyboardEvent) {
@@ -603,8 +620,12 @@
 		fileInputRef.click();
 	}
 
-	function formatTimeWithFrames(seconds: number, fps: number): string {
-		return formatTimecode(seconds, fps);
+	// With a timing table the end is one frame past the last one, so a clip that starts
+	// late (an edit list) or drops frames still reads as its real length.
+	function formatDuration(): string {
+		const times = timing.frameTimes;
+		if (!times?.length) return formatTimecode(duration, timing);
+		return formatFrameTimecode(frameLabel(times.length - 1, timing) + 1, timing);
 	}
 </script>
 
@@ -799,6 +820,7 @@
 					bind:currentTime
 					bind:duration
 					{sourceFrameRate}
+					frameTimes={timing.frameTimes}
 					bind:frameRate
 					bind:playbackFrameRate
 					bind:volume
@@ -824,7 +846,7 @@
 					</div>
 				{:else}
 					<div class="viewer-badge">
-						<span class="viewer-badge-dot" class:uncertain={!sourceFrameRate || variableFrameRate}
+						<span class="viewer-badge-dot" class:uncertain={!sourceFrameRate}
 						></span>{#if sourceFrameRate && variableFrameRate}
 							<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps (variable)</span>
 						{:else if sourceFrameRate}
@@ -874,7 +896,7 @@
 						<VideoScrubber
 							{currentTime}
 							{duration}
-							{frameRate}
+							{timing}
 							{videoElement}
 							{marks}
 							intervals={analysis.intervals}
@@ -884,16 +906,16 @@
 
 						<div class="control-toolbar">
 							<div class="time-readout">
-								<span class="time-current">{formatTimeWithFrames(currentTime, frameRate)}</span>
+								<span class="time-current">{formatTimecode(currentTime, timing)}</span>
 								<span class="time-separator">/</span>
-								<span class="time-duration">{formatTimeWithFrames(duration, frameRate)}</span>
+								<span class="time-duration">{formatDuration()}</span>
 							</div>
 
 							<VideoControls
 								{isPlaying}
 								{currentTime}
 								{duration}
-								{frameRate}
+								{timing}
 								{videoElement}
 								bind:volume
 								bind:isMuted
@@ -927,7 +949,8 @@
 				<MarksPanel
 					{marks}
 					{analysis}
-					{frameRate}
+					{timing}
+					{variableFrameRate}
 					bind:title={sessionTitle}
 					bind:notes={sessionNotes}
 					bind:recordedAt={sessionRecordedAt}
@@ -936,7 +959,7 @@
 					titlePlaceholder={defaultTitle}
 					activeMarkId={activeMark?.id ?? null}
 					canUndo={markHistory.length > 0}
-					onSeek={seekTo}
+					onSeek={seekToMark}
 					onNudge={nudgeMark}
 					onRemove={deleteMark}
 					onUndo={undoMarks}

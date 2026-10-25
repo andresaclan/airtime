@@ -15,6 +15,8 @@
 		currentTime: number;
 		duration: number;
 		sourceFrameRate?: number | null;
+		/** Time of every frame, from the file; see frames.ts. */
+		frameTimes?: readonly number[] | null;
 		frameRate: number;
 		playbackFrameRate?: number | null;
 		volume: number;
@@ -38,6 +40,7 @@
 		currentTime = $bindable(0),
 		duration = $bindable(0),
 		sourceFrameRate = null,
+		frameTimes = null,
 		frameRate = $bindable(30),
 		playbackFrameRate = $bindable(null),
 		volume = $bindable(1),
@@ -182,7 +185,7 @@
 	$effect(() => {
 		if (!videoElement) return;
 		return trackPresentedFrames(videoElement, () =>
-			sourceFrameRate || playbackFrameRate ? frameRate : 0
+			sourceFrameRate || playbackFrameRate ? { fps: frameRate, frameTimes } : null
 		);
 	});
 
