@@ -215,9 +215,18 @@
 											Open…
 										</button>
 									{/if}
-									<button class="text-btn" onclick={() => downloadExport([session])}>Export</button>
-									<button class="text-btn danger" onclick={() => handleDelete(session)}
-										>Delete</button
+									<button class="secondary-btn small" onclick={() => downloadExport([session])}
+										>Export</button
+									>
+									<span class="action-divider" aria-hidden="true"></span>
+									<button
+										class="icon-btn danger"
+										onclick={() => handleDelete(session)}
+										aria-label="Delete {session.title}"
+										title="Delete"
+										><svg viewBox="0 0 24 24" aria-hidden="true"
+											><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" /></svg
+										></button
 									>
 								</div>
 							</li>
@@ -225,16 +234,19 @@
 					</ul>
 				{/if}
 				{#if sessions.length > 0 || backup.unreadable > 0}
-					<div class="sessions-status">
+					<div
+						class="sessions-status"
+						class:warn={protection === 'unprotected' || backup.due || backup.unreadable > 0}
+					>
+						<svg class="status-icon" viewBox="0 0 24 24" aria-hidden="true"
+							><path d="M12 3 5 6v5c0 4.4 3 8.3 7 9.5 4-1.2 7-5.1 7-9.5V6z" /></svg
+						>
 						{#if protection === 'protected'}
 							<p class="status-line ok">
-								<span class="status-dot"></span><span
-									>Protected: the browser won't clear these to free space.</span
-								>
+								<span>Protected: the browser won't clear these to free space.</span>
 							</p>
 						{:else if protection === 'unprotected'}
 							<p class="status-line warn">
-								<span class="status-dot"></span>
 								<span class="status-text"
 									>{protectDeclined
 										? 'The browser declined to protect these; it may still clear them if space runs low.'
@@ -250,7 +262,6 @@
 								class:ok={backup.notBackedUp === 0}
 								class:warn={backup.notBackedUp > 0 && backup.due}
 							>
-								<span class="status-dot"></span>
 								<span>
 									{#if backup.notBackedUp === 0}
 										All sessions backed up {formatDate(backup.lastBackupAt ?? '')}.
@@ -266,7 +277,6 @@
 						{/if}
 						{#if backup.unreadable > 0}
 							<p class="status-line warn">
-								<span class="status-dot"></span>
 								<span
 									>{backup.unreadable === 1
 										? "1 session was saved by a newer version of Airtime and can't be shown or exported here. It's kept safe"
@@ -305,8 +315,8 @@
 		align-items: center;
 		justify-content: center;
 		padding: 16px;
-		background: hsl(var(--at-bg) / 0.72);
-		backdrop-filter: blur(8px);
+		background: hsl(var(--at-bg) / 0.6);
+		backdrop-filter: blur(6px);
 		animation: fadeIn 160ms ease-out;
 	}
 
@@ -337,8 +347,8 @@
 		max-width: 680px;
 		max-height: 85dvh;
 		overflow: hidden;
-		background: hsl(var(--at-bg-elevated));
-		border: 1px solid hsl(var(--at-border-hover));
+		background: hsl(222 11% 10%);
+		border: 1px solid hsl(var(--at-fg) / 0.12);
 		border-radius: 16px;
 		box-shadow:
 			0 32px 80px hsl(var(--at-shadow) / 0.7),
@@ -404,18 +414,39 @@
 		overflow-y: auto;
 	}
 
-	/* Storage notes sit quietly under the list; the sessions are the focus. */
+	/* Storage notes: one quiet callout under the list; the sessions stay the focus. */
 	.sessions-status {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-		padding: 0 2px;
+		display: grid;
+		grid-template-columns: 16px 1fr;
+		column-gap: 10px;
+		row-gap: 4px;
+		padding: 10px 12px;
+		border-radius: 10px;
+		background: hsl(var(--at-fg) / 0.04);
+	}
+
+	.sessions-status > :not(.status-icon) {
+		grid-column: 2;
+	}
+
+	.status-icon {
+		grid-row: 1 / span 3;
+		width: 16px;
+		height: 16px;
+		margin-top: 1px;
+		fill: none;
+		stroke: hsl(var(--at-success));
+		stroke-width: 1.8;
+		stroke-linejoin: round;
+	}
+
+	.sessions-status.warn .status-icon {
+		stroke: hsl(var(--at-warning));
 	}
 
 	.status-line {
 		display: flex;
 		align-items: baseline;
-		min-height: 24px;
 		gap: 9px;
 		color: hsl(var(--at-fg-muted));
 		font-size: 12px;
@@ -426,25 +457,8 @@
 		flex: 1;
 	}
 
-	.status-dot {
-		flex: 0 0 auto;
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: hsl(var(--at-fg-muted));
-		transform: translateY(-1px);
-	}
-
-	.status-line.ok .status-dot {
-		background: hsl(var(--at-success));
-	}
-
 	.status-line .link-btn {
 		margin-left: 4px;
-	}
-
-	.status-line.warn .status-dot {
-		background: hsl(var(--at-warning));
 	}
 
 	.link-btn {
@@ -603,7 +617,8 @@
 	.session-actions {
 		display: flex;
 		flex-shrink: 0;
-		gap: 2px;
+		align-items: center;
+		gap: 4px;
 	}
 
 	.dialog-footer {
@@ -643,6 +658,61 @@
 		cursor: pointer;
 	}
 
+	.secondary-btn.small {
+		height: 28px;
+		padding: 0 10px;
+		font-size: 12px;
+	}
+
+	.action-divider {
+		width: 1px;
+		height: 18px;
+		margin: 0 4px;
+		background: hsl(var(--at-border-hover));
+	}
+
+	.icon-btn {
+		display: grid;
+		place-items: center;
+		width: 28px;
+		height: 28px;
+		border: none;
+		border-radius: 7px;
+		background: transparent;
+		color: hsl(var(--at-error) / 0.85);
+		cursor: pointer;
+	}
+
+	.icon-btn svg {
+		width: 15px;
+		height: 15px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	@media (hover: hover) {
+		.session-row .action-divider,
+		.session-row .icon-btn {
+			opacity: 0;
+			transition: opacity 120ms ease;
+		}
+
+		.session-row:hover .action-divider,
+		.session-row:hover .icon-btn,
+		.session-row:focus-within .action-divider,
+		.session-row:focus-within .icon-btn {
+			opacity: 1;
+		}
+	}
+
+	.icon-btn:hover {
+		background: hsl(var(--at-error) / 0.14);
+		color: hsl(var(--at-error));
+	}
+
 	.secondary-btn:hover {
 		border-color: hsl(var(--at-fg) / 0.28);
 		background: hsl(var(--at-surface-hover));
@@ -651,15 +721,6 @@
 	.text-btn:hover {
 		background: hsl(var(--at-surface-hover));
 		color: hsl(var(--at-fg));
-	}
-
-	.text-btn.danger {
-		color: hsl(var(--at-error) / 0.85);
-	}
-
-	.text-btn.danger:hover {
-		background: hsl(var(--at-error) / 0.12);
-		color: hsl(var(--at-error));
 	}
 
 	.primary-btn {
@@ -695,6 +756,7 @@
 		.text-btn,
 		.primary-btn,
 		.secondary-btn,
+		.icon-btn,
 		.close-btn {
 			min-height: 44px;
 			min-width: 44px;

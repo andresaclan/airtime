@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatFrameTimecode, shortTimecode } from '$lib/video/timecode';
+	import { formatFrameClock } from '$lib/video/timecode';
 	import { frameDurationRange, frameLabel, type FrameTiming } from '$lib/video/frames';
 	import {
 		frameOf,
@@ -109,12 +109,16 @@
 	let bestRsi = $derived(bestJump && contactApplies ? rsi(bestJump) : undefined);
 	// Contact only means something for drop and rebound jumps; there it gets a summary slot.
 	let contactMatters = $derived(jumpType !== null && hasMeaningfulContact(jumpType));
-	let averageHeight = $derived.by(() => {
-		const heights = grouped.jumps
-			.map((jump) => jump.flight?.heightCm)
-			.filter((height) => height !== undefined);
-		return heights.length > 1 ? heights.reduce((sum, h) => sum + h, 0) / heights.length : null;
-	});
+	function mean(values: (number | undefined)[]): number | null {
+		const present = values.filter((value) => value !== undefined);
+		return present.length ? present.reduce((sum, value) => sum + value, 0) / present.length : null;
+	}
+	// With several jumps the summary describes the session; the rows below hold each jump.
+	let averageHeight = $derived(
+		completedJumps > 1 ? mean(grouped.jumps.map((jump) => jump.flight?.heightCm)) : null
+	);
+	let averageFlight = $derived(mean(grouped.jumps.map((jump) => jump.flight?.realSeconds)));
+	let averageContact = $derived(mean(grouped.jumps.map((jump) => jump.contact?.realSeconds)));
 
 	function jumpStats(jump: Jump): string {
 		if (jump.flight?.heightCm === undefined) return '';
@@ -153,9 +157,7 @@
 			<span class="mp-dot"></span>
 			<span class="mp-mark-type">{label}</span>
 			<span class="mp-mark-time"
-				>{shortTimecode(
-					formatFrameTimecode(frameLabel(frameOf(mark.time, timing), timing), timing)
-				)}</span
+				>{formatFrameClock(frameLabel(frameOf(mark.time, timing), timing), timing)}</span
 			>
 		</button>
 		{#if mark.id === activeMarkId}
@@ -164,15 +166,14 @@
 					class="mp-icon-btn"
 					onclick={() => onNudge(mark.id, -1)}
 					aria-label="Move {label.toLowerCase()} one frame earlier"
-					title="1 frame earlier">−1</button
+					title="1 frame earlier">−1 fr</button
 				>
 				<button
 					class="mp-icon-btn"
 					onclick={() => onNudge(mark.id, 1)}
 					aria-label="Move {label.toLowerCase()} one frame later"
-					title="1 frame later">+1</button
+					title="1 frame later">+1 fr</button
 				>
-				<span class="mp-action-divider" aria-hidden="true"></span>
 				<button
 					class="mp-icon-btn mp-remove"
 					onclick={() => onRemove(mark.id)}
@@ -180,7 +181,7 @@
 					title="Remove (Backspace)"
 					><svg viewBox="0 0 24 24" aria-hidden="true"
 						><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" /></svg
-					></button
+					>Remove</button
 				>
 			</div>
 		{/if}
@@ -209,37 +210,41 @@
 		<!-- One button for both states, so focus stays put when the sheet expands or collapses. -->
 		<h2 class="mp-sheet-heading">
 			<button class="mp-sheet-toggle" onclick={onToggle} aria-expanded={expanded}>
-				{#if expanded}
-					<span class="mp-sheet-title">Analysis</span>
-				{:else}
-					<span class="sr-only">Analysis:</span>
-					{#if bestJump?.flight}
-						<span class="mp-peek-stat mp-peek-primary">
-							<span class="mp-peek-label">{completedJumps > 1 ? 'Best height' : 'Height'}</span>
-							<span class="mp-peek-value"
-								>{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span
-							>
-						</span>
+				<!-- The summary stays in the header, open or closed, so the body starts at the jumps. -->
+				<span class="sr-only">Analysis:</span>
+				{#if bestJump?.flight}
+					<span class="mp-peek-stat mp-peek-primary">
+						<span class="mp-peek-label">{completedJumps > 1 ? 'Best height' : 'Height'}</span>
+						<span class="mp-peek-value"
+							>{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span
+						>
+					</span>
+					<span class="mp-peek-stat">
+						<span class="mp-peek-label">Flight</span>
+						<span class="mp-peek-value"
+							>{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span
+						>
+					</span>
+					{#if !contactMatters && averageHeight !== null}
 						<span class="mp-peek-stat">
-							<span class="mp-peek-label">Flight</span>
-							<span class="mp-peek-value"
-								>{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span
-							>
+							<span class="mp-peek-label">Average</span>
+							<span class="mp-peek-value">{averageHeight.toFixed(1)}<small>cm</small></span>
 						</span>
+					{:else}
 						<span class="mp-peek-stat">
 							<span class="mp-peek-label">Contact</span>
 							<span class="mp-peek-value"
 								>{#if bestJump.contact}{formatMs(bestJump.contact.realSeconds)}<small>ms</small
-									>{:else}—{/if}</span
+									>{:else}–{/if}</span
 							>
 						</span>
-					{:else}
-						<span class="mp-peek-hint"
-							>{marks.length > 0
-								? 'Mark a landing to measure the jump'
-								: 'Mark takeoff and landing to measure a jump'}</span
-						>
 					{/if}
+				{:else}
+					<span class="mp-peek-hint"
+						>{marks.length > 0
+							? 'Mark a landing to measure the jump'
+							: 'Mark takeoff and landing to measure a jump'}</span
+					>
 				{/if}
 				<svg
 					class="mp-sheet-chevron"
@@ -254,9 +259,6 @@
 	{:else}
 		<header class="mp-header">
 			<h2>Analysis</h2>
-			{#if completedJumps > 0}<span class="mp-header-meta"
-					>{completedJumps} jump{completedJumps === 1 ? '' : 's'}</span
-				>{/if}
 		</header>
 	{/if}
 
@@ -265,9 +267,7 @@
 			{#if bestJump?.flight}
 				<div class="mp-summary">
 					<span class="mp-label"
-						>{completedJumps > 1
-							? `Best · Jump ${bestIndex + 1} of ${completedJumps}`
-							: 'Jump height'}</span
+						>{completedJumps > 1 ? `Best jump · Jump ${bestIndex + 1}` : 'Jump height'}</span
 					>
 					<p class="mp-hero-value">
 						{bestJump.flight.heightCm?.toFixed(1)}<span class="mp-unit">cm</span><span
@@ -275,35 +275,47 @@
 						>
 					</p>
 					<dl class="mp-stats">
-						<div>
-							<dt>Flight time</dt>
-							<dd>
-								{formatMs(bestJump.flight.realSeconds)}<span class="mp-unit">ms</span><small
-									>{bestJump.flight.frames} fr</small
-								>
-							</dd>
-						</div>
-						{#if contactMatters || (averageHeight === null && bestJump.contact)}
-							<div class:muted={!bestJump.contact}>
-								<dt>Contact time</dt>
-								<dd>
-									{#if bestJump.contact}{formatMs(bestJump.contact.realSeconds)}<span
-											class="mp-unit">ms</span
-										><small
-											>{bestJump.contact.frames} fr{#if bestRsi !== undefined}
-												· RSI {bestRsi.toFixed(2)}{/if}</small
-										>{:else}—<small>not marked</small>{/if}
-								</dd>
-							</div>
-						{:else if averageHeight !== null}
+						{#if averageHeight !== null}
 							<div>
 								<dt>Average height</dt>
+								<dd>{averageHeight.toFixed(1)}<span class="mp-unit">cm</span></dd>
+							</div>
+							<div>
+								<dt>Average flight</dt>
+								<dd>{formatMs(averageFlight ?? 0)}<span class="mp-unit">ms</span></dd>
+							</div>
+							{#if contactMatters}
+								<div class:muted={averageContact === null}>
+									<dt>Average contact</dt>
+									<dd>
+										{#if averageContact !== null}{formatMs(averageContact)}<span class="mp-unit"
+												>ms</span
+											>{:else}–{/if}
+									</dd>
+								</div>
+							{/if}
+						{:else}
+							<div>
+								<dt>Flight time</dt>
 								<dd>
-									{averageHeight.toFixed(1)}<span class="mp-unit">cm</span><small
-										>{completedJumps} jumps</small
+									{formatMs(bestJump.flight.realSeconds)}<span class="mp-unit">ms</span><small
+										>{bestJump.flight.frames} fr</small
 									>
 								</dd>
 							</div>
+							{#if contactMatters || bestJump.contact}
+								<div class:muted={!bestJump.contact}>
+									<dt>Contact time</dt>
+									<dd>
+										{#if bestJump.contact}{formatMs(bestJump.contact.realSeconds)}<span
+												class="mp-unit">ms</span
+											><small
+												>{bestJump.contact.frames} fr{#if bestRsi !== undefined}
+													· RSI {bestRsi.toFixed(2)}{/if}</small
+											>{:else}–<small>not marked</small>{/if}
+									</dd>
+								</div>
+							{/if}
 						{/if}
 					</dl>
 					{#if contactMatters && !bestJump.contact}
@@ -321,9 +333,8 @@
 			{:else}
 				<div class="mp-hero is-empty">
 					<span class="mp-label">Jump height</span>
-					<p class="mp-hero-value placeholder" aria-label="No jump measured yet">
-						–.–<span class="mp-unit">cm</span>
-					</p>
+					<span class="mp-hero-empty">Not measured yet</span>
+					<span class="mp-sub">Appears once a takeoff and its landing are marked.</span>
 				</div>
 			{/if}
 
@@ -333,14 +344,10 @@
 						Jumps{#if marks.length > 0}<span class="mp-count">{marks.length} marks</span>{/if}
 					</h3>
 					<div class="mp-section-actions">
-						{#if canUndo}<button
-								class="mp-text-btn mp-undo"
-								onclick={onUndo}
-								title="Undo (⌘Z)"
-								aria-label="Undo"
+						{#if canUndo}<button class="mp-text-btn" onclick={onUndo} title="Undo (⌘Z)"
 								><svg viewBox="0 0 24 24" aria-hidden="true"
 									><path d="M9 7 4.5 11.5 9 16" /><path d="M5 11.5h9.5a5 5 0 0 1 0 10H12" /></svg
-								></button
+								>Undo</button
 							>{/if}
 						{#if marks.length > 0}<button
 								class="mp-text-btn mp-danger"
@@ -459,6 +466,9 @@
 								>{/each}
 						</select>
 					</label>
+					<p class="mp-caption mp-sheet-precision">
+						±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
+					</p>
 					{#if jumpType === null}
 						<p id="mp-jump-type-hint" class="mp-caption warn">
 							Set the jump type to compare like with like.
@@ -601,7 +611,8 @@
 
 	.mp-stats {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
+		grid-auto-columns: minmax(0, 1fr);
+		grid-auto-flow: column;
 		margin: 10px 0 6px;
 		padding: 10px 0;
 		border-block: 1px solid hsl(var(--at-border));
@@ -615,7 +626,7 @@
 	}
 
 	.mp-stats > div + div {
-		padding-left: 14px;
+		padding-left: 12px;
 		border-left: 1px solid hsl(var(--at-border));
 	}
 
@@ -670,14 +681,11 @@
 		gap: 4px;
 	}
 
-	.mp-hero-value.placeholder {
-		color: hsl(var(--at-fg-muted) / 0.7);
-		font-weight: 500;
-	}
-
-	.mp-header-meta {
-		color: hsl(var(--at-fg-muted));
-		font-size: 12px;
+	.mp-hero-empty {
+		margin-top: 2px;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 17px;
+		font-weight: 600;
 	}
 
 	/* Setup and Session collapse to one line showing their current values. */
@@ -1045,33 +1053,28 @@
 	}
 
 	/* The selected mark (the one at the playhead; click or tap a row to go there)
-	   shows nudge and remove controls beside its timecode, in place, so the list
-	   doesn't move and the value being nudged stays in view. */
+	   gets a small nudge bar on a second line, so its timecode stays in the value
+	   column and the list only grows by one short row. */
+	.mp-mark {
+		flex-wrap: wrap;
+	}
+
 	.mp-mark-actions {
 		display: flex;
-		flex: 0 0 auto;
+		flex: 1 0 100%;
+		align-items: center;
 		gap: 4px;
-		padding-right: 6px;
-	}
-
-	.mp-mark.active .mp-mark-main {
-		padding-right: 8px;
-	}
-
-	.mp-action-divider {
-		width: 1px;
-		height: 14px;
-		align-self: center;
-		margin: 0 2px;
-		background: hsl(var(--at-fg) / 0.14);
+		padding: 0 8px 7px 26px;
 	}
 
 	.mp-icon-btn {
-		display: inline-grid;
-		place-items: center;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 4px;
 		min-width: 30px;
 		height: 24px;
-		padding: 0 6px;
+		padding: 0 8px;
 		border: none;
 		border-radius: 6px;
 		background: hsl(var(--at-fg) / 0.1);
@@ -1101,6 +1104,7 @@
 	}
 
 	.mp-remove {
+		margin-left: auto;
 		background: transparent;
 		color: hsl(var(--at-error) / 0.85);
 	}
@@ -1188,12 +1192,6 @@
 		stroke-linejoin: round;
 	}
 
-	.mp-undo {
-		width: 28px;
-		padding: 0;
-		justify-content: center;
-	}
-
 	.mp-danger {
 		color: hsl(var(--at-fg-muted));
 	}
@@ -1215,18 +1213,15 @@
 
 	@media (pointer: coarse) {
 		.mp-icon-btn {
-			min-width: 40px;
-			height: 34px;
+			min-width: 38px;
+			height: 30px;
 			font-size: 13px;
+			background: hsl(var(--at-fg) / 0.08);
 		}
 
 		.mp-text-btn {
 			height: 44px;
 			font-size: 13px;
-		}
-
-		.mp-undo {
-			width: 44px;
 		}
 
 		.mp-section-head {
@@ -1282,9 +1277,35 @@
 		border-radius: 14px 14px 0 0;
 	}
 
+	.sheet .mp-summary,
+	.sheet .mp-hero {
+		display: none;
+	}
+
+	.mp-sheet-precision {
+		display: none;
+	}
+
+	.sheet .mp-sheet-precision {
+		display: block;
+	}
+
 	.mp-sheet-heading {
 		margin: 0;
 		font: inherit;
+	}
+
+	/* A grab handle: the summary row is the top of a sheet you can pull open. */
+	.mp-sheet-toggle::before {
+		content: '';
+		position: absolute;
+		top: 6px;
+		left: 50%;
+		width: 32px;
+		height: 4px;
+		border-radius: 2px;
+		background: hsl(var(--at-fg) / 0.2);
+		transform: translateX(-50%);
 	}
 
 	.mp-sheet-toggle {
@@ -1294,8 +1315,8 @@
 		align-items: center;
 		gap: 8px;
 		width: 100%;
-		min-height: 60px;
-		padding: 8px 2px 8px 16px;
+		min-height: 64px;
+		padding: 16px 2px 8px 16px;
 		border: none;
 		border-radius: var(--at-radius-lg);
 		background: transparent;
@@ -1307,22 +1328,13 @@
 	}
 
 	.sheet:not(.collapsed) .mp-sheet-toggle {
-		min-height: 52px;
+		min-height: 64px;
 		border-bottom: 1px solid hsl(var(--at-border));
 		border-radius: var(--at-radius-lg) var(--at-radius-lg) 0 0;
 	}
 
-	.mp-sheet-title,
 	.mp-peek-hint {
 		grid-column: 1 / 4;
-	}
-
-	.mp-sheet-title {
-		display: flex;
-		align-items: baseline;
-		gap: 10px;
-		font-size: 14px;
-		font-weight: 600;
 	}
 
 	.mp-peek-hint {

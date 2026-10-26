@@ -455,13 +455,17 @@ body {
 	background: hsl(var(--at-stage));
 }
 
-/* Desktop: the frame and the analysis panel both fill the workspace height. The
-   picture letterboxes inside the frame, above its docked controls, so the
-   workspace has no dead band and the panel gets the whole height for jumps. */
+/* Desktop: the frame is the shape of the video plus its docked controls, aligned
+   with the top of the analysis panel, so there are no letterbox bands inside it. The analysis panel takes
+   the full workspace height so the jump list has as much room as the screen allows.
+   Sizes come from the column's own size (container units) and the video's aspect. */
 @media (min-width: 901px) {
 	.viewer-column {
+		--aspect: var(--video-aspect, 1.7778);
+		container-type: size;
 		display: flex;
 		flex: 1 1 0;
+		align-items: flex-start;
 		min-width: 0;
 		height: 100%;
 	}
@@ -469,18 +473,19 @@ body {
 	.viewer-column > .viewer-frame {
 		display: flex;
 		flex-direction: column;
+		height: auto;
 	}
 
 	.viewer-column > .viewer-frame > :first-child {
-		flex: 1 1 0;
-		min-height: 0;
+		flex: 0 0 auto;
+		height: min(calc(100cqh - 92px), calc(100cqw / var(--aspect)));
 	}
 
 	.viewer-column .control-bar {
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
-		height: 80px;
+		height: 92px;
 	}
 }
 
@@ -637,6 +642,15 @@ body {
 .time-separator,
 .time-duration {
 	color: hsl(var(--at-fg-muted));
+}
+
+.time-frame {
+	margin-left: 6px;
+	padding-left: 8px;
+	border-left: 1px solid hsl(var(--at-border-hover));
+	color: hsl(var(--at-fg-muted));
+	font-family: inherit;
+	font-size: 11px;
 }
 
 .mark-actions {
@@ -1038,7 +1052,27 @@ body {
 		border-left: none;
 	}
 	.header-file-name {
-		max-width: 34vw;
+		max-width: 46vw;
+	}
+	/* Unsaved shrinks to a dot after the file name; Save's own state says the rest. */
+	.header-file .header-status {
+		gap: 0;
+		width: 8px;
+		height: 8px;
+		padding: 0;
+		overflow: hidden;
+		background: none;
+		font-size: 0;
+	}
+	.header-file .header-status::before {
+		flex: 0 0 8px;
+		width: 8px;
+		height: 8px;
+	}
+	.app-header .btn-primary,
+	.app-header .btn-secondary {
+		height: 34px;
+		font-size: 14px;
 	}
 	.app-header .btn {
 		padding: 0 12px;
@@ -1080,11 +1114,11 @@ body {
 		padding: 12px 4px 0;
 	}
 	.empty-title {
-		font-size: 22px;
+		font-size: 20px;
 	}
 	.empty-lede {
 		margin: 6px 0 16px;
-		font-size: 14px;
+		font-size: 13px;
 		line-height: 1.5;
 	}
 	.dropzone {
@@ -1103,9 +1137,23 @@ body {
 		gap: 4px;
 		margin-top: 16px;
 	}
+	/* Phones: the three steps as one compact row of titles. */
+	.empty-steps {
+		grid-template-columns: repeat(3, auto);
+		justify-content: center;
+		gap: 14px;
+	}
 	.empty-steps li {
-		gap: 2px;
-		padding: 6px 4px;
+		padding: 0;
+	}
+	.empty-step-text {
+		display: none;
+	}
+	.empty-steps strong {
+		gap: 6px;
+		font-size: 12px;
+		font-weight: 500;
+		white-space: nowrap;
 	}
 	.empty-footer {
 		margin-top: 16px;

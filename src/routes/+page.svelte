@@ -10,7 +10,7 @@
 	import { resolve } from '$app/paths';
 	import { isApplePlatform } from '$lib/keybinds';
 	import { detectSourceTimingFromFile } from '$lib/video/frameRate';
-	import { formatFrameTimecode, formatTimecode, shortTimecode } from '$lib/video/timecode';
+	import { formatFrameClock } from '$lib/video/timecode';
 	import {
 		clampFrame,
 		frameAt,
@@ -660,9 +660,12 @@
 	// late (an edit list) or drops frames still reads as its real length.
 	function formatDuration(): string {
 		const times = timing.frameTimes;
-		if (!times?.length) return formatTimecode(duration, timing);
-		return formatFrameTimecode(frameLabel(times.length - 1, timing) + 1, timing);
+		if (!times?.length) return formatFrameClock(Math.round(duration * timing.fps), timing);
+		return formatFrameClock(frameLabel(times.length - 1, timing) + 1, timing);
 	}
+
+	// The playhead's frame number counts from 1, the way people number frames.
+	let playheadLabel = $derived(frameLabel(frameAt(currentTime, timing), timing));
 </script>
 
 <svelte:head>
@@ -904,15 +907,17 @@
 				<ol class="empty-steps at-reveal" style="--delay: 120ms">
 					<li>
 						<strong><span class="empty-step-num">1</span>Find takeoff</strong>
-						Step to the first frame where the feet leave the ground.
+						<span class="empty-step-text"
+							>Step to the first frame where the feet leave the ground.</span
+						>
 					</li>
 					<li>
 						<strong><span class="empty-step-num">2</span>Find landing</strong>
-						Step to the first frame they touch down again.
+						<span class="empty-step-text">Step to the first frame they touch down again.</span>
 					</li>
 					<li>
 						<strong><span class="empty-step-num">3</span>Read the jump</strong>
-						Flight time, contact time and height, per jump.
+						<span class="empty-step-text">Flight time, contact time and height, per jump.</span>
 					</li>
 				</ol>
 				<div class="empty-footer at-reveal" style="--delay: 160ms">
@@ -937,7 +942,7 @@
 				</p>
 			</div>
 		{:else}
-			<div class="viewer-column">
+			<div class="viewer-column" style:--video-aspect={videoAspect ?? undefined}>
 				<div class="viewer-frame" class:landscape={fitLandscape}>
 					<VideoViewer
 						bind:this={videoViewerRef}
@@ -1030,11 +1035,10 @@
 
 							<div class="control-toolbar">
 								<div class="time-readout">
-									<span class="time-current"
-										>{shortTimecode(formatTimecode(currentTime, timing))}</span
-									>
+									<span class="time-current">{formatFrameClock(playheadLabel, timing)}</span>
 									<span class="time-separator">/</span>
-									<span class="time-duration">{shortTimecode(formatDuration())}</span>
+									<span class="time-duration">{formatDuration()}</span>
+									<span class="time-frame">frame {playheadLabel + 1}</span>
 								</div>
 
 								<VideoControls

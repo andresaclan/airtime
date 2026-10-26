@@ -50,6 +50,14 @@
 		const count = Math.floor(duration / step);
 		return Array.from({ length: count }, (_, i) => (i + 1) * step).filter((t) => t < duration);
 	});
+	// Every other tick (or every tick when there are few) carries a seconds label.
+	let labelEvery = $derived(ticks.length > 8 ? 2 : 1);
+
+	function tickLabel(seconds: number): string {
+		if (seconds >= 60)
+			return `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`;
+		return `${Number(seconds.toFixed(2))}s`;
+	}
 
 	function percentOf(time: number): number {
 		return duration > 0 ? Math.max(0, Math.min(100, (time / duration) * 100)) : 0;
@@ -186,7 +194,10 @@
 	</div>
 
 	<div class="timeline-ticks" aria-hidden="true">
-		{#each ticks as tick (tick)}<span style="left: {percentOf(tick)}%;"></span>{/each}
+		{#each ticks as tick, i (tick)}<span class="tick" style="left: {percentOf(tick)}%;"
+				>{#if (i + 1) % labelEvery === 0}<span class="tick-label">{tickLabel(tick)}</span
+					>{/if}</span
+			>{/each}
 	</div>
 
 	{#each marks as mark (mark.id)}
@@ -205,25 +216,37 @@
 <style>
 	.timeline-container {
 		position: relative;
-		padding: 12px 0 8px;
+		padding: 12px 0 18px;
 		touch-action: none;
 	}
 
 	.timeline-ticks {
 		position: absolute;
 		right: 0;
-		bottom: 1px;
+		bottom: 2px;
 		left: 0;
-		height: 4px;
+		height: 14px;
 		pointer-events: none;
 	}
 
-	.timeline-ticks span {
+	.tick {
 		position: absolute;
 		top: 0;
 		width: 1px;
-		height: 100%;
-		background: hsl(var(--at-fg) / 0.18);
+		height: 4px;
+		background: hsl(var(--at-fg) / 0.2);
+	}
+
+	.tick-label {
+		position: absolute;
+		top: 4px;
+		left: 50%;
+		color: hsl(var(--at-fg-muted));
+		font-family: var(--at-font-mono);
+		font-size: 9px;
+		line-height: 1;
+		white-space: nowrap;
+		transform: translateX(-50%);
 	}
 
 	.timeline-track {
@@ -254,15 +277,27 @@
 	.timeline-thumb {
 		position: absolute;
 		top: 50%;
-		width: 4px;
-		height: 18px;
+		width: 3px;
+		height: 20px;
 		background: hsl(var(--at-fg));
-		border: 1px solid hsl(var(--at-bg));
 		border-radius: 2px;
 		transform: translate(-50%, -50%);
 		box-shadow: 0 1px 6px hsl(var(--at-shadow) / 0.5);
 		pointer-events: none;
 		transition: transform 150ms ease;
+	}
+
+	.timeline-thumb::before {
+		content: '';
+		position: absolute;
+		top: -4px;
+		left: 50%;
+		width: 11px;
+		height: 11px;
+		border: 2px solid hsl(var(--at-bg));
+		border-radius: 50%;
+		background: hsl(var(--at-fg));
+		transform: translateX(-50%);
 	}
 
 	.timeline-track:hover .timeline-thumb,
@@ -355,9 +390,14 @@
 		}
 
 		.timeline-thumb {
-			width: 6px;
-			height: 26px;
-			border-radius: 3px;
+			width: 4px;
+			height: 24px;
+		}
+
+		.timeline-thumb::before {
+			width: 16px;
+			height: 16px;
+			top: -6px;
 		}
 
 		/* 44px hit box centred on the same spot the 14px box and glyph occupied. */

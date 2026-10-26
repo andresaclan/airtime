@@ -40,6 +40,12 @@
 		}
 	}
 
+	// Playback, Timeline and General on the left; the longer Marks list on the right.
+	const columns = [
+		KEYBIND_GROUPS.filter((group) => group.title !== 'Marks'),
+		KEYBIND_GROUPS.filter((group) => group.title === 'Marks')
+	];
+
 	// "Ctrl / ⌘ + Z" → keys with the separators between them, so each key gets its own cap.
 	function keyTokens(keys: string): { text: string; key: boolean }[] {
 		return platformKeys(keys)
@@ -81,7 +87,7 @@
 			</div>
 
 			<div class="keybinds-groups">
-				{#each [KEYBIND_GROUPS.slice(0, 2), KEYBIND_GROUPS.slice(2)] as column, c (c)}
+				{#each columns as column, c (c)}
 					<div class="keybinds-column">
 						{#each column as group (group.title)}
 							<section class="keybinds-group">
@@ -120,8 +126,8 @@
 		align-items: center;
 		justify-content: center;
 		padding: 16px;
-		background: hsl(var(--at-bg) / 0.72);
-		backdrop-filter: blur(8px);
+		background: hsl(var(--at-bg) / 0.6);
+		backdrop-filter: blur(6px);
 		animation: fadeIn 160ms ease-out;
 	}
 
@@ -151,8 +157,8 @@
 		max-height: 85dvh;
 		overflow-y: auto;
 		padding: 0 0 24px;
-		background: hsl(var(--at-bg-elevated));
-		border: 1px solid hsl(var(--at-border-hover));
+		background: hsl(222 11% 10%);
+		border: 1px solid hsl(var(--at-fg) / 0.12);
 		border-radius: 16px;
 		box-shadow:
 			0 32px 80px hsl(var(--at-shadow) / 0.7),
@@ -170,7 +176,7 @@
 		justify-content: space-between;
 		padding: 16px 16px 14px 24px;
 		border-bottom: 1px solid hsl(var(--at-border));
-		background: hsl(var(--at-bg-elevated));
+		background: hsl(222 11% 10%);
 	}
 
 	.dialog-title {
@@ -204,14 +210,21 @@
 	.keybinds-groups {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-		gap: 24px 40px;
+		gap: 16px 16px;
 		padding: 20px 24px 0;
 	}
 
 	.keybinds-column {
 		display: flex;
 		flex-direction: column;
-		gap: 24px;
+		gap: 16px;
+	}
+
+	.keybinds-group {
+		padding: 12px 14px 6px;
+		border: 1px solid hsl(var(--at-border));
+		border-radius: 12px;
+		background: hsl(var(--at-fg) / 0.02);
 	}
 
 	.group-note {
