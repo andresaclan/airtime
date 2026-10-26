@@ -347,7 +347,7 @@
 		display: flex;
 		flex-direction: column;
 		width: 100%;
-		max-width: 680px;
+		max-width: 560px;
 		max-height: 85dvh;
 		overflow: hidden;
 		background: hsl(var(--at-popover));
@@ -648,7 +648,7 @@
 		border: 1px solid hsl(var(--at-border-hover));
 		border-radius: 8px;
 		background: transparent;
-		color: hsl(var(--at-fg));
+		color: hsl(var(--at-fg-secondary));
 		font: inherit;
 		font-size: 13px;
 		font-weight: 500;
@@ -698,6 +698,7 @@
 	.secondary-btn:hover {
 		border-color: hsl(var(--at-fg) / 0.28);
 		background: hsl(var(--at-surface-hover));
+		color: hsl(var(--at-fg));
 	}
 
 	.text-btn:hover {
@@ -706,13 +707,14 @@
 	}
 
 	.primary-btn {
-		background: hsl(var(--at-accent));
-		color: hsl(var(--at-on-accent));
-		font-weight: 600;
+		border: 1px solid hsl(var(--at-accent) / 0.5);
+		background: hsl(var(--at-accent) / 0.18);
+		color: hsl(var(--at-accent-fg));
 	}
 
 	.primary-btn:hover:not(:disabled) {
-		background: hsl(var(--at-accent-hover));
+		background: hsl(var(--at-accent) / 0.28);
+		color: hsl(var(--at-fg));
 	}
 
 	.primary-btn:disabled {

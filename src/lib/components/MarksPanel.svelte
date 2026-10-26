@@ -640,7 +640,7 @@
 	.mp-hero-value {
 		color: hsl(var(--at-fg));
 		margin: 0;
-		font-size: 28px;
+		font-size: 24px;
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: -0.03em;
@@ -1384,7 +1384,7 @@
 	}
 
 	.mp-peek-primary .mp-peek-value {
-		font-size: 19px;
+		font-size: 18px;
 	}
 
 	.mp-peek-value small {

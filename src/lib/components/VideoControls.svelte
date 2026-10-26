@@ -546,12 +546,12 @@
 	}
 
 	.play-btn {
-		width: 36px;
-		height: 36px;
+		width: 32px;
+		height: 32px;
 		margin-inline: 2px;
 		border-radius: 50%;
 		background: hsl(var(--at-fg) / 0.1);
-		border: 1px solid hsl(var(--at-fg) / 0.08);
+		border: none;
 		color: hsl(var(--at-fg));
 		display: flex;
 		align-items: center;
@@ -563,8 +563,8 @@
 	}
 
 	.play-btn :global(svg) {
-		width: 18px;
-		height: 18px;
+		width: 16px;
+		height: 16px;
 	}
 
 	.play-btn:hover:not(:disabled) {

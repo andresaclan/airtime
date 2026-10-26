@@ -152,7 +152,7 @@
 
 	.dialog-card {
 		width: 100%;
-		max-width: 800px;
+		max-width: 740px;
 		max-height: 85dvh;
 		overflow-y: auto;
 		padding: 0 0 24px;
@@ -206,8 +206,8 @@
 
 	.keybinds-groups {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-		gap: 24px 40px;
+		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+		gap: 24px 36px;
 		padding: 20px 24px 0;
 	}
 

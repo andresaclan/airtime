@@ -31,6 +31,7 @@
 	/* Accent: focus rings and primary actions only */
 	--at-accent: 217 72% 53%;
 	--at-accent-hover: 217 80% 60%;
+	--at-accent-fg: 217 90% 84%;
 	--at-on-accent: 0 0% 100%;
 
 	/* Semantic Colors */
@@ -139,14 +140,15 @@ body {
 }
 
 .btn-primary {
-	background: hsl(var(--at-accent));
-	color: hsl(var(--at-on-accent));
-	font-weight: 600;
+	border-color: hsl(var(--at-accent) / 0.5);
+	background: hsl(var(--at-accent) / 0.18);
+	color: hsl(var(--at-accent-fg));
 }
 
 .btn-primary:hover:not(:disabled) {
-	background: hsl(var(--at-accent-hover));
-	color: hsl(var(--at-on-accent));
+	border-color: hsl(var(--at-accent-hover) / 0.7);
+	background: hsl(var(--at-accent) / 0.28);
+	color: hsl(var(--at-fg));
 }
 
 .btn-icon {
@@ -164,7 +166,7 @@ body {
 	margin-right: -2px;
 	padding: 0;
 	background: none;
-	color: hsl(var(--at-on-accent));
+	color: hsl(var(--at-accent-fg) / 0.8);
 	font:
 		600 10px/1 var(--at-font-mono),
 		monospace;
@@ -642,7 +644,7 @@ body {
 	grid-template-areas: 'time takeoff transport landing extras';
 	align-items: center;
 	min-height: 44px;
-	column-gap: 10px;
+	column-gap: 6px;
 }
 
 .control-toolbar .playback-controls {
@@ -706,9 +708,9 @@ body {
 	gap: 8px;
 	height: 32px;
 	padding: 0 9px 0 11px;
-	border: 1px solid hsl(var(--at-border-hover));
+	border: 1px solid transparent;
 	border-radius: var(--at-radius);
-	background: hsl(var(--at-surface));
+	background: hsl(var(--at-fg) / 0.06);
 	color: hsl(var(--at-fg));
 	font: inherit;
 	font-size: 13px;
@@ -725,8 +727,7 @@ body {
 }
 
 .mark-action:hover {
-	border-color: hsl(var(--at-fg) / 0.24);
-	background: hsl(var(--at-surface-hover));
+	background: hsl(var(--at-fg) / 0.1);
 }
 
 .mark-action.on-frame {
@@ -842,17 +843,17 @@ body {
 .empty-title {
 	margin: 0;
 	color: hsl(var(--at-fg));
-	font-size: 32px;
-	font-weight: 650;
-	letter-spacing: -0.025em;
-	line-height: 1.15;
+	font-size: 22px;
+	font-weight: 600;
+	letter-spacing: -0.02em;
+	line-height: 1.2;
 }
 
 .empty-lede {
 	max-width: 420px;
-	margin: 10px 0 28px;
-	color: hsl(var(--at-fg-secondary));
-	font-size: 15px;
+	margin: 8px 0 22px;
+	color: hsl(var(--at-fg-muted));
+	font-size: 14px;
 	line-height: 1.55;
 }
 
@@ -862,12 +863,10 @@ body {
 	align-items: center;
 	gap: 6px;
 	width: 100%;
-	padding: 36px 24px 30px;
-	border: 1px dashed hsl(var(--at-border-hover));
-	border-radius: 16px;
-	background:
-		radial-gradient(120% 90% at 50% 0%, hsl(var(--at-fg) / 0.035), transparent 70%),
-		hsl(var(--at-bg-elevated));
+	padding: 30px 24px 26px;
+	border: 1px solid hsl(var(--at-border-hover));
+	border-radius: 14px;
+	background: hsl(var(--at-bg-elevated));
 	color: inherit;
 	font: inherit;
 	cursor: pointer;
@@ -876,25 +875,26 @@ body {
 		background 160ms var(--at-ease);
 }
 
-.dropzone:hover,
+.dropzone:hover {
+	border-color: hsl(var(--at-fg) / 0.24);
+	background: hsl(var(--at-surface));
+}
+
 .dropzone.dragging {
 	border-color: hsl(var(--at-accent) / 0.75);
-	background:
-		radial-gradient(120% 90% at 50% 0%, hsl(var(--at-accent) / 0.09), transparent 70%),
-		hsl(var(--at-bg-elevated));
+	background: hsl(var(--at-accent) / 0.08);
 }
 
 .dropzone-icon {
 	display: grid;
 	place-items: center;
-	width: 52px;
-	height: 52px;
-	margin-bottom: 10px;
+	width: 44px;
+	height: 44px;
+	margin-bottom: 8px;
 	border: 1px solid hsl(var(--at-border-hover));
-	border-radius: 14px;
+	border-radius: 12px;
 	background: hsl(var(--at-surface));
 	color: hsl(var(--at-fg-secondary));
-	box-shadow: 0 8px 24px hsl(var(--at-shadow) / 0.5);
 }
 
 .dropzone-icon svg {
@@ -1154,7 +1154,7 @@ body {
 		padding: 12px 4px 0;
 	}
 	.empty-title {
-		font-size: 20px;
+		font-size: 18px;
 	}
 	.empty-lede {
 		margin: 6px 0 16px;
