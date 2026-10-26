@@ -341,9 +341,24 @@
 			</section>
 
 			<section class="mp-section" aria-labelledby="mp-jumps-heading">
-				<h3 id="mp-jumps-heading" class="mp-section-title">
-					Jumps{#if marks.length > 0}<span class="mp-count">{marks.length} marks</span>{/if}
-				</h3>
+				<div class="mp-section-head">
+					<h3 id="mp-jumps-heading" class="mp-section-title">
+						Jumps{#if marks.length > 0}<span class="mp-count">{marks.length} marks</span>{/if}
+					</h3>
+					<div class="mp-section-actions">
+						<button class="mp-text-btn" onclick={onUndo} disabled={!canUndo} title="Undo (⌘Z)"
+							><svg viewBox="0 0 24 24" aria-hidden="true"
+								><path d="M9 7 4.5 11.5 9 16" /><path d="M5 11.5h9.5a5 5 0 0 1 0 10H12" /></svg
+							>Undo</button
+						>
+						<button
+							class="mp-text-btn mp-danger"
+							onclick={onClear}
+							disabled={marks.length === 0}
+							title="Remove every mark (undoable)">Clear all</button
+						>
+					</div>
+				</div>
 				{#if marks.length === 0}
 					<div class="mp-empty">
 						<ol>
@@ -446,17 +461,6 @@
 				></textarea>
 			</section>
 		</div>
-
-		<footer class="mp-footer">
-			<button class="mp-text-btn" onclick={onUndo} disabled={!canUndo} title="Undo (⌘Z)"
-				><svg viewBox="0 0 24 24" aria-hidden="true"
-					><path d="M9 7 4.5 11.5 9 16" /><path d="M5 11.5h9.5a5 5 0 0 1 0 10H12" /></svg
-				>Undo</button
-			>
-			<button class="mp-text-btn mp-danger" onclick={onClear} disabled={marks.length === 0}
-				>Clear all</button
-			>
-		</footer>
 	{/if}
 </aside>
 
@@ -599,10 +603,24 @@
 		margin-top: 12px;
 	}
 
+	.mp-section-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		margin: -6px 0 0;
+	}
+
+	.mp-section-actions {
+		display: flex;
+		gap: 2px;
+		margin-right: -8px;
+	}
+
 	.mp-section-title {
 		display: flex;
 		align-items: baseline;
-		justify-content: space-between;
+		gap: 8px;
 		margin: 0 0 2px;
 		color: hsl(var(--at-fg-secondary));
 		font-size: 11px;
@@ -993,36 +1011,25 @@
 		gap: 8px;
 	}
 
-	/* Footer */
-
-	.mp-footer {
-		display: flex;
-		flex: 0 0 auto;
-		justify-content: space-between;
-		gap: 4px;
-		padding: 8px;
-		border-top: 1px solid hsl(var(--at-border));
-	}
-
 	.mp-text-btn {
 		display: inline-flex;
 		align-items: center;
-		gap: 6px;
-		height: 30px;
-		padding: 0 10px;
+		gap: 5px;
+		height: 28px;
+		padding: 0 8px;
 		border: none;
 		border-radius: 7px;
 		background: transparent;
 		color: hsl(var(--at-fg-secondary));
 		font: inherit;
-		font-size: 13px;
+		font-size: 12px;
 		font-weight: 500;
 		cursor: pointer;
 	}
 
 	.mp-text-btn svg {
-		width: 15px;
-		height: 15px;
+		width: 14px;
+		height: 14px;
 		fill: none;
 		stroke: currentColor;
 		stroke-width: 1.8;
@@ -1072,6 +1079,11 @@
 
 		.mp-text-btn {
 			height: 44px;
+			font-size: 14px;
+		}
+
+		.mp-section-head {
+			margin-block: -12px -6px;
 		}
 
 		.mp-field {
@@ -1085,7 +1097,7 @@
 	}
 
 	/* Sheet: stacked under the video on narrow screens. Collapsed it is just the
-	   summary toggle; expanded it scrolls between a pinned toggle and footer. */
+	   summary toggle; expanded it scrolls under a pinned toggle. */
 	.marks-panel.sheet {
 		flex: 0 0 auto;
 		width: 100%;

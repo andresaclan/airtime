@@ -505,7 +505,7 @@ body {
 	z-index: 30;
 	bottom: max(14px, env(safe-area-inset-bottom));
 	left: 50%;
-	width: min(780px, calc(100% - 28px));
+	width: min(960px, calc(100% - 28px));
 	transform: translateX(-50%);
 	border: 1px solid hsl(var(--at-fg) / 0.09);
 	border-radius: 14px;

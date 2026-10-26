@@ -184,12 +184,12 @@
 						{:else if protection === 'unprotected'}
 							<p class="status-line warn">
 								<span class="status-dot"></span>
-								<span
+								<span class="status-text"
 									>{protectDeclined
 										? 'The browser declined to protect these; it may still clear them if space runs low.'
 										: 'The browser may clear these if space runs low.'}</span
 								>
-								{#if !protectDeclined}<button class="link-btn" onclick={handleProtect}
+								{#if !protectDeclined}<button class="status-action" onclick={handleProtect}
 										>Protect</button
 									>{/if}
 							</p>
@@ -209,8 +209,7 @@
 											? `Last backup ${formatDate(backup.lastBackupAt)}`
 											: 'Never backed up'} · {backup.notBackedUp} session{backup.notBackedUp === 1
 											? ''
-											: 's'} only in this browser. Clearing browser data deletes them; Export all keeps
-										a copy.
+											: 's'} only in this browser. Export all to keep a copy.
 									{/if}
 								</span>
 							</p>
@@ -252,7 +251,7 @@
 								<div class="session-info">
 									<span class="session-name">
 										<span class="session-title">{session.title}</span>
-										{#if session.id === currentSessionId}<span class="session-current">Open</span
+										{#if session.id === currentSessionId}<span class="session-current">Current</span
 											>{/if}
 									</span>
 									<span class="session-meta">
@@ -284,7 +283,7 @@
 			</div>
 
 			<div class="dialog-footer">
-				<span class="footer-note">Export to back up, or to hand the data to an agent.</span>
+				<span class="footer-note">Exports are JSON files you can import in any browser.</span>
 				<button class="text-btn" onclick={() => importInput?.click()}>Import…</button>
 				<button class="primary-btn" onclick={handleExportAll} disabled={sessions.length === 0}>
 					Export all
@@ -422,10 +421,35 @@
 	.status-line {
 		display: flex;
 		align-items: baseline;
+		min-height: 24px;
 		gap: 9px;
 		color: hsl(var(--at-fg-secondary));
 		font-size: 12px;
 		line-height: 1.5;
+	}
+
+	.status-text {
+		flex: 1;
+	}
+
+	.status-action {
+		flex: 0 0 auto;
+		align-self: center;
+		height: 24px;
+		padding: 0 10px;
+		border: 1px solid hsl(var(--at-border-hover));
+		border-radius: 6px;
+		background: hsl(var(--at-surface));
+		color: hsl(var(--at-fg));
+		font: inherit;
+		font-size: 12px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.status-action:hover {
+		border-color: hsl(var(--at-fg) / 0.3);
+		background: hsl(var(--at-surface-hover));
 	}
 
 	.status-dot {

@@ -8,7 +8,7 @@ export const KEYBIND_GROUPS: KeybindGroup[] = [
 		binds: [
 			{ keys: 'Space / K', action: 'Play / pause' },
 			{ keys: ', / .', action: 'Step back / forward one frame' },
-			{ keys: 'Shift + ← / →', action: 'Step back / forward one frame' },
+			{ keys: 'Shift + ← / →', action: 'Step one frame (arrow keys)' },
 			{ keys: '↑ / ↓', action: 'Volume up / down' },
 			{ keys: 'R', action: 'Playback speed 1× / ½× / ¼×' },
 			{ keys: 'M', action: 'Mute / unmute' }

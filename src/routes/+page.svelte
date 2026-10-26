@@ -746,7 +746,7 @@
 			<span class="header-divider" aria-hidden="true"></span>
 			<button
 				onclick={openFilePicker}
-				class="btn {videoSrc ? '' : 'btn-secondary'}"
+				class="btn"
 				aria-label={videoSrc ? 'Replace video' : 'Open video'}
 				title={videoSrc ? 'Change video' : 'Open video'}
 			>
