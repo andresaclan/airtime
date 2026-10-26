@@ -256,9 +256,7 @@
 			</button>
 		</h2>
 	{:else}
-		<header class="mp-header">
-			<h2>Analysis</h2>
-		</header>
+		<h2 class="sr-only">Analysis</h2>
 	{/if}
 
 	{#if showDetails}
@@ -544,22 +542,6 @@
 		overscroll-behavior: contain;
 		scrollbar-width: thin;
 		scrollbar-color: hsl(var(--at-border-hover)) transparent;
-	}
-
-	.mp-header {
-		display: flex;
-		flex: 0 0 auto;
-		align-items: center;
-		justify-content: space-between;
-		height: 48px;
-		padding: 0 16px;
-		border-bottom: 1px solid hsl(var(--at-border));
-	}
-
-	.mp-header h2 {
-		margin: 0;
-		font-size: 13px;
-		font-weight: 600;
 	}
 
 	/* Headline numbers */
@@ -921,15 +903,15 @@
 	kbd {
 		display: inline-grid;
 		place-items: center;
-		min-width: 18px;
-		height: 18px;
-		padding: 0 4px;
+		min-width: 20px;
+		height: 20px;
+		padding: 0 5px;
 		border: 1px solid hsl(var(--at-border-hover));
 		border-radius: 4px;
 		background: hsl(var(--at-surface));
 		color: hsl(var(--at-fg));
 		font:
-			600 10px/1 var(--at-font-mono),
+			600 11px/1 var(--at-font-mono),
 			monospace;
 		vertical-align: 1px;
 	}
@@ -1000,8 +982,7 @@
 	}
 
 	.mp-mark.active {
-		background: hsl(var(--at-fg) / 0.05);
-		box-shadow: inset 2px 0 0 var(--mark-color);
+		background: color-mix(in srgb, var(--mark-color) 10%, transparent);
 	}
 
 	.mp-mark.active .mp-mark-type {
@@ -1043,7 +1024,8 @@
 
 	.mp-mark-time {
 		color: hsl(var(--at-fg-muted));
-		font-size: 12px;
+		font-family: var(--at-font-mono);
+		font-size: 11.5px;
 		font-variant-numeric: tabular-nums;
 	}
 
@@ -1286,6 +1268,15 @@
 		margin-top: 0;
 	}
 
+	.sheet .mp-section-head {
+		position: sticky;
+		top: -14px;
+		z-index: 1;
+		margin: -14px -16px 0;
+		padding: 10px 16px 8px;
+		background: hsl(var(--at-bg-elevated));
+	}
+
 	.mp-sheet-heading {
 		margin: 0;
 		font: inherit;
@@ -1308,7 +1299,7 @@
 		position: relative;
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr)) 44px;
-		align-items: last baseline;
+		row-gap: 2px;
 		gap: 8px;
 		width: 100%;
 		min-height: 64px;
@@ -1331,6 +1322,7 @@
 
 	.mp-peek-hint {
 		grid-column: 1 / 4;
+		grid-row: 1 / 3;
 	}
 
 	.mp-peek-hint {
@@ -1340,6 +1332,7 @@
 
 	.mp-sheet-chevron {
 		grid-column: 4;
+		grid-row: 1 / 3;
 		align-self: center;
 		justify-self: center;
 		width: 18px;
@@ -1352,11 +1345,19 @@
 		transform: rotate(180deg);
 	}
 
+	/* Labels share the first row and values the second, so they line up across stats. */
 	.mp-peek-stat {
-		display: flex;
-		flex-direction: column;
-		gap: 1px;
-		min-width: 0;
+		display: contents;
+	}
+
+	.mp-peek-stat .mp-peek-label {
+		grid-row: 1;
+		align-self: end;
+	}
+
+	.mp-peek-stat .mp-peek-value {
+		grid-row: 2;
+		align-self: last baseline;
 	}
 
 	.mp-peek-label {

@@ -245,7 +245,7 @@
 							<p class="status-line ok">
 								<span>Protected: the browser won't clear these to free space.</span>
 							</p>
-						{:else if protection === 'unprotected'}
+						{:else if protection === 'unprotected' && (protectDeclined || sessions.length === 0)}
 							<p class="status-line warn">
 								<span class="status-text"
 									>{protectDeclined
@@ -270,7 +270,11 @@
 											? `Last backup ${formatDate(backup.lastBackupAt)}`
 											: 'Never backed up'} · {backup.notBackedUp} session{backup.notBackedUp === 1
 											? ''
-											: 's'} only in this browser. Export all to keep a copy.
+											: 's'} only in this browser. Export all to keep a copy{#if protection === 'unprotected' && !protectDeclined},
+											or
+											<button class="link-btn" onclick={handleProtect}
+												>ask the browser to keep them</button
+											>{/if}.
 									{/if}
 								</span>
 							</p>
@@ -421,8 +425,8 @@
 		column-gap: 10px;
 		row-gap: 4px;
 		padding: 10px 12px;
+		border: 1px solid hsl(var(--at-border));
 		border-radius: 10px;
-		background: hsl(var(--at-fg) / 0.04);
 	}
 
 	.sessions-status > :not(.status-icon) {
@@ -458,11 +462,7 @@
 	}
 
 	.status-line .link-btn {
-		color: hsl(var(--at-fg));
-		text-decoration: underline;
-		text-decoration-color: hsl(var(--at-fg) / 0.35);
-		text-underline-offset: 3px;
-		margin-left: 4px;
+		margin-left: 0;
 	}
 
 	.link-btn {

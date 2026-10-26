@@ -162,7 +162,8 @@ body {
 	margin-right: -4px;
 	padding: 2px 5px;
 	border-radius: 4px;
-	background: hsl(var(--at-on-accent) / 0.18);
+	background: hsl(var(--at-on-accent) / 0.26);
+	color: hsl(var(--at-on-accent));
 	font:
 		600 10px/1 var(--at-font-mono),
 		monospace;
@@ -463,8 +464,8 @@ body {
 }
 
 /* Desktop: the frame is the shape of the video plus its docked controls, and the
-   analysis panel matches its height (growing past it when the jumps need more
-   room). The two are centred together in the stage. Sizes come from the stage's
+   analysis panel shares its top and bottom (scrolling inside when the jumps need
+   more room). The two sit just under the header; spare height falls below. Sizes come from the stage's
    own size (container units), the panel width and the video's aspect ratio. */
 @media (min-width: 901px) {
 	.viewer-stage.has-video {
@@ -504,10 +505,12 @@ body {
 		height: var(--bar-h);
 	}
 
+	.viewer-stage.has-video {
+		align-items: flex-start;
+	}
+
 	.viewer-stage.has-video > .marks-panel {
-		height: auto;
-		min-height: var(--frame-h);
-		max-height: 100%;
+		height: var(--frame-h);
 	}
 }
 
@@ -771,9 +774,14 @@ body {
 	}
 }
 
+/* Short of room, the duration gives way; the frame number is what stepping needs. */
 @container control-bar (max-width: 1060px) {
-	.time-frame {
+	.time-separator,
+	.time-duration {
 		display: none;
+	}
+	.time-frame {
+		margin-left: 2px;
 	}
 }
 
