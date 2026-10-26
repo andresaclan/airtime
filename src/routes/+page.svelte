@@ -745,18 +745,34 @@
 				>
 			</button>
 			<button
-				class="btn header-wide"
+				class="btn btn-icon header-wide header-sessions"
 				onclick={() => (sessionsOpen = true)}
+				aria-label="Sessions"
 				title={backup?.due ? backupReminder(backup) : 'Saved sessions, export and import'}
 			>
-				Sessions{#if backup?.due}<span class="header-backup-dot" aria-label="Backup recommended"
-					></span>{/if}
+				<svg
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.7"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+					><rect x="4" y="4" width="16" height="6" rx="1.8" /><rect
+						x="4"
+						y="14"
+						width="16"
+						height="6"
+						rx="1.8"
+					/><path d="M8 7h.01M8 17h.01" /></svg
+				>{#if backup?.due}<span class="header-more-dot" aria-label="Backup recommended"></span>{/if}
 			</button>
 			{#if videoSrc}
 				<button
-					class="btn header-analysis"
+					class="btn btn-icon header-analysis"
 					onclick={() => (panelOpen = !panelOpen)}
 					aria-pressed={panelOpen}
+					aria-label="Analysis panel"
 					title="Toggle analysis panel (A)"
 				>
 					<svg
@@ -767,13 +783,12 @@
 						aria-hidden="true"
 						><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M15 4v16" /></svg
 					>
-					Analysis
 				</button>
 			{/if}
 			{#if videoSrc}<span class="header-divider" aria-hidden="true"></span>{/if}
 			<button
 				onclick={openFilePicker}
-				class="btn header-wide"
+				class="btn btn-icon header-wide"
 				class:header-open-empty={!videoSrc}
 				aria-label={videoSrc ? 'Replace video' : 'Open video'}
 				title={videoSrc ? 'Change video' : 'Open video'}
@@ -790,7 +805,6 @@
 						d="M3.5 7.5v9a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2V9.5a2 2 0 0 0-2-2h-6l-2-2h-5a2 2 0 0 0-2 2z"
 					/></svg
 				>
-				<span class="header-open-label">{videoSrc ? 'Change video' : 'Open video'}</span>
 			</button>
 			{#if videoSrc}
 				<button
@@ -868,62 +882,60 @@
 	>
 		{#if !videoSrc}
 			<div class="empty">
-				<h1 class="empty-title at-reveal">Measure jump height from video</h1>
-				<p class="empty-lede at-reveal" style="--delay: 40ms">
-					Step to the frames where your feet leave and touch the ground. Airtime turns the flight
-					time into jump height.
-				</p>
-				<button
-					onclick={openFilePicker}
-					class="dropzone at-reveal"
-					class:dragging={isDragging}
-					style="--delay: 80ms"
-				>
-					<span class="dropzone-icon" aria-hidden="true">
-						<svg
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="1.6"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5" /><path
-								d="M4 14.5v3A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5v-3"
-							/></svg
-						>
-					</span>
-					<span class="dropzone-title">{isDragging ? 'Drop to open' : 'Open a jump video'}</span>
-					<span class="dropzone-sub"
-						><span class="pointer-only">Drag a clip here, or browse your files</span><span
-							class="touch-only">Choose a clip from your library or files</span
-						></span
-					>
-					<span class="btn btn-primary">Choose video</span>
-				</button>
-				{#if isAppEmpty}
-					<p class="empty-import at-reveal" style="--delay: 100ms">
-						Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
-							>Import backup</button
-						>
-					</p>
-				{/if}
-				<ol class="empty-steps at-reveal" style="--delay: 120ms">
-					<li>
-						<strong><span class="empty-step-num">1</span>Find takeoff</strong>
-						<span class="empty-step-text"
-							>Step to the first frame where the feet leave the ground.</span
-						>
-					</li>
-					<li>
-						<strong><span class="empty-step-num">2</span>Find landing</strong>
-						<span class="empty-step-text">Step to the first frame they touch down again.</span>
-					</li>
-					<li>
-						<strong><span class="empty-step-num">3</span>Read the jump</strong>
-						<span class="empty-step-text">Flight time, contact time and height, per jump.</span>
-					</li>
-				</ol>
-				<div class="empty-footer at-reveal" style="--delay: 160ms">
+				<div class="empty-card at-reveal">
+					<div class="empty-head">
+						<h1 class="empty-title">Measure jump height from video</h1>
+						<p class="empty-lede">
+							Step to the frames where your feet leave and touch the ground. Airtime turns the
+							flight time into jump height.
+						</p>
+					</div>
+					<button onclick={openFilePicker} class="dropzone" class:dragging={isDragging}>
+						<span class="dropzone-icon" aria-hidden="true">
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.6"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5" /><path
+									d="M4 14.5v3A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5v-3"
+								/></svg
+							>
+						</span>
+						<span class="dropzone-text">
+							<span class="dropzone-title">{isDragging ? 'Drop to open' : 'Open a jump video'}</span
+							>
+							<span class="dropzone-sub"
+								><span class="pointer-only">Drag a clip here, or browse your files</span><span
+									class="touch-only">Choose a clip from your library or files</span
+								></span
+							>
+						</span>
+						<span class="btn btn-primary">Choose video</span>
+					</button>
+					<ol class="empty-steps">
+						<li>
+							<span class="empty-step-num">1</span>
+							<strong>Find takeoff</strong>
+							<span class="empty-step-text"
+								>Step to the first frame where the feet leave the ground.</span
+							>
+						</li>
+						<li>
+							<span class="empty-step-num">2</span>
+							<strong>Find landing</strong>
+							<span class="empty-step-text">Step to the first frame they touch down again.</span>
+						</li>
+						<li>
+							<span class="empty-step-num">3</span>
+							<strong>Read the jump</strong>
+							<span class="empty-step-text">Flight time, contact time and height, per jump.</span>
+						</li>
+					</ol>
+				</div>
+				<div class="empty-footer at-reveal" style="--delay: 60ms">
 					<span>
 						<svg
 							viewBox="0 0 24 24"
@@ -939,6 +951,13 @@
 						>
 						Videos stay on your device
 					</span>
+					{#if isAppEmpty}
+						<span class="empty-import">
+							Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
+								>Import backup</button
+							>
+						</span>
+					{/if}
 				</div>
 				<p class="empty-import-message" class:error={importMessage?.error} role="status">
 					{importMessage?.text ?? ''}

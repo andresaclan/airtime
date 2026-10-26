@@ -256,7 +256,12 @@
 			</button>
 		</h2>
 	{:else}
-		<h2 class="sr-only">Analysis</h2>
+		<div class="mp-head">
+			<h2 class="mp-head-title">Analysis</h2>
+			{#if completedJumps > 0}<span class="mp-head-meta"
+					>{completedJumps} jump{completedJumps === 1 ? '' : 's'}</span
+				>{/if}
+		</div>
 	{/if}
 
 	{#if showDetails}
@@ -526,6 +531,29 @@
 		border-radius: var(--at-radius-lg);
 		background: hsl(var(--at-bg-elevated));
 		color: hsl(var(--at-fg));
+		font-size: 13px;
+	}
+
+	/* The panel's own header, in the same 52px band as the app header. */
+	.mp-head {
+		display: flex;
+		flex: 0 0 auto;
+		align-items: center;
+		gap: 8px;
+		height: 52px;
+		padding: 0 16px;
+		border-bottom: 1px solid hsl(var(--at-border));
+	}
+
+	.mp-head-title {
+		margin: 0;
+		color: hsl(var(--at-fg));
+		font-size: 14px;
+		font-weight: 500;
+	}
+
+	.mp-head-meta {
+		color: hsl(var(--at-fg-muted));
 		font-size: 13px;
 	}
 
