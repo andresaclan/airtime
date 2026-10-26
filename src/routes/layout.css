@@ -11,34 +11,42 @@
 	color-scheme: dark;
 
 	/* Neutral surfaces; color is reserved for marked movement events */
-	--at-bg: 220 15% 6%;
-	--at-bg-elevated: 220 12% 10%;
-	--at-surface: 220 12% 12%;
-	--at-surface-hover: 220 12% 16%;
+	--at-bg: 222 14% 5%;
+	--at-bg-elevated: 222 12% 8%;
+	--at-surface: 222 11% 11.5%;
+	--at-surface-hover: 222 10% 15%;
+	--at-stage: 222 18% 3%;
 
 	/* Text Colors */
-	--at-fg: 220 10% 98%;
-	--at-fg-secondary: 220 10% 70%;
-	--at-fg-muted: 220 8% 60%;
+	--at-fg: 220 14% 96%;
+	--at-fg-secondary: 220 10% 76%;
+	--at-fg-muted: 220 9% 69%;
 
 	/* Borders */
-	--at-border: 220 10% 18%;
-	--at-border-hover: 220 10% 28%;
+	--at-border: 222 9% 15%;
+	--at-border-hover: 222 8% 23%;
 
 	/* Accent: focus rings and primary actions only */
-	--at-accent: 217 91% 60%;
-	--at-accent-hover: 217 91% 70%;
+	--at-accent: 221 83% 56%;
+	--at-accent-hover: 221 90% 63%;
+	--at-on-accent: 0 0% 100%;
 
 	/* Semantic Colors */
 	--at-success: 160 84% 45%;
 	--at-warning: 38 92% 55%;
-	--at-error: 0 72% 55%;
+	--at-error: 0 72% 60%;
 
 	/* Movement events */
 	--at-takeoff: 168 76% 46%;
 	--at-landing: 32 95% 58%;
 
-	--at-shadow: 220 50% 3%;
+	--at-shadow: 222 50% 2%;
+
+	--at-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+	--at-radius-sm: 6px;
+	--at-radius: 8px;
+	--at-radius-lg: 12px;
+	--at-ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
 /* ========================================
@@ -57,24 +65,119 @@ body {
 		system-ui,
 		-apple-system,
 		sans-serif;
+	font-feature-settings: 'cv11', 'ss01';
 	text-rendering: optimizeLegibility;
 	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 	background: hsl(var(--at-bg));
 	color: hsl(var(--at-fg));
 }
 
 ::selection {
-	background: hsl(var(--at-accent) / 0.3);
+	background: hsl(var(--at-accent) / 0.35);
 }
 
 :focus-visible {
 	outline: 2px solid hsl(var(--at-accent));
 	outline-offset: 2px;
-	border-radius: 8px;
+	border-radius: var(--at-radius);
 }
 
 /* ========================================
-   Airtime player shell
+   Buttons
+   ======================================== */
+
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 7px;
+	height: 32px;
+	padding: 0 12px;
+	border: 1px solid transparent;
+	border-radius: var(--at-radius);
+	background: transparent;
+	color: hsl(var(--at-fg-secondary));
+	font: inherit;
+	font-size: 13px;
+	font-weight: 500;
+	line-height: 1;
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		background 140ms var(--at-ease),
+		border-color 140ms var(--at-ease),
+		color 140ms var(--at-ease);
+}
+
+.btn svg {
+	width: 16px;
+	height: 16px;
+	flex: 0 0 auto;
+}
+
+.btn:hover:not(:disabled) {
+	background: hsl(var(--at-surface-hover));
+	color: hsl(var(--at-fg));
+}
+
+.btn:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.btn-secondary {
+	border-color: hsl(var(--at-border-hover));
+	background: hsl(var(--at-surface));
+	color: hsl(var(--at-fg));
+}
+
+.btn-secondary:hover:not(:disabled) {
+	border-color: hsl(var(--at-fg) / 0.28);
+}
+
+.btn-primary {
+	background: hsl(var(--at-accent));
+	color: hsl(var(--at-on-accent));
+	font-weight: 600;
+}
+
+.btn-primary:hover:not(:disabled) {
+	background: hsl(var(--at-accent-hover));
+	color: hsl(var(--at-on-accent));
+}
+
+.btn-icon {
+	width: 32px;
+	padding: 0;
+}
+
+.btn.active,
+.btn[aria-pressed='true'] {
+	background: hsl(var(--at-surface-hover));
+	color: hsl(var(--at-fg));
+}
+
+.btn-kbd {
+	margin-right: -4px;
+	padding: 2px 5px;
+	border-radius: 4px;
+	background: hsl(var(--at-on-accent) / 0.26);
+	color: hsl(var(--at-on-accent));
+	font:
+		600 10px/1 var(--at-font-mono),
+		monospace;
+}
+
+.btn-dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: hsl(var(--at-warning));
+}
+
+/* ========================================
+   App header
    ======================================== */
 
 .app-header {
@@ -83,371 +186,217 @@ body {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 20px;
-	min-height: 46px;
-	padding: 0 28px;
-	border-bottom: 1px solid hsl(var(--at-border) / 0.72);
-	background: hsl(var(--at-bg-elevated));
+	gap: 16px;
+	height: 52px;
+	padding: 0 12px 0 18px;
+	border-bottom: 1px solid hsl(var(--at-border));
+	background: hsl(var(--at-bg));
+}
+
+.header-start {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	min-width: 0;
 }
 
 .brand-mark {
 	display: inline-flex;
+	flex: 0 0 auto;
 	align-items: center;
-	gap: 10px;
+	gap: 9px;
 	color: hsl(var(--at-fg));
-	font-size: 14px;
-	font-weight: 700;
+	font-size: 15px;
+	font-weight: 650;
 	letter-spacing: -0.02em;
 	text-decoration: none;
+}
+
+.brand-logo {
+	width: 24px;
+	height: 24px;
 }
 
 .header-file {
 	display: flex;
 	align-items: center;
-	gap: 9px;
+	gap: 8px;
 	min-width: 0;
-	max-width: min(42vw, 480px);
+	padding-left: 14px;
+	border-left: 1px solid hsl(var(--at-border-hover));
 	color: hsl(var(--at-fg-secondary));
-	font-size: 12px;
+	font-size: 13px;
 }
 
-.header-file-dot,
-.viewer-badge-dot {
-	width: 7px;
-	height: 7px;
+.header-file-name {
+	overflow: hidden;
+	max-width: 36vw;
+	color: hsl(var(--at-fg));
+	font-weight: 500;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.header-status {
+	display: inline-flex;
 	flex: 0 0 auto;
+	align-items: center;
+	gap: 6px;
+	height: 22px;
+	padding: 0 8px;
+	border-radius: 999px;
+	background: hsl(var(--at-fg) / 0.06);
+	color: hsl(var(--at-fg-muted));
+	font-size: 12px;
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.header-status-detail {
+	color: hsl(var(--at-fg-muted));
+	font-weight: 400;
+}
+
+.header-status::before {
+	content: '';
+	width: 6px;
+	height: 6px;
 	border-radius: 50%;
 	background: hsl(var(--at-success));
 }
 
-.viewer-badge-dot.uncertain {
-	background: hsl(var(--at-warning));
-}
-
-.viewer-badge-rate {
-	padding-left: 8px;
-	border-left: 1px solid hsl(var(--at-border));
+/* Neutral, so it can't be mistaken for a landing mark's orange. */
+.header-status.unsaved {
+	background: hsl(var(--at-fg) / 0.08);
 	color: hsl(var(--at-fg));
 }
 
-.header-backup-dot {
-	width: 7px;
-	height: 7px;
-	margin-left: -2px;
-	border-radius: 50%;
-	background: hsl(var(--at-warning));
-}
-
-.header-open.header-icon {
-	min-width: 32px;
-	padding-inline: 0;
-	font-weight: 600;
-}
-
-.empty-state-hint {
-	margin-top: 14px;
-	color: hsl(var(--at-fg-muted));
-	font-size: 12px;
-}
-
-.empty-state-hint kbd {
-	padding: 1px 5px;
-	border-radius: 4px;
-	background: hsl(var(--at-fg) / 0.1);
-	font-family: 'JetBrains Mono', ui-monospace, monospace;
-}
-
-.header-open {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: 8px;
-	min-height: 30px;
-	padding: 0 11px;
-	border: 1px solid hsl(var(--at-border-hover) / 0.8);
-	border-radius: 9px;
-	background: hsl(var(--at-surface));
-	color: hsl(var(--at-fg));
-	font-size: 12px;
-	font-weight: 600;
-	cursor: pointer;
-	transition:
-		background 160ms ease,
-		border-color 160ms ease;
-}
-
-.header-open:hover {
-	border-color: hsl(var(--at-fg) / 0.35);
-	background: hsl(var(--at-surface-hover));
-}
-
-.viewer-stage {
-	padding: 0 clamp(12px, 2.2vw, 30px) clamp(12px, 2.2vw, 30px);
-}
-
-.viewer-frame {
-	position: relative;
-	width: 100%;
-	height: 100%;
-	max-width: 1680px;
-	overflow: hidden;
-	border: 1px solid hsl(var(--at-border) / 0.82);
-	border-radius: 14px;
-	background: #080a0d;
-}
-
-.viewer-badge {
-	position: absolute;
-	top: 14px;
-	right: 14px;
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	padding: 7px 10px;
-	border: 1px solid hsl(var(--at-border) / 0.85);
-	border-radius: 8px;
-	background: hsl(var(--at-bg) / 0.78);
-	color: hsl(var(--at-fg-secondary));
-	font-family: 'JetBrains Mono', ui-monospace, monospace;
-	font-size: 11px;
-	font-variant-numeric: tabular-nums;
-	backdrop-filter: blur(10px);
-	pointer-events: none;
-}
-
-/* ========================================
-   Control dock
-   ======================================== */
-
-.app-shell {
-	position: relative;
-	isolation: isolate;
-}
-
-/* The toolbar lays itself out from the bar's own width (see the control-bar
-   container query), so it can't collide whether the bar floats or is docked. */
-.control-bar {
-	container: control-bar / inline-size;
-	position: absolute;
-	z-index: 30;
-	bottom: max(14px, env(safe-area-inset-bottom));
-	left: 50%;
-	width: min(760px, calc(100% - 32px));
-	transform: translateX(-50%);
-	border: 1px solid hsl(var(--at-border-hover) / 0.4);
-	border-radius: 14px;
-	background: hsl(var(--at-bg-elevated) / 0.62);
-	box-shadow: 0 8px 24px hsl(var(--at-shadow) / 0.25);
-	backdrop-filter: blur(12px) saturate(120%);
-	transition:
-		background 180ms ease,
-		border-color 180ms ease;
-}
-
-.control-bar:hover,
-.control-bar:focus-within {
-	border-color: hsl(var(--at-border-hover) / 0.6);
-	background: hsl(var(--at-bg-elevated) / 0.78);
-}
-
-.control-bar-inner {
-	padding: 4px 14px 8px;
-}
-
-.control-toolbar {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-	align-items: center;
-	min-height: 38px;
-	gap: 12px;
-}
-
-.time-readout {
-	display: flex;
-	align-items: baseline;
-	gap: 5px;
-	min-width: 0;
-	font-family: 'JetBrains Mono', ui-monospace, monospace;
-	font-size: 10px;
-	font-variant-numeric: tabular-nums;
-	text-shadow: 0 1px 3px hsl(var(--at-shadow) / 0.95);
-	white-space: nowrap;
-}
-
-.time-current {
-	color: hsl(var(--at-fg));
-}
-.time-separator,
-.time-duration {
-	color: hsl(var(--at-fg-muted));
-}
-.control-toolbar > .timing-section {
-	justify-self: end;
-}
-
-.mark-actions {
-	justify-self: end;
-	display: flex;
-	align-items: center;
-	gap: 6px;
-}
-
-.mark-action {
-	--mark-color: hsl(var(--at-takeoff));
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	min-height: 28px;
-	padding: 0 6px 0 9px;
-	border: 1px solid color-mix(in srgb, var(--mark-color) 45%, transparent);
-	border-radius: 8px;
-	background: hsl(var(--at-bg) / 0.55);
-	color: hsl(var(--at-fg));
-	font: inherit;
-	font-size: 11px;
-	font-weight: 600;
-	white-space: nowrap;
-	cursor: pointer;
-	transition:
-		background 140ms ease,
-		border-color 140ms ease;
-}
-
-.mark-action-landing {
-	--mark-color: hsl(var(--at-landing));
-}
-
-.mark-action:hover,
-.mark-action.on-frame {
-	border-color: var(--mark-color);
-	background: color-mix(in srgb, var(--mark-color) 22%, hsl(var(--at-bg) / 0.6));
-}
-
-.mark-action-dot {
-	width: 7px;
-	height: 7px;
-	border-radius: 50%;
-	background: var(--mark-color);
-}
-
-.mark-action kbd {
-	padding: 1px 4px;
-	border-radius: 4px;
-	background: hsl(var(--at-fg) / 0.1);
-	color: hsl(var(--at-fg-secondary));
-	font:
-		600 9px 'JetBrains Mono',
-		ui-monospace,
-		monospace;
-}
-
-/* Narrow bar: time and speed on one row, then marking and stepping on a thumb row
-   with Takeoff and Landing either side of the frame steppers. One grid spans this
-   toolbar and the VideoControls buttons, which dissolve their groups at this width. */
-@container control-bar (max-width: 700px) {
-	.control-toolbar {
-		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-		grid-template-areas:
-			'time time rate'
-			'takeoff transport landing';
-		column-gap: 8px;
-		row-gap: 2px;
-	}
-	.time-readout {
-		grid-area: time;
-		font-size: 11px;
-	}
-	.control-toolbar .playback-controls {
-		grid-area: transport;
-	}
-	.control-toolbar .rate-btn {
-		grid-area: rate;
-		justify-self: end;
-	}
-	.mark-actions {
-		display: contents;
-	}
-	.mark-action {
-		justify-content: center;
-		min-width: 0;
-		min-height: 44px;
-		font-size: 13px;
-	}
-	.mark-action-takeoff {
-		grid-area: takeoff;
-	}
-	.mark-action-landing {
-		grid-area: landing;
-	}
-	.mark-action kbd {
-		display: none;
-	}
-}
-
-@container control-bar (max-width: 340px) {
-	.mark-action {
-		padding-inline: 4px;
-	}
-	.mark-action-dot {
-		display: none;
-	}
+.header-status.unsaved::before {
+	background: hsl(var(--at-accent-hover));
 }
 
 .header-actions {
 	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.header-open.active {
-	border-color: hsl(var(--at-fg) / 0.35);
-	background: hsl(var(--at-surface-hover));
-}
-
-.header-open:disabled {
-	opacity: 0.45;
-	cursor: default;
-}
-
-.header-open:disabled:hover {
-	border-color: hsl(var(--at-border-hover) / 0.8);
-	background: hsl(var(--at-surface));
-}
-
-.header-file-dot.unsaved {
-	background: hsl(var(--at-warning));
-}
-
-.header-status {
 	flex: 0 0 auto;
-	color: hsl(var(--at-fg-muted));
-	font-size: 11px;
-	white-space: nowrap;
+	align-items: center;
+	gap: 4px;
 }
 
-.header-status.unsaved {
-	color: hsl(var(--at-warning));
+.header-divider {
+	width: 1px;
+	height: 20px;
+	margin: 0 6px;
+	background: hsl(var(--at-border-hover));
 }
 
-/* Shown in the header only on phones, where the file name and status are hidden. */
-.header-dirty-dot {
+.header-more {
+	position: relative;
 	display: none;
+}
+
+/* On the empty screen the drop zone is the one way in, so the header doesn't repeat it. */
+@media (min-width: 641px) {
+	.header-open-empty {
+		display: none;
+	}
+}
+
+.header-more-dot {
+	position: absolute;
+	top: 6px;
+	right: 6px;
 	width: 7px;
 	height: 7px;
-	margin-left: -2px;
 	border-radius: 50%;
 	background: hsl(var(--at-warning));
 }
 
-/* Announces save and restore notices. Visually hidden except on phones, where it
-   stands in for the header status as a toast. */
+.header-menu {
+	position: absolute;
+	top: calc(100% + 6px);
+	right: 10px;
+	z-index: 50;
+	display: flex;
+	flex-direction: column;
+	min-width: 220px;
+	padding: 6px;
+	border: 1px solid hsl(var(--at-border-hover));
+	border-radius: 12px;
+	background: hsl(var(--at-surface));
+	box-shadow: 0 18px 40px hsl(var(--at-shadow) / 0.6);
+	animation: reveal 160ms var(--at-ease);
+}
+
+.header-menu button {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	min-height: 44px;
+	padding: 0 12px;
+	border: none;
+	border-radius: 8px;
+	background: transparent;
+	color: hsl(var(--at-fg));
+	font: inherit;
+	font-size: 15px;
+	text-align: left;
+	cursor: pointer;
+}
+
+.header-menu button:hover,
+.header-menu button:focus-visible {
+	background: hsl(var(--at-fg) / 0.08);
+}
+
+.header-backup-dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: hsl(var(--at-warning));
+}
+
+/* Save and restore notices, shown as a toast under the header. */
 .app-notice {
 	position: absolute;
-	width: 1px;
-	height: 1px;
-	overflow: hidden;
-	clip-path: inset(50%);
-	white-space: nowrap;
+	top: calc(100% + 12px);
+	left: 50%;
+	z-index: 40;
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	width: max-content;
+	max-width: min(520px, calc(100vw - 32px));
+	padding: 9px 14px;
+	border: 1px solid hsl(var(--at-border-hover));
+	border-radius: 10px;
+	background: hsl(var(--at-surface) / 0.96);
+	box-shadow:
+		0 12px 32px hsl(var(--at-shadow) / 0.55),
+		0 2px 6px hsl(var(--at-shadow) / 0.4);
+	color: hsl(var(--at-fg));
+	font-size: 13px;
+	line-height: 1.4;
+	opacity: 0;
+	transform: translate(-50%, -6px);
+	transition:
+		opacity 180ms var(--at-ease),
+		transform 180ms var(--at-ease);
+	pointer-events: none;
+	backdrop-filter: blur(12px);
+}
+
+.app-notice.visible {
+	opacity: 1;
+	transform: translate(-50%, 0);
+}
+
+.app-notice::before {
+	content: '';
+	flex: 0 0 auto;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: hsl(var(--at-accent));
 }
 
 /* Copy that differs between keyboard-and-mouse and touch-only devices. */
@@ -460,9 +409,9 @@ body {
 		display: inline;
 	}
 	.pointer-only,
-	.header-open.header-icon,
-	.empty-state-hint,
-	.mark-action kbd {
+	.header-shortcuts,
+	.mark-action kbd,
+	.btn-kbd {
 		display: none;
 	}
 }
@@ -473,12 +422,12 @@ body {
 	align-items: center;
 	justify-content: center;
 	gap: 10px;
-	min-height: 34px;
+	min-height: 38px;
 	padding: 3px 12px 3px 28px;
-	border-bottom: 1px solid hsl(var(--at-border) / 0.72);
-	background: hsl(var(--at-warning) / 0.08);
+	border-bottom: 1px solid hsl(var(--at-warning) / 0.18);
+	background: hsl(var(--at-warning) / 0.07);
 	color: hsl(var(--at-fg-secondary));
-	font-size: 12px;
+	font-size: 13px;
 }
 
 .backup-reminder-dot {
@@ -489,56 +438,375 @@ body {
 	background: hsl(var(--at-warning));
 }
 
-.backup-reminder-action {
-	min-height: 26px;
+.backup-reminder .btn {
+	height: 26px;
 	padding: 0 10px;
-	border: none;
-	border-radius: 7px;
-	background: hsl(var(--at-accent));
-	color: hsl(var(--at-bg));
-	font: inherit;
-	font-weight: 600;
-	cursor: pointer;
+	font-size: 12px;
 }
 
-.backup-reminder-action:hover {
-	background: hsl(var(--at-accent-hover));
+/* ========================================
+   Viewing stage
+   ======================================== */
+
+.viewer-stage {
+	gap: 12px;
+	padding: 12px;
 }
 
-.backup-reminder-dismiss {
+.viewer-frame {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	border: 1px solid hsl(var(--at-border));
+	border-radius: var(--at-radius-lg);
+	background: hsl(var(--at-stage));
+}
+
+/* Desktop: the frame is the shape of the video plus its docked controls, and the
+   analysis panel shares its top and bottom (scrolling inside when the jumps need
+   more room). The two sit just under the header; spare height falls below. Sizes come from the stage's
+   own size (container units), the panel width and the video's aspect ratio. */
+@media (min-width: 901px) {
+	.viewer-stage.has-video {
+		--bar-h: 92px;
+		--aspect: var(--video-aspect, 1.7778);
+		--panel-space: 0px;
+		--col-w: calc(100cqw - var(--panel-space));
+		--frame-h: min(100cqh, calc(var(--col-w) / var(--aspect) + var(--bar-h)));
+		container-type: size;
+	}
+
+	.viewer-stage.has-video.panel-open {
+		--panel-space: 348px;
+	}
+
+	.viewer-column {
+		display: flex;
+		flex: 1 1 0;
+		min-width: 0;
+		height: var(--frame-h);
+	}
+
+	.viewer-column > .viewer-frame {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.viewer-column > .viewer-frame > :first-child {
+		flex: 1 1 0;
+		min-height: 0;
+	}
+
+	.viewer-column .control-bar {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		height: var(--bar-h);
+	}
+
+	.viewer-stage.has-video {
+		align-items: flex-start;
+	}
+
+	.viewer-stage.has-video > .marks-panel {
+		height: var(--frame-h);
+	}
+}
+
+.viewer-badge {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	height: 28px;
+	padding: 0 10px;
+	border: 1px solid hsl(var(--at-fg) / 0.08);
+	border-radius: 999px;
+	background: hsl(var(--at-stage) / 0.72);
+	color: hsl(var(--at-fg-secondary));
+	font-family: var(--at-font-mono);
+	font-size: 11px;
+	font-weight: 500;
+	font-variant-numeric: tabular-nums;
+	backdrop-filter: blur(10px);
+	pointer-events: none;
+}
+
+.viewer-badge-dot {
+	width: 6px;
+	height: 6px;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	background: hsl(var(--at-success));
+	box-shadow: 0 0 0 3px hsl(var(--at-success) / 0.18);
+}
+
+.viewer-badge-dot.uncertain {
+	background: hsl(var(--at-warning));
+	box-shadow: 0 0 0 3px hsl(var(--at-warning) / 0.18);
+}
+
+.viewer-badge-rate {
+	padding-left: 8px;
+	border-left: 1px solid hsl(var(--at-fg) / 0.14);
+	color: hsl(var(--at-fg));
+}
+
+.viewer-overlay {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 24px;
+	background: hsl(var(--at-stage) / 0.88);
+	text-align: center;
+	backdrop-filter: blur(6px);
+}
+
+.viewer-overlay-icon {
 	display: grid;
 	place-items: center;
-	width: 28px;
-	height: 28px;
-	border: none;
-	border-radius: 7px;
-	background: transparent;
-	color: hsl(var(--at-fg-muted));
-	cursor: pointer;
+	width: 48px;
+	height: 48px;
+	margin-bottom: 8px;
+	border: 1px solid hsl(var(--at-border-hover));
+	border-radius: 14px;
+	background: hsl(var(--at-surface));
+	color: hsl(var(--at-fg-secondary));
 }
 
-.backup-reminder-dismiss:hover {
-	background: hsl(var(--at-surface-hover));
+.viewer-overlay-icon svg {
+	width: 22px;
+	height: 22px;
+}
+
+.viewer-overlay-title {
 	color: hsl(var(--at-fg));
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.viewer-overlay-text {
+	max-width: 320px;
+	color: hsl(var(--at-fg-muted));
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.viewer-overlay.drop {
+	border: 2px dashed hsl(var(--at-accent) / 0.7);
+	border-radius: var(--at-radius-lg);
+}
+
+/* ========================================
+   Control dock
+   ======================================== */
+
+.app-shell {
+	position: relative;
+	isolation: isolate;
+}
+
+/* The toolbar lays itself out from the bar's own width (see the control-bar
+   container query). The bar is docked under the picture, so it never covers the
+   feet at takeoff and landing. */
+.control-bar {
+	container: control-bar / inline-size;
+	position: relative;
+	z-index: 30;
+	flex: 0 0 auto;
+	border-top: 1px solid hsl(var(--at-border));
+	background: hsl(var(--at-bg-elevated));
+}
+
+.control-bar-inner {
+	padding: 2px 14px 10px;
+}
+
+.control-toolbar {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
+	grid-template-areas: 'time takeoff transport landing extras';
+	align-items: center;
+	min-height: 44px;
+	column-gap: 10px;
+}
+
+.control-toolbar .playback-controls {
+	grid-area: transport;
+}
+
+.control-toolbar .playback-extras {
+	grid-area: extras;
+	justify-self: end;
+}
+
+.time-readout {
+	grid-area: time;
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	min-width: 0;
+	font-family: var(--at-font-mono);
+	font-size: 12px;
+	font-weight: 500;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: -0.01em;
+	white-space: nowrap;
+}
+
+.time-current {
+	color: hsl(var(--at-fg));
+}
+.time-separator,
+.time-duration {
+	color: hsl(var(--at-fg-muted));
+}
+
+.time-frame {
+	margin-left: 6px;
+	padding-left: 8px;
+	border-left: 1px solid hsl(var(--at-border-hover));
+	color: hsl(var(--at-fg-muted));
+	font-family: inherit;
+	font-size: 11px;
+}
+
+.mark-actions {
+	display: contents;
+}
+
+.mark-action-takeoff {
+	grid-area: takeoff;
+	justify-self: end;
+}
+
+.mark-action-landing {
+	grid-area: landing;
+	justify-self: start;
+}
+
+.mark-action {
+	--mark-color: hsl(var(--at-takeoff));
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	height: 34px;
+	padding: 0 7px 0 11px;
+	border: 1px solid color-mix(in srgb, var(--mark-color) 38%, transparent);
+	border-radius: var(--at-radius);
+	background: color-mix(in srgb, var(--mark-color) 8%, transparent);
+	color: hsl(var(--at-fg));
+	font: inherit;
+	font-size: 13px;
+	font-weight: 600;
+	white-space: nowrap;
+	cursor: pointer;
+	transition:
+		background 140ms var(--at-ease),
+		border-color 140ms var(--at-ease);
+}
+
+.mark-action.mark-action-landing {
+	--mark-color: hsl(var(--at-landing));
+}
+
+.mark-action:hover,
+.mark-action.on-frame {
+	border-color: var(--mark-color);
+	background: color-mix(in srgb, var(--mark-color) 20%, transparent);
+}
+
+.mark-action:active {
+	transform: translateY(1px);
+}
+
+.mark-action-dot {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--mark-color);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--mark-color) 22%, transparent);
+}
+
+.mark-action kbd {
+	display: grid;
+	place-items: center;
+	min-width: 18px;
+	height: 18px;
+	padding: 0 4px;
+	border-radius: 4px;
+	background: hsl(var(--at-fg) / 0.09);
+	color: hsl(var(--at-fg-secondary));
+	font:
+		600 10px/1 var(--at-font-mono),
+		monospace;
+}
+
+/* Narrow bar: time and speed on one row, then marking and stepping on a thumb row
+   with Takeoff and Landing either side of the frame steppers. One grid spans this
+   toolbar and the VideoControls buttons, which dissolve their groups at this width. */
+@container control-bar (max-width: 700px) {
+	.control-toolbar {
+		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+		grid-template-areas:
+			'time time extras'
+			'takeoff transport landing';
+		column-gap: 8px;
+		row-gap: 4px;
+	}
+	.mark-action {
+		justify-content: center;
+		justify-self: stretch;
+		min-width: 0;
+		height: 44px;
+		border-radius: 10px;
+		font-size: 14px;
+	}
+	.mark-action kbd {
+		display: none;
+	}
+}
+
+/* Short of room, the duration gives way; the frame number is what stepping needs. */
+@container control-bar (max-width: 1060px) {
+	.time-separator,
+	.time-duration {
+		display: none;
+	}
+	.time-frame {
+		margin-left: 2px;
+	}
+}
+
+@container control-bar (max-width: 340px) {
+	.mark-action {
+		padding-inline: 4px;
+	}
+	.mark-action-dot {
+		display: none;
+	}
 }
 
 /* ========================================
    Utilities
    ======================================== */
 
-.at-text-muted {
-	color: hsl(var(--at-fg-muted));
-}
-
 .at-reveal {
-	animation: reveal 300ms cubic-bezier(0.4, 0, 0.2, 1) both;
+	animation: reveal 360ms var(--at-ease) both;
 	animation-delay: var(--delay, 0ms);
 }
 
 @keyframes reveal {
 	from {
 		opacity: 0;
-		transform: translateY(8px);
+		transform: translateY(6px);
 	}
 	to {
 		opacity: 1;
@@ -550,75 +818,192 @@ body {
 	.at-reveal {
 		animation: none;
 	}
+	.app-notice {
+		transition: none;
+	}
 }
 
 /* ========================================
    Empty State
    ======================================== */
 
-.empty-state {
+.empty {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	justify-content: center;
-	gap: 24px;
-	padding: 48px 24px;
+	width: min(600px, 100%);
+	margin: auto;
 	text-align: center;
 }
 
-.empty-state-icon {
-	width: 80px;
-	height: 80px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background: hsl(var(--at-surface));
-	border-radius: 24px;
-	color: hsl(var(--at-fg-secondary));
-}
-
-.empty-state-title {
-	font-size: 1.25rem;
-	font-weight: 600;
+.empty-title {
+	margin: 0;
 	color: hsl(var(--at-fg));
+	font-size: 32px;
+	font-weight: 650;
+	letter-spacing: -0.025em;
+	line-height: 1.15;
 }
 
-.empty-state-description {
-	font-size: 0.9375rem;
-	color: hsl(var(--at-fg-muted));
-	max-width: 280px;
+.empty-lede {
+	max-width: 420px;
+	margin: 10px 0 28px;
+	color: hsl(var(--at-fg-secondary));
+	font-size: 15px;
+	line-height: 1.55;
 }
 
-.empty-stack {
+.dropzone {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
+	gap: 6px;
+	width: 100%;
+	padding: 36px 24px 30px;
+	border: 1px dashed hsl(var(--at-border-hover));
+	border-radius: 16px;
+	background:
+		radial-gradient(120% 90% at 50% 0%, hsl(var(--at-fg) / 0.035), transparent 70%),
+		hsl(var(--at-bg-elevated));
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+	transition:
+		border-color 160ms var(--at-ease),
+		background 160ms var(--at-ease);
 }
 
-.empty-import {
+.dropzone:hover,
+.dropzone.dragging {
+	border-color: hsl(var(--at-accent) / 0.75);
+	background:
+		radial-gradient(120% 90% at 50% 0%, hsl(var(--at-accent) / 0.09), transparent 70%),
+		hsl(var(--at-bg-elevated));
+}
+
+.dropzone-icon {
+	display: grid;
+	place-items: center;
+	width: 52px;
+	height: 52px;
+	margin-bottom: 10px;
+	border: 1px solid hsl(var(--at-border-hover));
+	border-radius: 14px;
+	background: hsl(var(--at-surface));
+	color: hsl(var(--at-fg-secondary));
+	box-shadow: 0 8px 24px hsl(var(--at-shadow) / 0.5);
+}
+
+.dropzone-icon svg {
+	width: 24px;
+	height: 24px;
+}
+
+.dropzone-title {
+	color: hsl(var(--at-fg));
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.dropzone-sub {
 	color: hsl(var(--at-fg-muted));
 	font-size: 13px;
 }
 
-.empty-import-btn {
-	min-height: 32px;
-	padding: 0 2px;
+.dropzone .btn {
+	margin-top: 16px;
+	pointer-events: none;
+}
+
+.empty-steps {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 12px;
+	width: 100%;
+	margin: 24px 0 0;
+	padding: 0;
+	list-style: none;
+	text-align: left;
+}
+
+.empty-steps li {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 4px 6px;
+	color: hsl(var(--at-fg-muted));
+	font-size: 12px;
+	line-height: 1.45;
+}
+
+.empty-steps strong {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	color: hsl(var(--at-fg));
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.empty-step-num {
+	display: grid;
+	place-items: center;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	background: hsl(var(--at-fg) / 0.08);
+	color: hsl(var(--at-fg-secondary));
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.empty-footer {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	gap: 6px 18px;
+	margin-top: 22px;
+	color: hsl(var(--at-fg-muted));
+	font-size: 12px;
+}
+
+.empty-footer > span {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.empty-footer svg {
+	width: 14px;
+	height: 14px;
+}
+
+.empty-import {
+	margin-top: 12px;
+	color: hsl(var(--at-fg-muted));
+	font-size: 13px;
+}
+
+.link-btn {
+	padding: 0;
 	border: none;
 	background: none;
-	color: hsl(var(--at-accent));
+	color: hsl(var(--at-accent-hover));
 	font: inherit;
 	font-weight: 600;
 	cursor: pointer;
 }
 
-.empty-import-btn:hover {
+.link-btn:hover {
 	text-decoration: underline;
+	text-underline-offset: 3px;
 }
 
 .empty-import-message {
-	max-width: 320px;
+	max-width: 360px;
 	min-height: 1.5em;
-	margin-top: 8px;
+	margin-top: 10px;
 	color: hsl(var(--at-fg-secondary));
 	font-size: 12px;
 	line-height: 1.5;
@@ -636,48 +1021,104 @@ body {
 @media (max-width: 900px) {
 	.viewer-stage {
 		flex-direction: column;
+		justify-content: flex-start;
 	}
 
-	/* Stacked layouts dock the controls under the picture instead of floating them
-	   over its lower edge, where the feet are at takeoff and landing. */
+	/* Stacked: the frame takes the full width; see .landscape below. */
+	.viewer-column {
+		display: contents;
+	}
+	.viewer-column > .viewer-frame {
+		width: auto;
+		height: 100%;
+		max-height: none;
+	}
+	.viewer-column > .viewer-frame > :first-child {
+		flex: 1 1 auto;
+		height: auto;
+		min-height: 0;
+	}
+	.viewer-column .control-bar {
+		height: auto;
+	}
 	.viewer-frame {
 		display: flex;
+		flex: 1 1 auto;
 		flex-direction: column;
+		min-height: 0;
 	}
-	.control-bar,
-	.control-bar:hover,
-	.control-bar:focus-within {
-		position: relative;
-		bottom: auto;
-		left: auto;
+	/* A landscape video is sized to fit rather than letterboxed in a tall frame. */
+	.viewer-column > .viewer-frame.landscape {
 		flex: 0 0 auto;
-		width: auto;
-		transform: none;
-		border: 0;
-		border-top: 1px solid hsl(var(--at-border) / 0.82);
-		border-radius: 0;
-		background: hsl(var(--at-bg-elevated));
-		box-shadow: none;
-		backdrop-filter: none;
+		height: auto;
+	}
+	.viewer-column > .viewer-frame.landscape > :first-child {
+		flex: 0 0 auto;
+		height: auto;
+		aspect-ratio: var(--video-aspect);
+	}
+	.empty-steps {
+		grid-template-columns: 1fr;
 	}
 }
 
 @media (max-width: 640px) {
 	.app-header {
-		min-height: 42px;
+		height: 48px;
 		gap: 10px;
-		padding: 0 14px;
+		padding: 0 10px 0 14px;
 	}
-	.brand-mark {
-		gap: 8px;
-		font-size: 13px;
+	/* Phones: Save stays; Open video, Sessions and Shortcuts fold into the More
+	   menu, which leaves room for the file name and its save state. */
+	.header-wide,
+	.header-divider,
+	.header-analysis,
+	.header-status-detail {
+		display: none;
+	}
+	.header-more {
+		display: inline-flex;
+	}
+	.app-header:has(.header-file) .brand-name {
+		display: none;
 	}
 	.header-file {
-		position: absolute;
-		left: 50%;
-		max-width: 38vw;
-		transform: translateX(-50%);
-		font-size: 11px;
+		gap: 8px;
+		padding-left: 0;
+		border-left: none;
+	}
+	.header-file-name {
+		max-width: 46vw;
+	}
+	/* Unsaved shrinks to a dot after the file name; Save's own state says the rest. */
+	.header-file .header-status {
+		gap: 0;
+		width: 8px;
+		height: 8px;
+		padding: 0;
+		overflow: hidden;
+		background: none;
+		font-size: 0;
+	}
+	.header-file .header-status::before {
+		flex: 0 0 8px;
+		width: 8px;
+		height: 8px;
+	}
+	.app-header .btn-primary,
+	.app-header .btn-secondary {
+		height: 34px;
+		font-size: 14px;
+	}
+	.app-header .btn {
+		padding: 0 12px;
+		font-size: 14px;
+	}
+	.app-header .btn-icon {
+		padding: 0;
+	}
+	.brand-mark {
+		font-size: 15px;
 	}
 	.backup-reminder {
 		justify-content: flex-start;
@@ -687,80 +1128,88 @@ body {
 	.backup-reminder-text {
 		flex: 1;
 	}
-	.backup-reminder-action {
-		min-height: 32px;
-	}
-	.backup-reminder-dismiss {
-		width: 32px;
-		height: 32px;
-	}
-	.header-open {
-		min-height: 28px;
-		padding: 0 9px;
-		font-size: 11px;
-	}
 	.viewer-stage {
 		gap: 8px;
-		padding: 0 8px 8px;
-	}
-	.header-file {
-		display: none;
-	}
-	.header-actions {
-		gap: 6px;
-	}
-	/* The analysis sheet's own toggle replaces this on phones. */
-	.header-analysis {
-		display: none;
-	}
-	.header-open-label {
-		display: none;
-	}
-	.header-dirty-dot {
-		display: block;
-	}
-	.app-notice.visible {
-		top: calc(100% + 44px);
-		left: 50%;
-		z-index: 40;
-		width: max-content;
-		max-width: calc(100% - 32px);
-		height: auto;
-		padding: 7px 12px;
-		border: 1px solid hsl(var(--at-border-hover) / 0.8);
-		border-radius: 9px;
-		background: hsl(var(--at-bg-elevated) / 0.94);
-		box-shadow: 0 6px 18px hsl(var(--at-shadow) / 0.4);
-		color: hsl(var(--at-fg));
-		font-size: 12px;
-		white-space: normal;
-		text-align: center;
-		clip-path: none;
-		transform: translateX(-50%);
-		pointer-events: none;
+		padding: 8px;
 	}
 	.viewer-frame {
-		border-radius: 9px;
+		border-radius: 10px;
 	}
 	.viewer-badge {
-		top: 9px;
-		right: 9px;
-		padding: 5px 8px;
+		top: 8px;
+		right: 8px;
+		height: 24px;
+		padding: 0 8px;
 		font-size: 10px;
 	}
 	.control-bar-inner {
-		padding: 3px 10px 6px;
+		padding: 0 10px 8px;
+	}
+	.empty {
+		margin-top: 8px;
+		padding: 12px 4px 0;
+	}
+	.empty-title {
+		font-size: 20px;
+	}
+	.empty-lede {
+		margin: 6px 0 16px;
+		font-size: 13px;
+		line-height: 1.5;
+	}
+	.dropzone {
+		padding: 22px 18px 20px;
+	}
+	.dropzone-icon {
+		width: 44px;
+		height: 44px;
+		margin-bottom: 6px;
+	}
+	.dropzone .btn {
+		margin-top: 12px;
+	}
+	/* The same bare numbered steps as on desktop, stacked. */
+	.empty-steps {
+		gap: 4px;
+		margin-top: 16px;
+	}
+	/* Phones: the steps stacked, each title above its one-line description. */
+	.empty-steps {
+		gap: 10px;
+		margin-top: 18px;
+	}
+	.empty-steps li {
+		padding: 0 4px;
+	}
+	.empty-steps strong {
+		gap: 6px;
+		font-size: 12px;
+		font-weight: 500;
+		white-space: nowrap;
+	}
+	.empty-footer {
+		margin-top: 16px;
 	}
 }
 
-/* Header buttons meet the 44px touch minimum; the header grows to fit.
-   Last so it wins over the narrow-screen sizing above. */
+/* Header buttons meet the 44px touch minimum. Last so it wins over the
+   narrow-screen sizing above. */
 @media (pointer: coarse) {
-	.app-header {
-		padding-block: 4px;
+	/* Visually 36px; an invisible 44px hit area around each one. */
+	.app-header .btn {
+		position: relative;
+		height: 36px;
+		min-width: 36px;
 	}
-	.header-open {
-		min-height: 44px;
-		min-width: 44px;
+	.app-header .btn::after {
+		content: '';
+		position: absolute;
+		inset: -4px;
+	}
+	.app-header .btn-icon {
+		width: 36px;
+	}
+	.backup-reminder .btn {
+		height: 36px;
 	}
 }

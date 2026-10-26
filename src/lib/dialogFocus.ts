@@ -32,7 +32,7 @@ export function trapTab(event: KeyboardEvent, container: HTMLElement | null) {
 	const active = document.activeElement;
 	const inside = active instanceof Node && container.contains(active);
 
-	if (event.shiftKey && (!inside || active === first)) {
+	if (event.shiftKey && (!inside || active === first || active === container)) {
 		event.preventDefault();
 		last.focus();
 	} else if (!event.shiftKey && (!inside || active === last)) {
@@ -42,12 +42,13 @@ export function trapTab(event: KeyboardEvent, container: HTMLElement | null) {
 }
 
 /**
- * Svelte action for a dialog card: moves focus into it on mount and returns focus to the
- * previously focused element on destroy. Give the node `tabindex="-1"` as a fallback target.
+ * Svelte action for a dialog card: focuses the card itself on mount (so no control shows a
+ * focus ring until the user tabs) and returns focus to the previously focused element on
+ * destroy. Give the node `tabindex="-1"`.
  */
 export function dialogFocus(node: HTMLElement) {
 	const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-	focusFirst(node);
+	node.focus();
 
 	return {
 		destroy() {

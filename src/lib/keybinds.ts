@@ -7,8 +7,8 @@ export const KEYBIND_GROUPS: KeybindGroup[] = [
 		title: 'Playback',
 		binds: [
 			{ keys: 'Space / K', action: 'Play / pause' },
-			{ keys: ', / .', action: 'Step back / forward one frame' },
-			{ keys: 'Shift + ← / →', action: 'Step back / forward one frame' },
+			{ keys: ', / .', action: 'Step back / forward a frame' },
+			{ keys: 'Shift + ← / →', action: 'Step a frame (arrow keys)' },
 			{ keys: '↑ / ↓', action: 'Volume up / down' },
 			{ keys: 'R', action: 'Playback speed 1× / ½× / ¼×' },
 			{ keys: 'M', action: 'Mute / unmute' }
@@ -17,8 +17,8 @@ export const KEYBIND_GROUPS: KeybindGroup[] = [
 	{
 		title: 'Timeline',
 		binds: [
-			{ keys: '← / →', action: 'Scrub back / forward (timeline focused)' },
-			{ keys: 'Home / End', action: 'Jump to start / end (timeline focused)' }
+			{ keys: '← / →', action: 'Scrub back / forward' },
+			{ keys: 'Home / End', action: 'Jump to start / end' }
 		]
 	},
 	{
@@ -42,3 +42,14 @@ export const KEYBIND_GROUPS: KeybindGroup[] = [
 		]
 	}
 ];
+
+/** Macs and iOS devices use ⌘ where other platforms use Ctrl. */
+export function isApplePlatform(): boolean {
+	if (typeof navigator === 'undefined') return true;
+	return /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+}
+
+/** Shows only this platform's modifier, e.g. "Ctrl / ⌘ + Z" becomes "⌘ + Z" on a Mac. */
+export function platformKeys(keys: string): string {
+	return keys.replace('Ctrl / ⌘', isApplePlatform() ? '⌘' : 'Ctrl');
+}

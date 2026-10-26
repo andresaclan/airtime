@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatFrameTimecode } from '$lib/video/timecode';
+	import { formatFrameClock } from '$lib/video/timecode';
 	import { frameDurationRange, frameLabel, type FrameTiming } from '$lib/video/frames';
 	import {
 		frameOf,
@@ -40,6 +40,8 @@
 		onClear: () => void;
 		/** Stacked under the video (narrow screens) instead of a sidebar. */
 		sheet?: boolean;
+		/** Sheet only: take all the height left under the video. */
+		fill?: boolean;
 		/** Sheet only: show everything rather than the one-line summary. */
 		expanded?: boolean;
 		/** Hides the sidebar, or expands/collapses the sheet. */
@@ -65,6 +67,7 @@
 		onUndo,
 		onClear,
 		sheet = false,
+		fill = false,
 		expanded = true,
 		onToggle
 	}: Props = $props();
@@ -102,13 +105,25 @@
 	let jumpTypeLabel = $derived(JUMP_TYPES.find((type) => type.value === jumpType)?.label);
 	let completedJumps = $derived(grouped.jumps.filter((jump) => jump.flight).length);
 
-	function jumpTitle(jump: Jump, index: number): string {
-		const parts = [`Jump ${index + 1}`];
-		if (jump.flight?.heightCm !== undefined) {
-			parts.push(`${jump.flight.heightCm.toFixed(1)} cm`);
-			const index = contactApplies ? rsi(jump) : undefined;
-			if (index !== undefined) parts.push(`RSI ${index.toFixed(2)}`);
-		}
+	let bestRsi = $derived(bestJump && contactApplies ? rsi(bestJump) : undefined);
+	// Contact only means something for drop and rebound jumps; there it gets a summary slot.
+	let contactMatters = $derived(jumpType !== null && hasMeaningfulContact(jumpType));
+	function mean(values: (number | undefined)[]): number | null {
+		const present = values.filter((value) => value !== undefined);
+		return present.length ? present.reduce((sum, value) => sum + value, 0) / present.length : null;
+	}
+	// With several jumps the summary describes the session; the rows below hold each jump.
+	let averageHeight = $derived(
+		completedJumps > 1 ? mean(grouped.jumps.map((jump) => jump.flight?.heightCm)) : null
+	);
+	let averageFlight = $derived(mean(grouped.jumps.map((jump) => jump.flight?.realSeconds)));
+	let averageContact = $derived(mean(grouped.jumps.map((jump) => jump.contact?.realSeconds)));
+
+	function jumpStats(jump: Jump): string {
+		if (jump.flight?.heightCm === undefined) return '';
+		const parts = [`${jump.flight.heightCm.toFixed(1)} cm`];
+		const index = contactApplies ? rsi(jump) : undefined;
+		if (index !== undefined) parts.push(`RSI ${index.toFixed(2)}`);
 		return parts.join(' · ');
 	}
 
@@ -125,8 +140,9 @@
 		if (!Number.isNaN(date.getTime())) recordedAt = date.toISOString();
 	}
 
+	// Whole milliseconds: one frame is several ms, so tenths would be false precision.
 	function formatMs(seconds: number): string {
-		return `${(seconds * 1000).toFixed(1)}`;
+		return `${Math.round(seconds * 1000)}`;
 	}
 
 	function intervalDescription(interval: Interval): string {
@@ -140,68 +156,94 @@
 			<span class="mp-dot"></span>
 			<span class="mp-mark-type">{label}</span>
 			<span class="mp-mark-time"
-				>{formatFrameTimecode(frameLabel(frameOf(mark.time, timing), timing), timing)}</span
+				>{formatFrameClock(frameLabel(frameOf(mark.time, timing), timing), timing)}</span
 			>
 		</button>
-		<div class="mp-mark-actions">
-			<button
-				class="mp-icon-btn"
-				onclick={() => onNudge(mark.id, -1)}
-				aria-label="Move {label.toLowerCase()} one frame earlier"
-				title="1 frame earlier">‹</button
-			>
-			<button
-				class="mp-icon-btn"
-				onclick={() => onNudge(mark.id, 1)}
-				aria-label="Move {label.toLowerCase()} one frame later"
-				title="1 frame later">›</button
-			>
-			<button
-				class="mp-icon-btn mp-remove"
-				onclick={() => onRemove(mark.id)}
-				aria-label="Remove {label.toLowerCase()}"
-				title="Remove (Backspace)">×</button
-			>
-		</div>
+		{#if mark.id === activeMarkId}
+			<div class="mp-mark-actions">
+				<button
+					class="mp-icon-btn"
+					onclick={() => onNudge(mark.id, -1)}
+					aria-label="Move {label.toLowerCase()} one frame earlier"
+					title="1 frame earlier">−1 fr</button
+				>
+				<button
+					class="mp-icon-btn"
+					onclick={() => onNudge(mark.id, 1)}
+					aria-label="Move {label.toLowerCase()} one frame later"
+					title="1 frame later">+1 fr</button
+				>
+				<button
+					class="mp-icon-btn mp-remove"
+					onclick={() => onRemove(mark.id)}
+					aria-label="Remove {label.toLowerCase()}"
+					title="Remove (Backspace)"
+					><svg viewBox="0 0 24 24" aria-hidden="true"
+						><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" /></svg
+					>Remove</button
+				>
+			</div>
+		{/if}
 	</div>
 {/snippet}
 
-<aside class="marks-panel" class:sheet class:collapsed={!showDetails} aria-label="Jump analysis">
+{#snippet interval(span: Interval)}
+	<div class="mp-interval mp-interval-{span.kind}" title={intervalDescription(span)}>
+		<span class="mp-interval-label"
+			>{span.kind === 'flight' ? 'Flight' : 'Contact'}<span class="mp-interval-frames"
+				>{span.frames} fr</span
+			></span
+		>
+		<span class="mp-interval-value">{formatMs(span.realSeconds)} ms</span>
+	</div>
+{/snippet}
+
+<aside
+	class="marks-panel"
+	class:sheet
+	class:fill={sheet && fill && expanded}
+	class:collapsed={!showDetails}
+	aria-label="Jump analysis"
+>
 	{#if sheet}
 		<!-- One button for both states, so focus stays put when the sheet expands or collapses. -->
 		<h2 class="mp-sheet-heading">
 			<button class="mp-sheet-toggle" onclick={onToggle} aria-expanded={expanded}>
-				{#if expanded}
-					<span class="mp-sheet-title">Analysis</span>
-				{:else}
-					<span class="sr-only">Analysis:</span>
-					{#if bestJump?.flight}
-						<span class="mp-peek-stat mp-peek-primary">
-							<span class="mp-peek-label">{completedJumps > 1 ? 'Best height' : 'Height'}</span>
-							<span class="mp-peek-value"
-								>{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span
-							>
-						</span>
+				<!-- The summary stays in the header, open or closed, so the body starts at the jumps. -->
+				<span class="sr-only">Analysis:</span>
+				{#if bestJump?.flight}
+					<span class="mp-peek-stat mp-peek-primary">
+						<span class="mp-peek-label">{completedJumps > 1 ? 'Best height' : 'Height'}</span>
+						<span class="mp-peek-value"
+							>{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span
+						>
+					</span>
+					<span class="mp-peek-stat">
+						<span class="mp-peek-label">Best flight</span>
+						<span class="mp-peek-value"
+							>{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span
+						>
+					</span>
+					{#if !contactMatters && averageHeight !== null}
 						<span class="mp-peek-stat">
-							<span class="mp-peek-label">Flight</span>
-							<span class="mp-peek-value"
-								>{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span
-							>
+							<span class="mp-peek-label">Average</span>
+							<span class="mp-peek-value">{averageHeight.toFixed(1)}<small>cm</small></span>
 						</span>
+					{:else}
 						<span class="mp-peek-stat">
 							<span class="mp-peek-label">Contact</span>
 							<span class="mp-peek-value"
 								>{#if bestJump.contact}{formatMs(bestJump.contact.realSeconds)}<small>ms</small
-									>{:else}—{/if}</span
+									>{:else}–{/if}</span
 							>
 						</span>
-					{:else}
-						<span class="mp-peek-hint"
-							>{marks.length > 0
-								? 'Mark a landing to measure the jump'
-								: 'Mark takeoff and landing to measure a jump'}</span
-						>
 					{/if}
+				{:else}
+					<span class="mp-peek-hint"
+						>{marks.length > 0
+							? 'Mark a landing to measure the jump'
+							: 'Mark takeoff and landing to measure a jump'}</span
+					>
 				{/if}
 				<svg
 					class="mp-sheet-chevron"
@@ -214,503 +256,749 @@
 			</button>
 		</h2>
 	{:else}
-		<header class="mp-header">
-			<h2>Analysis</h2>
-			<button
-				class="mp-icon-btn"
-				onclick={onToggle}
-				aria-label="Hide analysis"
-				title="Hide analysis (A)"
-			>
-				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-					><path d="M9 6l6 6-6 6" /></svg
-				>
-			</button>
-		</header>
+		<h2 class="sr-only">Analysis</h2>
 	{/if}
 
 	{#if showDetails}
 		<div class="mp-body">
 			{#if bestJump?.flight}
 				<div class="mp-summary">
-					<div class="mp-stat mp-stat-primary">
-						<span class="mp-stat-label"
-							>{completedJumps > 1 ? 'Best jump height' : 'Jump height'}</span
+					<span class="mp-label">{completedJumps > 1 ? 'Best jump' : 'Jump height'}</span>
+					<p class="mp-hero-value">
+						{bestJump.flight.heightCm?.toFixed(1)}<span class="mp-unit">cm</span><span
+							class="mp-hero-alt">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span
 						>
-						<span class="mp-stat-value"
-							>{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span
-						>
-						<span class="mp-stat-sub">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span
-						>
-					</div>
-					<div class="mp-stat">
-						<span class="mp-stat-label">Flight time</span>
-						<span class="mp-stat-value"
-							>{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span
-						>
-						<span class="mp-stat-sub">{bestJump.flight.frames} fr</span>
-					</div>
-					<div class="mp-stat" class:mp-stat-muted={!contactApplies}>
-						<span class="mp-stat-label">Contact time</span>
-						{#if bestJump.contact}
-							<span class="mp-stat-value"
-								>{formatMs(bestJump.contact.realSeconds)}<small>ms</small></span
-							>
-							<span class="mp-stat-sub"
-								>{bestJump.contact.frames} fr{#if !contactApplies}
-									· not used for {jumpTypeLabel?.toLowerCase()}{/if}</span
-							>
+					</p>
+					<dl class="mp-stats">
+						{#if averageHeight !== null}
+							<div>
+								<dt>Average height</dt>
+								<dd>{averageHeight.toFixed(1)}<span class="mp-unit">cm</span></dd>
+							</div>
+							<div>
+								<dt>Average flight</dt>
+								<dd>{formatMs(averageFlight ?? 0)}<span class="mp-unit">ms</span></dd>
+							</div>
+							{#if contactMatters}
+								<div class:muted={averageContact === null}>
+									<dt>Average contact</dt>
+									<dd>
+										{#if averageContact !== null}{formatMs(averageContact)}<span class="mp-unit"
+												>ms</span
+											>{:else}–{/if}
+									</dd>
+								</div>
+							{/if}
 						{:else}
-							<span class="mp-stat-value">—</span>
-							<span class="mp-stat-sub">No contact</span>
+							<div>
+								<dt>Flight time</dt>
+								<dd>
+									{formatMs(bestJump.flight.realSeconds)}<span class="mp-unit">ms</span><small
+										>{bestJump.flight.frames} fr</small
+									>
+								</dd>
+							</div>
+							{#if contactMatters || bestJump.contact}
+								<div class:muted={!bestJump.contact}>
+									<dt>Contact time</dt>
+									<dd>
+										{#if bestJump.contact}{formatMs(bestJump.contact.realSeconds)}<span
+												class="mp-unit">ms</span
+											><small
+												>{bestJump.contact.frames} fr{#if bestRsi !== undefined}
+													· RSI {bestRsi.toFixed(2)}{/if}</small
+											>{:else}–<small>not marked</small>{/if}
+									</dd>
+								</div>
+							{/if}
 						{/if}
-					</div>
-				</div>
-			{/if}
-			<div class="mp-calibration">
-				<p class="mp-precision">
-					{#if longestFrameMs > frameMs + 0.05}
-						±1 frame = ±{frameMs.toFixed(1)}–{longestFrameMs.toFixed(1)} ms (variable frame rate)
-					{:else}
-						±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
-					{/if}{#if slowMotion}
-						· real time ({slowMotion.label.toLowerCase()}){/if}
-				</p>
-				<label class="mp-scale">
-					<span>Footage</span>
-					<select class="mp-field" bind:value={timeScale}>
-						{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
-								>{scale.label}</option
-							>{/each}
-					</select>
-				</label>
-				<label class="mp-scale">
-					<span>Jump type</span>
-					<select
-						class="mp-field"
-						bind:value={jumpType}
-						aria-describedby={jumpType === null ? 'mp-jump-type-hint' : undefined}
-					>
-						{#if jumpType === null}<option value={null}>Not set</option>{/if}
-						{#each JUMP_TYPES as type (type.value)}<option value={type.value}>{type.label}</option
-							>{/each}
-					</select>
-				</label>
-				{#if jumpType === null}
-					<p id="mp-jump-type-hint" class="mp-precision">
-						Set the jump type to compare like with like.
-					</p>
-				{/if}
-			</div>
-
-			{#if marks.length === 0}
-				<div class="mp-empty">
-					<p class="mp-empty-title">Mark a jump</p>
-					<ol>
-						<li>
-							Pause on the first frame the feet leave the ground and <span class="pointer-only"
-								>press <kbd>T</kbd></span
-							><span class="touch-only">tap Takeoff</span>.
-						</li>
-						<li>
-							Step to the first frame they touch down and <span class="pointer-only"
-								>press <kbd>L</kbd></span
-							><span class="touch-only">tap Landing</span>.
-						</li>
-					</ol>
-					<p class="mp-empty-hint">
-						<span class="pointer-only">Step frames with <kbd>,</kbd> <kbd>.</kbd></span><span
-							class="touch-only">Hold the frame buttons to step quickly</span
-						> · mark a landing before the takeoff to also get contact time.
-					</p>
+					</dl>
+					{#if contactMatters && !bestJump.contact}
+						<p class="mp-caption">Mark the landing before the takeoff to get contact time.</p>
+					{/if}
 				</div>
 			{:else}
-				<div class="mp-results">
-					{#each grouped.jumps as jump, index (jump.takeoff.id)}
-						<section
-							class="mp-jump"
-							class:mp-best={jump === bestJump}
-							aria-label="Jump {index + 1}"
-						>
-							<h3>
-								<span class="mp-jump-title">{jumpTitle(jump, index)}</span>
-								{#if completedJumps >= 2 && jump === bestJump}<span>Best</span>{/if}
-							</h3>
-							{#if jump.contact}
-								{@render markRow(jump.contact.from, 'Touchdown')}
-								<div
-									class="mp-interval mp-interval-contact"
-									title={intervalDescription(jump.contact)}
-								>
-									{intervalDescription(jump.contact)}
-								</div>
-							{/if}
-							{@render markRow(jump.takeoff, 'Takeoff')}
-							{#if jump.flight}
-								<div
-									class="mp-interval mp-interval-flight"
-									title={intervalDescription(jump.flight)}
-								>
-									{intervalDescription(jump.flight)}
-								</div>
-								{@render markRow(jump.flight.to, 'Landing')}
-							{:else}
-								<p class="mp-incomplete">Mark a landing to complete this jump.</p>
-							{/if}
-						</section>
-					{/each}
-					{#if outOfSequenceMarks.length > 0}
-						<div class="mp-warning">
-							Repeated marks have no timing interval: {outOfSequenceMarks
-								.map((mark) => (mark.type === 'landing' ? 'Landing' : 'Takeoff'))
-								.join(', ')}
-						</div>
-					{/if}
-					{#if grouped.unpairedMarks.length > 0}
-						<section class="mp-unpaired" aria-label="Unpaired marks">
-							<h3>Unpaired marks</h3>
-							{#each grouped.unpairedMarks as mark (mark.id)}{@render markRow(
-									mark,
-									mark.type === 'landing' ? 'Landing' : 'Takeoff'
-								)}{/each}
-						</section>
-					{/if}
+				<div class="mp-hero is-empty">
+					<span class="mp-label">Jump height</span>
+					<span class="mp-hero-empty">Not measured yet</span>
+					<span class="mp-sub">Appears once a takeoff and its landing are marked.</span>
 				</div>
 			{/if}
 
-			<div class="mp-session">
-				<input
-					class="mp-field mp-title"
-					bind:value={title}
-					placeholder={titlePlaceholder}
-					aria-label="Session title"
-					spellcheck="false"
-				/>
-				<label class="mp-recorded">
-					<span>Recorded</span>
-					<input
-						class="mp-field"
-						type="datetime-local"
-						bind:value={() => toLocalInput(recordedAt), fromLocalInput}
-					/>
-				</label>
-				<textarea
-					class="mp-field mp-notes"
-					bind:value={notes}
-					placeholder="Notes (exercise, attempt, how it felt…)"
-					aria-label="Session notes"
-					rows="2"
-				></textarea>
-			</div>
-		</div>
+			<section class="mp-section" aria-labelledby="mp-jumps-heading">
+				<div class="mp-section-head">
+					<h3 id="mp-jumps-heading" class="mp-section-title">
+						Jumps{#if marks.length > 0}<span class="mp-count">{marks.length} marks</span>{/if}
+					</h3>
+					<div class="mp-section-actions">
+						{#if canUndo}<button class="mp-text-btn" onclick={onUndo} title="Undo (⌘Z)"
+								><svg viewBox="0 0 24 24" aria-hidden="true"
+									><path d="M9 7 4.5 11.5 9 16" /><path d="M5 11.5h9.5a5 5 0 0 1 0 10H12" /></svg
+								>Undo</button
+							>{/if}
+						{#if marks.length > 0}<button
+								class="mp-text-btn mp-danger"
+								onclick={onClear}
+								title="Remove every mark (undoable)">Clear all</button
+							>{/if}
+					</div>
+				</div>
+				{#if marks.length === 0}
+					<div class="mp-empty">
+						<ol>
+							<li>
+								<span class="mp-empty-num">1</span>
+								<span
+									>Pause on the first frame where the feet leave the ground, then <span
+										class="pointer-only">press <kbd>T</kbd></span
+									><span class="touch-only">tap Takeoff</span>.</span
+								>
+							</li>
+							<li>
+								<span class="mp-empty-num">2</span>
+								<span
+									>Step to the first frame they touch down, then <span class="pointer-only"
+										>press <kbd>L</kbd></span
+									><span class="touch-only">tap Landing</span>.</span
+								>
+							</li>
+						</ol>
+						<p class="mp-empty-hint">
+							<span class="pointer-only"
+								>Step frames with <kbd>,</kbd> <kbd>.</kbd>&nbsp;·&nbsp;</span
+							>A landing before the takeoff adds contact time.
+						</p>
+					</div>
+				{:else}
+					<div class="mp-results">
+						{#each grouped.jumps as jump, index (jump.takeoff.id)}
+							<section
+								class="mp-jump"
+								class:mp-best={completedJumps >= 2 && jump === bestJump}
+								aria-label="Jump {index + 1}"
+							>
+								<h4 class="mp-jump-head">
+									<span class="mp-jump-name">Jump {index + 1}</span>
+									{#if completedJumps >= 2 && jump === bestJump}<span class="mp-badge">Best</span
+										>{/if}
+									<span class="mp-jump-stats">{jumpStats(jump)}</span>
+								</h4>
+								{#if jump.contact}
+									{#if grouped.jumps[index - 1]?.flight?.to.id === jump.contact.from.id}
+										<!-- The touchdown is the previous jump's landing; don't list it twice. -->
+										{@render interval(jump.contact)}
+									{:else}
+										{@render markRow(jump.contact.from, 'Touchdown')}
+										{@render interval(jump.contact)}
+									{/if}
+								{/if}
+								{@render markRow(jump.takeoff, 'Takeoff')}
+								{#if jump.flight}
+									{@render interval(jump.flight)}
+									{@render markRow(jump.flight.to, 'Landing')}
+								{:else}
+									<p class="mp-incomplete">Mark a landing to complete this jump.</p>
+								{/if}
+							</section>
+						{/each}
+						{#if outOfSequenceMarks.length > 0}
+							<div class="mp-warning">
+								Repeated marks have no timing interval: {outOfSequenceMarks
+									.map((mark) => (mark.type === 'landing' ? 'Landing' : 'Takeoff'))
+									.join(', ')}
+							</div>
+						{/if}
+						{#if grouped.unpairedMarks.length > 0}
+							<section class="mp-jump mp-unpaired" aria-label="Unpaired marks">
+								<h4 class="mp-jump-head"><span class="mp-jump-name">Unpaired marks</span></h4>
+								{#each grouped.unpairedMarks as mark (mark.id)}{@render markRow(
+										mark,
+										mark.type === 'landing' ? 'Landing' : 'Takeoff'
+									)}{/each}
+							</section>
+						{/if}
+					</div>
+				{/if}
+			</section>
 
-		<footer class="mp-footer">
-			<button class="mp-text-btn" onclick={onUndo} disabled={!canUndo} title="Undo (⌘Z)"
-				>Undo</button
-			>
-			<button class="mp-text-btn" onclick={onClear} disabled={marks.length === 0}>Clear all</button>
-		</footer>
+			<details class="mp-details" open={jumpType === null}>
+				<summary>
+					<span class="mp-section-title">Setup</span>
+					<span class="mp-details-value"
+						>{TIME_SCALES.find((scale) => scale.value === timeScale)?.label} · {jumpTypeLabel ??
+							'Jump type not set'}</span
+					>
+					<svg class="mp-details-chevron" viewBox="0 0 24 24" aria-hidden="true"
+						><path d="m9 6 6 6-6 6" /></svg
+					>
+				</summary>
+				<div class="mp-details-body">
+					<label class="mp-stack">
+						<span>Footage</span>
+						<select class="mp-field mp-select" bind:value={timeScale}>
+							{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
+									>{scale.label}</option
+								>{/each}
+						</select>
+					</label>
+					<label class="mp-stack">
+						<span>Jump type</span>
+						<select
+							class="mp-field mp-select"
+							bind:value={jumpType}
+							aria-describedby={jumpType === null ? 'mp-jump-type-hint' : undefined}
+						>
+							{#if jumpType === null}<option value={null}>Not set</option>{/if}
+							{#each JUMP_TYPES as type (type.value)}<option value={type.value}>{type.label}</option
+								>{/each}
+						</select>
+					</label>
+					<p class="mp-caption">
+						{#if longestFrameMs > frameMs + 0.05}
+							Precision: ±1 frame = ±{frameMs.toFixed(1)}–{longestFrameMs.toFixed(1)} ms (variable frame
+							rate)
+						{:else}
+							Precision: ±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
+						{/if}{#if slowMotion}
+							· real time ({slowMotion.label.toLowerCase()}){/if}
+					</p>
+					{#if jumpType === null}
+						<p id="mp-jump-type-hint" class="mp-caption warn">
+							Set the jump type to compare like with like.
+						</p>
+					{/if}
+				</div>
+			</details>
+
+			<details class="mp-details">
+				<summary>
+					<span class="mp-section-title">Session</span>
+					<span class="mp-details-value"
+						>{title.trim() || titlePlaceholder}{notes.trim() ? ' · notes' : ''}</span
+					>
+					<svg class="mp-details-chevron" viewBox="0 0 24 24" aria-hidden="true"
+						><path d="m9 6 6 6-6 6" /></svg
+					>
+				</summary>
+				<div class="mp-details-body">
+					<label class="mp-stack">
+						<span>Title</span>
+						<input
+							class="mp-field mp-title"
+							bind:value={title}
+							placeholder={titlePlaceholder}
+							spellcheck="false"
+						/>
+					</label>
+					<label class="mp-stack">
+						<span>Recorded</span>
+						<input
+							class="mp-field"
+							type="datetime-local"
+							bind:value={() => toLocalInput(recordedAt), fromLocalInput}
+						/>
+					</label>
+					<label class="mp-stack">
+						<span>Notes</span>
+						<textarea
+							class="mp-field mp-notes"
+							bind:value={notes}
+							placeholder="Exercise, attempt, how it felt…"
+							rows="2"
+						></textarea>
+					</label>
+				</div>
+			</details>
+		</div>
 	{/if}
 </aside>
 
 <style>
 	.marks-panel {
 		display: flex;
-		flex: 0 0 300px;
+		flex: 0 0 336px;
 		flex-direction: column;
-		width: 300px;
+		width: 336px;
 		min-height: 0;
 		height: 100%;
-		border: 1px solid hsl(var(--at-border) / 0.82);
-		border-radius: 14px;
+		overflow: hidden;
+		border: 1px solid hsl(var(--at-border));
+		border-radius: var(--at-radius-lg);
 		background: hsl(var(--at-bg-elevated));
 		color: hsl(var(--at-fg));
+		font-size: 13px;
+	}
+
+	/* Fades out at the bottom so it's clear the panel scrolls; the padding lets the
+	   last field scroll clear of the fade. */
+	.mp-body {
+		display: flex;
+		flex: 1 1 auto;
+		flex-direction: column;
+		min-height: 0;
+		padding-bottom: 20px;
+		mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		scrollbar-width: thin;
+		scrollbar-color: hsl(var(--at-border-hover)) transparent;
+	}
+
+	/* Headline numbers */
+
+	.mp-label {
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
+		font-weight: 500;
+	}
+
+	.mp-sub {
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.mp-unit {
+		margin-left: 4px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 0.42em;
+		font-weight: 500;
+		letter-spacing: 0;
+	}
+
+	/* Best jump: the height leads; flight and contact sit in one row beneath it. */
+	.mp-summary {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 14px 16px 4px;
+	}
+
+	.sheet .mp-hero-value {
+		font-size: 30px;
+	}
+
+	.mp-hero-alt {
+		margin-left: 10px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 13px;
+		font-weight: 500;
+		letter-spacing: 0;
+	}
+
+	.mp-stats {
+		display: grid;
+		grid-auto-columns: minmax(0, 1fr);
+		grid-auto-flow: column;
+		margin: 10px 0 6px;
+		padding: 10px 0;
+		border-block: 1px solid hsl(var(--at-border));
+	}
+
+	.mp-stats > div {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+
+	.mp-stats > div + div {
+		padding-left: 12px;
+		border-left: 1px solid hsl(var(--at-border));
+	}
+
+	.mp-stats dt {
+		color: hsl(var(--at-fg-muted));
 		font-size: 12px;
 	}
 
-	/* Transparent on desktop; becomes the scrolling region on narrow screens. */
-	.mp-body {
-		display: contents;
-	}
-
-	.mp-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 12px 10px 8px 16px;
-	}
-
-	.mp-header h2 {
+	.mp-stats dd {
 		margin: 0;
-		font-size: 13px;
+		color: hsl(var(--at-fg));
+		font-size: 18px;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.015em;
+	}
+
+	.mp-stats dd small {
+		display: block;
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+		font-weight: 400;
+		letter-spacing: 0;
+	}
+
+	.mp-stats .mp-unit {
+		font-size: 12px;
+	}
+
+	.mp-stats .muted dd {
+		color: hsl(var(--at-fg-muted));
+	}
+
+	.mp-hero-value {
+		color: hsl(var(--at-fg));
+		margin: 0;
+		font-size: 36px;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.035em;
+		line-height: 1.05;
+	}
+
+	.mp-hero {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 14px 16px 10px;
+	}
+
+	.mp-hero.is-empty {
+		gap: 4px;
+	}
+
+	.mp-hero-empty {
+		margin-top: 2px;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 17px;
 		font-weight: 600;
 	}
 
-	.mp-session {
+	/* Setup and Session collapse to one line showing their current values. */
+	.mp-details {
+		margin: 0 16px;
+		border-top: 1px solid hsl(var(--at-border));
+	}
+
+	.mp-details summary {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		min-height: 44px;
+		cursor: pointer;
+		list-style: none;
+	}
+
+	.mp-details summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.mp-details summary .mp-section-title {
+		flex: 0 0 auto;
+		margin: 0;
+	}
+
+	.mp-details-value {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 12px;
+		text-align: right;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.mp-details-chevron {
+		width: 14px;
+		height: 14px;
+		flex: 0 0 auto;
+		fill: none;
+		stroke: hsl(var(--at-fg-muted));
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		transition: transform 160ms ease;
+	}
+
+	.mp-details[open] .mp-details-chevron {
+		transform: rotate(90deg);
+	}
+
+	.mp-details summary:hover .mp-details-value {
+		color: hsl(var(--at-fg));
+	}
+
+	.mp-details-body {
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
-		padding: 0 12px 10px;
-		border-top: 1px solid hsl(var(--at-border) / 0.8);
-		padding-top: 10px;
+		gap: 10px;
+		padding: 2px 0 14px;
 	}
+
+	/* Sections */
+
+	.mp-section {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 14px 16px 10px;
+	}
+
+	.mp-summary + .mp-section {
+		margin-top: 12px;
+	}
+
+	.mp-section-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		margin: -6px 0 0;
+	}
+
+	.mp-section-actions {
+		display: flex;
+		gap: 2px;
+		margin-right: -8px;
+	}
+
+	.mp-section-title {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+		margin: 0 0 2px;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.mp-count {
+		color: hsl(var(--at-fg-muted));
+		font-weight: 500;
+		letter-spacing: 0;
+		text-transform: none;
+	}
+
+	.mp-caption {
+		margin: 2px 0 0;
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+		font-variant-numeric: tabular-nums;
+		line-height: 1.45;
+	}
+
+	.mp-caption.warn {
+		color: hsl(var(--at-warning));
+	}
+
+	/* Fields */
 
 	.mp-field {
 		width: 100%;
-		padding: 6px 9px;
-		border: 1px solid hsl(var(--at-border) / 0.8);
-		border-radius: 8px;
+		height: 32px;
+		padding: 0 10px;
+		border: 1px solid hsl(var(--at-border-hover) / 0.8);
+		border-radius: var(--at-radius);
 		background: hsl(var(--at-surface));
 		color: hsl(var(--at-fg));
 		font: inherit;
-		font-size: 12px;
+		font-size: 13px;
 		outline: none;
+		transition:
+			border-color 140ms ease,
+			box-shadow 140ms ease;
+	}
+
+	.mp-field:hover {
+		border-color: hsl(var(--at-fg) / 0.22);
 	}
 
 	.mp-field:focus {
-		border-color: hsl(var(--at-accent) / 0.65);
+		border-color: hsl(var(--at-accent));
+		box-shadow: 0 0 0 3px hsl(var(--at-accent) / 0.2);
 	}
 
 	.mp-field::placeholder {
 		color: hsl(var(--at-fg-muted));
 	}
 
+	.mp-select {
+		appearance: none;
+		padding-right: 28px;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aa0aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+		background-position: right 8px center;
+		background-repeat: no-repeat;
+		background-size: 14px;
+		cursor: pointer;
+	}
+
+	.mp-field[type='datetime-local'] {
+		font-variant-numeric: tabular-nums;
+	}
+
+	.mp-field[type='datetime-local']::-webkit-calendar-picker-indicator {
+		filter: invert(0.7);
+		cursor: pointer;
+	}
+
 	.mp-title {
 		font-weight: 600;
 	}
 
-	.mp-recorded {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 8px;
-		color: hsl(var(--at-fg-muted));
-		font-size: 11px;
-	}
-
-	.mp-recorded input {
-		width: auto;
-		padding: 4px 7px;
-	}
-
 	.mp-notes {
+		height: auto;
+		min-height: 64px;
+		padding: 8px 10px;
 		resize: vertical;
-		line-height: 1.4;
+		line-height: 1.45;
 	}
 
-	.mp-scale {
-		display: flex;
-		flex-direction: column;
-		align-items: stretch;
-		gap: 4px;
-		color: hsl(var(--at-fg-muted));
-		font-size: 11px;
-	}
-
-	.mp-scale select {
-		flex: 1;
-		padding: 4px 6px;
-	}
-
-	.mp-summary {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 5px;
-		padding: 4px 12px 0;
-	}
-
-	.mp-stat {
-		display: flex;
-		flex-direction: column;
-		gap: 1px;
-		min-width: 0;
-		padding: 7px 7px;
-		border-radius: 8px;
-		background: hsl(var(--at-surface));
-	}
-
-	.mp-stat-muted .mp-stat-value,
-	.mp-stat-muted .mp-stat-sub {
-		color: hsl(var(--at-fg-muted));
-	}
-
-	.mp-stat-primary {
-		grid-column: 1 / -1;
-	}
-
-	.mp-stat-primary .mp-stat-value {
-		font-size: 26px;
-	}
-
-	.mp-stat-label {
-		color: hsl(var(--at-fg-muted));
-		font-size: 11px;
-		font-weight: 500;
-	}
-
-	.mp-stat-value {
-		font-family: 'JetBrains Mono', ui-monospace, monospace;
-		font-size: 18px;
-		font-weight: 700;
-		font-variant-numeric: tabular-nums;
-	}
-
-	.mp-stat-value small {
-		margin-left: 3px;
-		color: hsl(var(--at-fg-muted));
-		font-size: 11px;
-		font-weight: 500;
-	}
-
-	.mp-stat-sub {
-		color: hsl(var(--at-fg-secondary));
-		font-size: 11px;
-	}
-
-	.mp-precision {
-		margin: 0;
-		color: hsl(var(--at-fg-muted));
-		font-size: 10px;
-	}
-
-	.mp-calibration {
-		display: flex;
-		flex-direction: column;
-		align-items: stretch;
-		gap: 5px;
-		padding: 8px 12px;
-		border-bottom: 1px solid hsl(var(--at-border) / 0.8);
-	}
-
-	.mp-calibration .mp-scale {
-		flex-direction: row;
-		align-items: center;
-		justify-content: space-between;
-		gap: 8px;
-	}
-
-	.mp-calibration .mp-scale select {
-		width: auto;
-		min-width: 150px;
-		padding: 4px 7px;
-	}
+	/* Empty guide */
 
 	.mp-empty {
-		margin: 8px 12px;
-		padding: 14px;
-		border: 1px dashed hsl(var(--at-border-hover));
-		border-radius: 10px;
+		padding: 4px 0 0;
 		color: hsl(var(--at-fg-secondary));
 		line-height: 1.5;
 	}
 
-	.mp-empty-title {
-		margin: 0 0 6px;
-		color: hsl(var(--at-fg));
-		font-weight: 600;
+	.mp-empty ol {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
 	}
 
-	.mp-empty ol {
-		margin: 0;
-		padding-left: 18px;
-		list-style: decimal;
+	.mp-empty li {
+		display: flex;
+		gap: 10px;
+	}
+
+	.mp-empty-num {
+		display: grid;
+		flex: 0 0 auto;
+		place-items: center;
+		width: 20px;
+		height: 20px;
+		margin-top: 1px;
+		border-radius: 50%;
+		background: hsl(var(--at-fg) / 0.08);
+		color: hsl(var(--at-fg));
+		font-size: 11px;
+		font-weight: 600;
 	}
 
 	.mp-empty-hint {
 		margin: 10px 0 0;
+		padding-top: 10px;
+		border-top: 1px solid hsl(var(--at-border));
 		color: hsl(var(--at-fg-muted));
-		font-size: 11px;
+		font-size: 12px;
+	}
+
+	.mp-stack {
+		display: flex;
+		flex-direction: column;
+		gap: 5px;
+		min-width: 0;
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
 	}
 
 	kbd {
-		display: inline-block;
-		min-width: 18px;
-		padding: 1px 5px;
+		display: inline-grid;
+		place-items: center;
+		min-width: 20px;
+		height: 20px;
+		padding: 0 5px;
 		border: 1px solid hsl(var(--at-border-hover));
 		border-radius: 4px;
 		background: hsl(var(--at-surface));
 		color: hsl(var(--at-fg));
 		font:
-			600 10px 'JetBrains Mono',
-			ui-monospace,
+			600 11px/1 var(--at-font-mono),
 			monospace;
-		text-align: center;
+		vertical-align: 1px;
 	}
+
+	/* Jumps */
 
 	.mp-results {
-		flex: 1;
-		min-height: 0;
-		padding: 4px 10px 8px;
-		overflow-y: auto;
-	}
-
-	.mp-jump,
-	.mp-unpaired {
-		margin-bottom: 4px;
-		padding: 6px 2px 7px;
-		border-bottom: 1px solid hsl(var(--at-border) / 0.8);
-	}
-
-	.mp-jump.mp-best {
-		border-color: hsl(var(--at-border-hover));
-	}
-
-	.mp-jump h3,
-	.mp-unpaired h3 {
 		display: flex;
-		justify-content: space-between;
-		margin: 0 0 2px;
-		font-size: 12px;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.mp-jump {
+		padding: 4px;
+		border-radius: 10px;
+		background: hsl(var(--at-surface) / 0.55);
+	}
+
+	.mp-jump-head {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin: 0;
+		padding: 6px 8px 4px;
+		font-size: 13px;
 		font-weight: 600;
 	}
 
-	.mp-jump-title {
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
+	.mp-jump-stats {
+		margin-left: auto;
+		color: hsl(var(--at-fg));
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
 	}
 
-	.mp-jump h3 span {
-		color: hsl(var(--at-fg-muted));
+	.mp-badge {
+		padding: 2px 7px;
+		border-radius: 999px;
+		background: hsl(var(--at-fg) / 0.12);
+		color: hsl(var(--at-fg));
 		font-size: 10px;
-		font-weight: 500;
+		font-weight: 600;
 	}
 
-	.mp-incomplete,
-	.mp-rsi {
-		margin: 4px 2px 2px;
+	.mp-incomplete {
+		margin: 2px 8px 6px 30px;
 		color: hsl(var(--at-fg-muted));
-		font-size: 11px;
+		font-size: 12px;
 	}
 
 	.mp-mark {
 		--mark-color: hsl(var(--at-takeoff));
 		display: flex;
 		align-items: center;
-		border-radius: 8px;
+		border-radius: 7px;
+		transition: background 120ms ease;
 	}
 
 	.mp-mark-landing {
 		--mark-color: hsl(var(--at-landing));
 	}
 
-	.mp-mark:hover {
-		background: hsl(var(--at-surface));
+	@media (hover: hover) {
+		.mp-mark:hover {
+			background: hsl(var(--at-fg) / 0.05);
+		}
 	}
 
 	.mp-mark.active {
-		background: color-mix(in srgb, var(--mark-color) 16%, transparent);
+		background: color-mix(in srgb, var(--mark-color) 10%, transparent);
+	}
+
+	.mp-mark.active .mp-mark-type {
+		color: hsl(var(--at-fg));
 	}
 
 	.mp-mark-main {
 		display: flex;
 		flex: 1;
 		align-items: center;
-		gap: 8px;
+		gap: 10px;
 		min-width: 0;
-		padding: 3px 5px;
+		height: 30px;
+		padding: 0 8px;
 		border: none;
+		border-radius: 7px;
 		background: transparent;
 		color: inherit;
 		font: inherit;
@@ -724,100 +1012,144 @@
 		flex: 0 0 auto;
 		border-radius: 50%;
 		background: var(--mark-color);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--mark-color) 20%, transparent);
 	}
 
 	.mp-mark-type {
 		flex: 1;
-		font-weight: 500;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 12px;
+		font-weight: 400;
 	}
 
 	.mp-mark-time {
-		color: hsl(var(--at-fg-secondary));
-		font-family: 'JetBrains Mono', ui-monospace, monospace;
-		font-size: 11px;
+		color: hsl(var(--at-fg-muted));
+		font-family: var(--at-font-mono);
+		font-size: 11.5px;
 		font-variant-numeric: tabular-nums;
+	}
+
+	/* The selected mark (the one at the playhead; click or tap a row to go there)
+	   gets a small nudge bar on a second line, so its timecode stays in the value
+	   column and the list only grows by one short row. */
+	.mp-mark {
+		flex-wrap: wrap;
 	}
 
 	.mp-mark-actions {
 		display: flex;
-		gap: 1px;
-		padding-right: 4px;
-		opacity: 0;
-		transition: opacity 120ms ease;
-	}
-
-	.mp-mark:hover .mp-mark-actions,
-	.mp-mark.active .mp-mark-actions,
-	.mp-mark:focus-within .mp-mark-actions {
-		opacity: 1;
+		flex: 1 0 100%;
+		align-items: center;
+		gap: 4px;
+		padding: 0 8px 7px 26px;
 	}
 
 	.mp-icon-btn {
-		display: grid;
-		width: 24px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 4px;
+		min-width: 30px;
 		height: 24px;
-		place-items: center;
-		padding: 0;
+		padding: 0 8px;
 		border: none;
 		border-radius: 6px;
-		background: transparent;
-		color: hsl(var(--at-fg-secondary));
-		font-size: 15px;
-		line-height: 1;
+		background: hsl(var(--at-fg) / 0.1);
+		color: hsl(var(--at-fg));
+		font: inherit;
+		font-size: 12px;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
 		cursor: pointer;
+		transition:
+			background 120ms ease,
+			color 120ms ease;
 	}
 
 	.mp-icon-btn svg {
-		width: 16px;
-		height: 16px;
+		width: 14px;
+		height: 14px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		stroke-linejoin: round;
 	}
 
 	.mp-icon-btn:hover {
-		background: hsl(var(--at-fg) / 0.1);
-		color: hsl(var(--at-fg));
+		background: hsl(var(--at-fg) / 0.14);
 	}
 
-	.mp-remove:hover {
+	.mp-remove {
+		margin-left: auto;
+		background: transparent;
+		color: hsl(var(--at-fg-muted));
+		font-weight: 500;
+	}
+
+	.mp-remove:hover,
+	.mp-remove:active {
+		background: hsl(var(--at-error) / 0.14);
 		color: hsl(var(--at-error));
 	}
 
+	/* Label on the left; the value right-aligned in the same column as the timecodes.
+	   The line runs through the mark dots (8px padding + half the dot). */
 	.mp-interval {
-		margin: 0 0 1px 8px;
-		padding: 1px 6px;
-		border-left: 2px solid hsl(var(--at-border-hover));
-		color: hsl(var(--at-fg-secondary));
-		font-size: 10px;
-		line-height: 1.3;
+		--interval-color: hsl(var(--at-takeoff) / 0.6);
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-left: 11px;
+		padding: 3px 8px 3px 13px;
+		border-left: 2px dashed var(--interval-color);
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
 		white-space: nowrap;
 	}
 
-	.mp-interval-flight {
-		border-left-color: hsl(var(--at-takeoff) / 0.7);
+	.mp-interval-contact {
+		--interval-color: hsl(var(--at-landing) / 0.55);
 	}
 
-	.mp-interval-contact {
-		border-left-color: hsl(var(--at-landing) / 0.6);
+	.mp-interval-label {
+		overflow: hidden;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 12px;
+		text-overflow: ellipsis;
+	}
+
+	.mp-interval-frames {
+		margin-left: 6px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+	}
+
+	/* The measurement is the point of the card, so it is the strongest value. */
+	.mp-interval-value {
+		margin-left: auto;
+		color: hsl(var(--at-fg));
+		font-size: 13px;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
 	}
 
 	.mp-warning {
-		margin: 4px 0 8px;
-		padding: 6px 8px;
-		border-left: 2px solid hsl(var(--at-warning) / 0.6);
-		color: hsl(var(--at-warning));
-		font-size: 10px;
-	}
-
-	.mp-footer {
-		display: flex;
-		justify-content: flex-end;
-		gap: 4px;
-		margin-top: auto;
 		padding: 8px 10px;
-		border-top: 1px solid hsl(var(--at-border) / 0.8);
+		border: 1px solid hsl(var(--at-warning) / 0.25);
+		border-radius: 8px;
+		background: hsl(var(--at-warning) / 0.08);
+		color: hsl(var(--at-warning));
+		font-size: 12px;
+		line-height: 1.4;
 	}
 
 	.mp-text-btn {
-		padding: 6px 10px;
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		height: 28px;
+		padding: 0 8px;
 		border: none;
 		border-radius: 7px;
 		background: transparent;
@@ -828,9 +1160,28 @@
 		cursor: pointer;
 	}
 
+	.mp-text-btn svg {
+		width: 14px;
+		height: 14px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	.mp-danger {
+		color: hsl(var(--at-fg-muted));
+	}
+
 	.mp-text-btn:hover:not(:disabled) {
 		background: hsl(var(--at-surface-hover));
 		color: hsl(var(--at-fg));
+	}
+
+	.mp-danger:hover:not(:disabled) {
+		background: hsl(var(--at-error) / 0.12);
+		color: hsl(var(--at-error));
 	}
 
 	.mp-text-btn:disabled {
@@ -838,57 +1189,92 @@
 		cursor: default;
 	}
 
-	@media (hover: none) {
-		.mp-mark-actions {
-			opacity: 1;
-		}
-	}
-
-	/* The glyph stays 16px; the button box itself reaches the 44px touch minimum. */
 	@media (pointer: coarse) {
 		.mp-icon-btn {
-			width: 44px;
-			height: 44px;
+			min-width: 44px;
+			height: 32px;
+			font-size: 13px;
+			background: hsl(var(--at-fg) / 0.08);
 		}
 
-		.mp-header {
-			padding-block: 4px 0;
-		}
-
-		.mp-mark-actions {
-			gap: 0;
-			padding-right: 0;
-		}
-
-		.mp-footer {
-			padding-block: 2px;
+		.mp-remove {
+			background: transparent;
 		}
 
 		.mp-text-btn {
-			min-height: 44px;
+			height: 44px;
+			font-size: 13px;
+		}
+
+		.mp-section-head {
+			margin-block: -12px -6px;
+		}
+
+		.mp-field {
+			height: 40px;
+			font-size: 16px;
+		}
+
+		.mp-notes {
+			font-size: 16px;
+		}
+
+		.mp-mark-type {
+			font-size: 13px;
+		}
+
+		.mp-mark-main {
+			height: 40px;
+		}
+
+		.mp-interval-value {
+			font-size: 14px;
+		}
+
+		.mp-jump-head {
+			font-size: 15px;
+		}
+
+		.mp-details-value {
+			font-size: 13px;
 		}
 	}
 
 	/* Sheet: stacked under the video on narrow screens. Collapsed it is just the
-	   summary toggle; expanded it scrolls between a pinned toggle and footer. */
+	   summary toggle; expanded it scrolls under a pinned toggle. */
 	.marks-panel.sheet {
 		flex: 0 0 auto;
 		width: 100%;
 		height: auto;
-		max-height: min(55dvh, 560px);
-		overflow: hidden;
+		max-height: min(58dvh, 600px);
 	}
 
-	.sheet .mp-body {
-		display: block;
+	/* Under a landscape video the expanded sheet runs to the bottom of the screen
+	   as a pane of its own rather than a card that looks cut off. */
+	.marks-panel.sheet.fill {
 		flex: 1 1 auto;
-		min-height: 0;
-		overflow-y: auto;
-		overscroll-behavior: contain;
+		max-height: none;
+		margin: 0 -8px -8px;
+		border-width: 1px 0 0;
+		border-radius: 14px 14px 0 0;
 	}
 
-	.sheet .mp-results {
-		overflow-y: visible;
+	.sheet .mp-summary,
+	.sheet .mp-hero {
+		display: none;
+	}
+
+	.sheet .mp-summary + .mp-section {
+		margin-top: 0;
+	}
+
+	.sheet .mp-section-head {
+		position: sticky;
+		top: -14px;
+		z-index: 1;
+		margin: -14px -16px 0;
+		padding: 10px 16px 8px;
+		background: hsl(var(--at-bg-elevated));
 	}
 
 	.mp-sheet-heading {
@@ -896,16 +1282,30 @@
 		font: inherit;
 	}
 
+	/* A grab handle: the summary row is the top of a sheet you can pull open. */
+	.mp-sheet-toggle::before {
+		content: '';
+		position: absolute;
+		top: 6px;
+		left: 50%;
+		width: 32px;
+		height: 4px;
+		border-radius: 2px;
+		background: hsl(var(--at-fg) / 0.2);
+		transform: translateX(-50%);
+	}
+
 	.mp-sheet-toggle {
+		position: relative;
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr)) 44px;
-		align-items: center;
+		row-gap: 2px;
 		gap: 8px;
 		width: 100%;
-		min-height: 56px;
-		padding: 6px 2px 6px 14px;
+		min-height: 64px;
+		padding: 16px 2px 8px 16px;
 		border: none;
-		border-radius: 14px;
+		border-radius: var(--at-radius-lg);
 		background: transparent;
 		color: inherit;
 		font: inherit;
@@ -915,18 +1315,14 @@
 	}
 
 	.sheet:not(.collapsed) .mp-sheet-toggle {
-		min-height: 48px;
-		border-radius: 14px 14px 0 0;
+		min-height: 64px;
+		border-bottom: 1px solid hsl(var(--at-border));
+		border-radius: var(--at-radius-lg) var(--at-radius-lg) 0 0;
 	}
 
-	.mp-sheet-title,
 	.mp-peek-hint {
 		grid-column: 1 / 4;
-	}
-
-	.mp-sheet-title {
-		font-size: 13px;
-		font-weight: 600;
+		grid-row: 1 / 3;
 	}
 
 	.mp-peek-hint {
@@ -936,6 +1332,8 @@
 
 	.mp-sheet-chevron {
 		grid-column: 4;
+		grid-row: 1 / 3;
+		align-self: center;
 		justify-self: center;
 		width: 18px;
 		height: 18px;
@@ -947,38 +1345,48 @@
 		transform: rotate(180deg);
 	}
 
+	/* Labels share the first row and values the second, so they line up across stats. */
 	.mp-peek-stat {
-		display: flex;
-		flex-direction: column;
-		gap: 1px;
-		min-width: 0;
+		display: contents;
+	}
+
+	.mp-peek-stat .mp-peek-label {
+		grid-row: 1;
+		align-self: end;
+	}
+
+	.mp-peek-stat .mp-peek-value {
+		grid-row: 2;
+		align-self: last baseline;
 	}
 
 	.mp-peek-label {
 		overflow: hidden;
 		color: hsl(var(--at-fg-muted));
 		font-size: 11px;
+		font-weight: 500;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 
 	.mp-peek-value {
-		font-family: 'JetBrains Mono', ui-monospace, monospace;
-		font-size: 15px;
-		font-weight: 700;
+		font-size: 16px;
+		font-weight: 600;
 		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.02em;
 		white-space: nowrap;
 	}
 
 	.mp-peek-primary .mp-peek-value {
-		font-size: 18px;
+		font-size: 22px;
 	}
 
 	.mp-peek-value small {
-		margin-left: 2px;
+		margin-left: 3px;
 		color: hsl(var(--at-fg-muted));
-		font-size: 10px;
+		font-size: 11px;
 		font-weight: 500;
+		letter-spacing: 0;
 	}
 
 	@media (hover: hover) {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { KEYBIND_GROUPS } from '$lib/keybinds';
+	import { KEYBIND_GROUPS, platformKeys } from '$lib/keybinds';
 	import { dialogFocus, trapTab } from '$lib/dialogFocus';
 
 	interface Props {
@@ -40,6 +40,19 @@
 		}
 	}
 
+	// Playback and Timeline on the left; Marks and General on the right.
+	const columns = [
+		KEYBIND_GROUPS.filter((group) => group.title === 'Playback' || group.title === 'Timeline'),
+		KEYBIND_GROUPS.filter((group) => group.title === 'Marks' || group.title === 'General')
+	];
+
+	// "Ctrl / ⌘ + Z" → keys with the separators between them, so each key gets its own cap.
+	function keyTokens(keys: string): { text: string; key: boolean }[] {
+		return platformKeys(keys)
+			.split(' ')
+			.map((text) => ({ text, key: !['/', '+', 'or'].includes(text) }));
+	}
+
 	function handleBackdropKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Escape') {
 			onClose();
@@ -49,45 +62,55 @@
 
 {#if isOpen}
 	<div
-		class="keybinds-backdrop"
+		class="dialog-backdrop"
 		onclick={handleBackdropClick}
 		onkeydown={handleBackdropKeyDown}
 		role="dialog"
 		aria-modal="true"
-		aria-label="Keyboard shortcuts"
+		aria-labelledby="keybinds-title"
 		tabindex="-1"
 	>
-		<div class="keybinds-card" bind:this={card} use:dialogFocus tabindex="-1">
-			<div class="keybinds-header">
-				<h2 class="keybinds-title">Keyboard Shortcuts</h2>
-				<button class="close-btn" onclick={onClose} aria-label="Close">
+		<div class="dialog-card" bind:this={card} use:dialogFocus tabindex="-1">
+			<div class="dialog-header">
+				<h2 id="keybinds-title" class="dialog-title">Keyboard shortcuts</h2>
+				<button class="close-btn" onclick={onClose} aria-label="Close" title="Close (Esc)">
 					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
 						stroke-width="2"
+						aria-hidden="true"
 					>
-						<line x1="18" y1="6" x2="6" y2="18" />
-						<line x1="6" y1="6" x2="18" y2="18" />
+						<path d="M17 7 7 17M7 7l10 10" stroke-linecap="round" />
 					</svg>
 				</button>
 			</div>
 
 			<div class="keybinds-groups">
-				{#each KEYBIND_GROUPS as group (group.title)}
-					<section class="keybinds-group">
-						<h3 class="group-title">{group.title}</h3>
-						<dl class="bind-list">
-							{#each group.binds as bind (bind.keys)}
-								<div class="bind-row">
-									<dt><kbd>{bind.keys}</kbd></dt>
-									<dd>{bind.action}</dd>
-								</div>
-							{/each}
-						</dl>
-					</section>
+				{#each columns as column, c (c)}
+					<div class="keybinds-column">
+						{#each column as group (group.title)}
+							<section class="keybinds-group">
+								<h3 class="group-title">
+									{group.title}{#if group.title === 'Timeline'}<span class="group-note"
+											>when the timeline has focus</span
+										>{/if}
+								</h3>
+								<dl class="bind-list">
+									{#each group.binds as bind (bind.keys)}
+										<div class="bind-row">
+											<dt>{bind.action}</dt>
+											<dd>
+												{#each keyTokens(bind.keys) as token, i (i)}{#if token.key}<kbd
+															>{token.text}</kbd
+														>{:else}<span class="bind-sep">{token.text}</span>{/if}{/each}
+											</dd>
+										</div>
+									{/each}
+								</dl>
+							</section>
+						{/each}
+					</div>
 				{/each}
 			</div>
 		</div>
@@ -95,7 +118,7 @@
 {/if}
 
 <style>
-	.keybinds-backdrop {
+	.dialog-backdrop {
 		position: fixed;
 		inset: 0;
 		z-index: 100;
@@ -103,9 +126,9 @@
 		align-items: center;
 		justify-content: center;
 		padding: 16px;
-		background: hsl(var(--at-bg) / 0.85);
-		backdrop-filter: blur(12px);
-		animation: fadeIn 150ms ease-out;
+		background: hsl(var(--at-bg) / 0.6);
+		backdrop-filter: blur(6px);
+		animation: fadeIn 160ms ease-out;
 	}
 
 	@keyframes fadeIn {
@@ -117,28 +140,47 @@
 		}
 	}
 
-	.keybinds-card {
-		width: 100%;
-		max-width: 640px;
-		max-height: 85dvh;
-		overflow-y: auto;
-		padding: 20px 24px 24px;
-		background: hsl(var(--at-bg-elevated));
-		border: 1px solid hsl(var(--at-border));
-		border-radius: 16px;
-		box-shadow: 0 24px 60px hsl(var(--at-shadow) / 0.5);
-		outline: none;
+	@keyframes rise {
+		from {
+			opacity: 0;
+			transform: translateY(8px) scale(0.985);
+		}
+		to {
+			opacity: 1;
+			transform: none;
+		}
 	}
 
-	.keybinds-header {
+	.dialog-card {
+		width: 100%;
+		max-width: 800px;
+		max-height: 85dvh;
+		overflow-y: auto;
+		padding: 0 0 24px;
+		background: hsl(222 11% 10%);
+		border: 1px solid hsl(var(--at-fg) / 0.12);
+		border-radius: 16px;
+		box-shadow:
+			0 32px 80px hsl(var(--at-shadow) / 0.7),
+			0 0 0 1px hsl(var(--at-shadow) / 0.6);
+		outline: none;
+		animation: rise 200ms cubic-bezier(0.2, 0, 0, 1);
+	}
+
+	.dialog-header {
+		position: sticky;
+		top: 0;
+		z-index: 1;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 16px;
+		padding: 16px 16px 14px 24px;
+		border-bottom: 1px solid hsl(var(--at-border));
+		background: hsl(222 11% 10%);
 	}
 
-	.keybinds-title {
-		font-size: 16px;
+	.dialog-title {
+		font-size: 15px;
 		font-weight: 600;
 		color: hsl(var(--at-fg));
 	}
@@ -149,10 +191,15 @@
 		width: 32px;
 		height: 32px;
 		border-radius: 8px;
-		color: hsl(var(--at-fg-secondary));
+		color: hsl(var(--at-fg-muted));
 		background: transparent;
 		border: none;
 		cursor: pointer;
+	}
+
+	.close-btn svg {
+		width: 18px;
+		height: 18px;
 	}
 
 	.close-btn:hover {
@@ -162,50 +209,90 @@
 
 	.keybinds-groups {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-		gap: 20px 28px;
+		grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+		gap: 24px 40px;
+		padding: 20px 24px 0;
+	}
+
+	.keybinds-column {
+		display: flex;
+		flex-direction: column;
+		gap: 24px;
+	}
+
+	.group-note {
+		margin-left: 8px;
+		color: hsl(var(--at-fg-muted));
+		font-weight: 500;
+		letter-spacing: 0;
+		text-transform: none;
 	}
 
 	.group-title {
-		margin-bottom: 8px;
-		font-size: 12px;
+		margin-bottom: 6px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
 		font-weight: 600;
-		color: hsl(var(--at-fg-secondary));
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 	}
 
 	.bind-list {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
 	}
 
 	.bind-row {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 12px;
+		gap: 16px;
+		min-height: 36px;
+		border-bottom: 1px solid hsl(var(--at-border) / 0.7);
+	}
+
+	.bind-row:last-child {
+		border-bottom: none;
 	}
 
 	.bind-row dt {
-		flex-shrink: 0;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 13px;
 	}
 
 	.bind-row dd {
-		font-size: 13px;
-		text-align: right;
-		color: hsl(var(--at-fg-secondary));
+		display: flex;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.bind-sep {
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
 	}
 
 	kbd {
-		display: inline-block;
-		padding: 3px 7px;
-		font-family: 'JetBrains Mono', ui-monospace, monospace;
-		font-size: 11px;
-		font-weight: 600;
-		white-space: nowrap;
-		background: hsl(var(--at-surface));
-		border: 1px solid hsl(var(--at-border));
+		display: inline-grid;
+		place-items: center;
+		min-width: 22px;
+		height: 22px;
+		padding: 0 6px;
+		border: 1px solid hsl(var(--at-border-hover));
+		border-bottom-width: 2px;
 		border-radius: 5px;
+		background: hsl(var(--at-surface));
 		color: hsl(var(--at-fg));
+		font:
+			600 11px/1 var(--at-font-mono),
+			monospace;
+		white-space: nowrap;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.dialog-backdrop,
+		.dialog-card {
+			animation: none;
+		}
 	}
 </style>
