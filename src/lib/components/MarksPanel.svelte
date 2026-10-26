@@ -148,40 +148,43 @@
 			>
 		</button>
 		<div class="mp-mark-actions">
-			<span class="mp-nudge">
-				<button
-					class="mp-icon-btn"
-					onclick={() => onNudge(mark.id, -1)}
-					aria-label="Move {label.toLowerCase()} one frame earlier"
-					title="1 frame earlier"
-					><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5 9 12l5.5 5.5" /></svg
-					></button
-				>
-				<button
-					class="mp-icon-btn"
-					onclick={() => onNudge(mark.id, 1)}
-					aria-label="Move {label.toLowerCase()} one frame later"
-					title="1 frame later"
-					><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6.5 15 12l-5.5 5.5" /></svg
-					></button
-				>
-			</span>
+			<button
+				class="mp-icon-btn"
+				onclick={() => onNudge(mark.id, -1)}
+				aria-label="Move {label.toLowerCase()} one frame earlier"
+				title="1 frame earlier"
+				><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5 9 12l5.5 5.5" /></svg><span
+					class="mp-action-label">1 frame</span
+				></button
+			>
+			<button
+				class="mp-icon-btn"
+				onclick={() => onNudge(mark.id, 1)}
+				aria-label="Move {label.toLowerCase()} one frame later"
+				title="1 frame later"
+				><span class="mp-action-label">1 frame</span><svg viewBox="0 0 24 24" aria-hidden="true"
+					><path d="M9.5 6.5 15 12l-5.5 5.5" /></svg
+				></button
+			>
+			<span class="mp-action-divider" aria-hidden="true"></span>
 			<button
 				class="mp-icon-btn mp-remove"
 				onclick={() => onRemove(mark.id)}
 				aria-label="Remove {label.toLowerCase()}"
 				title="Remove (Backspace)"
 				><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 7.5l-9 9M7.5 7.5l9 9" /></svg
-				></button
+				><span class="mp-action-label">Remove</span></button
 			>
 		</div>
 	</div>
 {/snippet}
 
-{#snippet interval(span: Interval, label?: string)}
+{#snippet interval(span: Interval)}
 	<div class="mp-interval mp-interval-{span.kind}" title={intervalDescription(span)}>
-		<span>{label ?? (span.kind === 'flight' ? 'Flight' : 'Contact')}</span>
-		<span class="mp-interval-value">{formatMs(span.realSeconds)} ms · {span.frames} fr</span>
+		<span class="mp-interval-label"
+			>{span.kind === 'flight' ? 'Flight' : 'Contact'} · {span.frames} fr</span
+		>
+		<span class="mp-interval-value">{formatMs(span.realSeconds)} ms</span>
 	</div>
 {/snippet}
 
@@ -197,7 +200,11 @@
 		<h2 class="mp-sheet-heading">
 			<button class="mp-sheet-toggle" onclick={onToggle} aria-expanded={expanded}>
 				{#if expanded}
-					<span class="mp-sheet-title">Analysis</span>
+					<span class="mp-sheet-title"
+						>Analysis{#if bestJump?.flight}<span class="mp-sheet-best"
+								>Best {bestJump.flight.heightCm?.toFixed(1)} cm</span
+							>{/if}</span
+					>
 				{:else}
 					<span class="sr-only">Analysis:</span>
 					{#if bestJump?.flight}
@@ -281,7 +288,7 @@
 										· RSI {bestRsi.toFixed(2)}{/if}{/if}</span
 							>
 						{:else}
-							<span class="mp-metric-value muted">None</span>
+							<span class="mp-metric-value muted" aria-label="None">–</span>
 							<span class="mp-sub"
 								>{bestIndex === 0 ? 'No landing before it' : 'No landing marked before'}</span
 							>
@@ -297,43 +304,6 @@
 					>
 				</div>
 			{/if}
-
-			<section class="mp-section" aria-labelledby="mp-setup-heading">
-				<h3 id="mp-setup-heading" class="mp-section-title">Setup</h3>
-				<label class="mp-row">
-					<span>Footage</span>
-					<select class="mp-field mp-select" bind:value={timeScale}>
-						{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
-								>{scale.label}</option
-							>{/each}
-					</select>
-				</label>
-				<label class="mp-row">
-					<span>Jump type</span>
-					<select
-						class="mp-field mp-select"
-						bind:value={jumpType}
-						aria-describedby={jumpType === null ? 'mp-jump-type-hint' : undefined}
-					>
-						{#if jumpType === null}<option value={null}>Not set</option>{/if}
-						{#each JUMP_TYPES as type (type.value)}<option value={type.value}>{type.label}</option
-							>{/each}
-					</select>
-				</label>
-				{#if jumpType === null}
-					<p id="mp-jump-type-hint" class="mp-caption warn">
-						Set the jump type to compare like with like.
-					</p>
-				{/if}
-				<p class="mp-caption">
-					{#if longestFrameMs > frameMs + 0.05}
-						±1 frame = ±{frameMs.toFixed(1)}–{longestFrameMs.toFixed(1)} ms (variable frame rate)
-					{:else}
-						±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
-					{/if}{#if slowMotion}
-						· real time ({slowMotion.label.toLowerCase()}){/if}
-				</p>
-			</section>
 
 			<section class="mp-section" aria-labelledby="mp-jumps-heading">
 				<div class="mp-section-head">
@@ -359,7 +329,7 @@
 							<li>
 								<span class="mp-empty-num">1</span>
 								<span
-									>Pause on the first frame the feet leave the ground, then <span
+									>Pause on the first frame where the feet leave the ground, then <span
 										class="pointer-only">press <kbd>T</kbd></span
 									><span class="touch-only">tap Takeoff</span>.</span
 								>
@@ -399,7 +369,7 @@
 								{#if jump.contact}
 									{#if grouped.jumps[index - 1]?.flight?.to.id === jump.contact.from.id}
 										<!-- The touchdown is the previous jump's landing; don't list it twice. -->
-										{@render interval(jump.contact, `Contact after Jump ${index}`)}
+										{@render interval(jump.contact)}
 									{:else}
 										{@render markRow(jump.contact.from, 'Touchdown')}
 										{@render interval(jump.contact)}
@@ -434,6 +404,43 @@
 				{/if}
 			</section>
 
+			<section class="mp-section" aria-labelledby="mp-setup-heading">
+				<h3 id="mp-setup-heading" class="mp-section-title">Setup</h3>
+				<label class="mp-row">
+					<span>Footage</span>
+					<select class="mp-field mp-select" bind:value={timeScale}>
+						{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
+								>{scale.label}</option
+							>{/each}
+					</select>
+				</label>
+				<label class="mp-row">
+					<span>Jump type</span>
+					<select
+						class="mp-field mp-select"
+						bind:value={jumpType}
+						aria-describedby={jumpType === null ? 'mp-jump-type-hint' : undefined}
+					>
+						{#if jumpType === null}<option value={null}>Not set</option>{/if}
+						{#each JUMP_TYPES as type (type.value)}<option value={type.value}>{type.label}</option
+							>{/each}
+					</select>
+				</label>
+				{#if jumpType === null}
+					<p id="mp-jump-type-hint" class="mp-caption warn">
+						Set the jump type to compare like with like.
+					</p>
+				{/if}
+				<p class="mp-caption">
+					{#if longestFrameMs > frameMs + 0.05}
+						±1 frame = ±{frameMs.toFixed(1)}–{longestFrameMs.toFixed(1)} ms (variable frame rate)
+					{:else}
+						±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
+					{/if}{#if slowMotion}
+						· real time ({slowMotion.label.toLowerCase()}){/if}
+				</p>
+			</section>
+
 			<section class="mp-section mp-session" aria-labelledby="mp-session-heading">
 				<h3 id="mp-session-heading" class="mp-section-title">Session</h3>
 				<input
@@ -465,8 +472,8 @@
 
 <style>
 	.marks-panel {
-		/* Three 26px action buttons, a gap and padding; intervals reserve it so values line up. */
-		--mark-actions-width: 85px;
+		/* Three 26px action buttons, a divider and a margin; intervals reserve it so values line up. */
+		--mark-actions-width: 82px;
 		display: flex;
 		flex: 0 0 320px;
 		flex-direction: column;
@@ -604,6 +611,10 @@
 	.mp-metric-value.muted,
 	.mp-metric-muted .mp-metric-value {
 		color: hsl(var(--at-fg-muted));
+	}
+
+	.mp-metric-value.muted {
+		font-weight: 500;
 	}
 
 	/* Sections */
@@ -862,13 +873,12 @@
 	}
 
 	.mp-badge {
-		padding: 2px 6px;
+		padding: 2px 7px;
 		border-radius: 999px;
-		background: hsl(var(--at-fg));
-		color: hsl(var(--at-bg));
+		background: hsl(var(--at-fg) / 0.12);
+		color: hsl(var(--at-fg));
 		font-size: 10px;
-		font-weight: 650;
-		letter-spacing: 0.02em;
+		font-weight: 600;
 	}
 
 	.mp-incomplete {
@@ -889,8 +899,10 @@
 		--mark-color: hsl(var(--at-landing));
 	}
 
-	.mp-mark:hover {
-		background: hsl(var(--at-fg) / 0.05);
+	@media (hover: hover) {
+		.mp-mark:hover {
+			background: hsl(var(--at-fg) / 0.05);
+		}
 	}
 
 	.mp-mark.active {
@@ -936,17 +948,13 @@
 		font-variant-numeric: tabular-nums;
 	}
 
-	.mp-nudge {
-		display: flex;
-		border-radius: 7px;
-		background: hsl(var(--at-fg) / 0.06);
-	}
-
+	/* Nudge earlier / later | remove, as one segmented control. */
 	.mp-mark-actions {
 		display: flex;
 		align-items: center;
-		gap: 4px;
-		padding-right: 3px;
+		margin-right: 3px;
+		border-radius: 7px;
+		background: hsl(var(--at-fg) / 0.06);
 		opacity: 0;
 		transition: opacity 120ms ease;
 	}
@@ -957,16 +965,29 @@
 		opacity: 1;
 	}
 
+	.mp-action-divider {
+		width: 1px;
+		height: 14px;
+		background: hsl(var(--at-fg) / 0.12);
+	}
+
+	.mp-action-label {
+		display: none;
+	}
+
 	.mp-icon-btn {
-		display: grid;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
 		width: 26px;
 		height: 26px;
-		place-items: center;
 		padding: 0;
 		border: none;
-		border-radius: 6px;
+		border-radius: 7px;
 		background: transparent;
-		color: hsl(var(--at-fg-muted));
+		color: hsl(var(--at-fg-secondary));
+		font: inherit;
 		cursor: pointer;
 		transition:
 			background 120ms ease,
@@ -974,8 +995,9 @@
 	}
 
 	.mp-icon-btn svg {
-		width: 16px;
-		height: 16px;
+		width: 15px;
+		height: 15px;
+		flex: 0 0 auto;
 		fill: none;
 		stroke: currentColor;
 		stroke-width: 1.8;
@@ -992,7 +1014,8 @@
 		color: hsl(var(--at-error));
 	}
 
-	/* The line between two marks runs through their dots (8px padding + half the dot). */
+	/* Label on the left; the value right-aligned in the same column as the timecodes.
+	   The line runs through the mark dots (8px padding + half the dot). */
 	.mp-interval {
 		--interval-color: hsl(var(--at-takeoff) / 0.6);
 		display: flex;
@@ -1010,9 +1033,15 @@
 		--interval-color: hsl(var(--at-landing) / 0.55);
 	}
 
+	.mp-interval-label {
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
 	.mp-interval-value {
 		margin-left: auto;
 		color: hsl(var(--at-fg-secondary));
+		font-family: var(--at-font-mono);
 		font-variant-numeric: tabular-nums;
 	}
 
@@ -1061,7 +1090,12 @@
 		color: hsl(var(--at-fg));
 	}
 
+	.mp-danger {
+		color: hsl(var(--at-error) / 0.9);
+	}
+
 	.mp-danger:hover:not(:disabled) {
+		background: hsl(var(--at-error) / 0.12);
 		color: hsl(var(--at-error));
 	}
 
@@ -1070,34 +1104,63 @@
 		cursor: default;
 	}
 
+	/* Touch: no hover, so a mark's controls appear as a labelled toolbar under the
+	   selected row (tap a row to select it) instead of crowding every row. */
 	@media (hover: none) {
+		.marks-panel {
+			--mark-actions-width: 0px;
+		}
+
+		.mp-mark {
+			flex-wrap: wrap;
+		}
+
 		.mp-mark-actions {
+			display: none;
+			gap: 6px;
+			width: 100%;
+			margin: 0;
+			padding: 0 8px 8px 26px;
+			background: none;
 			opacity: 1;
+		}
+
+		.mp-mark.active .mp-mark-actions {
+			display: flex;
+		}
+
+		.mp-action-divider {
+			display: none;
+		}
+
+		.mp-action-label {
+			display: inline;
+		}
+
+		.mp-icon-btn {
+			flex: 1 1 0;
+			width: auto;
+			height: 40px;
+			border-radius: 8px;
+			background: hsl(var(--at-fg) / 0.07);
+			color: hsl(var(--at-fg));
+			font-size: 14px;
+			font-weight: 500;
+		}
+
+		.mp-remove {
+			color: hsl(var(--at-error));
 		}
 	}
 
-	/* The glyph stays 16px; the button box itself reaches the 44px touch minimum. */
 	@media (pointer: coarse) {
-		.mp-icon-btn {
-			width: 44px;
-			height: 44px;
-		}
-
 		.mp-mark-main {
 			height: 44px;
 		}
 
-		.mp-mark-actions {
-			padding-right: 0;
-		}
-
-		.marks-panel {
-			--mark-actions-width: 136px;
-		}
-
 		.mp-text-btn {
 			height: 44px;
-			font-size: 14px;
+			font-size: 13px;
 		}
 
 		.mp-section-head {
@@ -1111,6 +1174,11 @@
 
 		.mp-notes {
 			font-size: 16px;
+		}
+
+		.mp-row,
+		.mp-mark-type {
+			font-size: 15px;
 		}
 	}
 
@@ -1133,19 +1201,6 @@
 		font: inherit;
 	}
 
-	/* A grab handle, so the summary reads as a sheet that pulls up. */
-	.mp-sheet-toggle::before {
-		content: '';
-		position: absolute;
-		top: 6px;
-		left: 50%;
-		width: 36px;
-		height: 4px;
-		border-radius: 2px;
-		background: hsl(var(--at-fg) / 0.18);
-		transform: translateX(-50%);
-	}
-
 	.mp-sheet-toggle {
 		position: relative;
 		display: grid;
@@ -1153,8 +1208,8 @@
 		align-items: center;
 		gap: 8px;
 		width: 100%;
-		min-height: 64px;
-		padding: 14px 2px 8px 16px;
+		min-height: 60px;
+		padding: 8px 2px 8px 16px;
 		border: none;
 		border-radius: var(--at-radius-lg);
 		background: transparent;
@@ -1177,8 +1232,18 @@
 	}
 
 	.mp-sheet-title {
+		display: flex;
+		align-items: baseline;
+		gap: 10px;
 		font-size: 14px;
 		font-weight: 600;
+	}
+
+	.mp-sheet-best {
+		color: hsl(var(--at-fg-secondary));
+		font-size: 13px;
+		font-weight: 500;
+		font-variant-numeric: tabular-nums;
 	}
 
 	.mp-peek-hint {

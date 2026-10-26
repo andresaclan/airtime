@@ -44,7 +44,7 @@
 	function keyTokens(keys: string): { text: string; key: boolean }[] {
 		return platformKeys(keys)
 			.split(' ')
-			.map((text) => ({ text, key: text !== '/' && text !== '+' }));
+			.map((text) => ({ text, key: !['/', '+', 'or'].includes(text) }));
 	}
 
 	function handleBackdropKeyDown(event: KeyboardEvent) {
@@ -81,22 +81,30 @@
 			</div>
 
 			<div class="keybinds-groups">
-				{#each KEYBIND_GROUPS as group (group.title)}
-					<section class="keybinds-group">
-						<h3 class="group-title">{group.title}</h3>
-						<dl class="bind-list">
-							{#each group.binds as bind (bind.keys)}
-								<div class="bind-row">
-									<dt>{bind.action}</dt>
-									<dd>
-										{#each keyTokens(bind.keys) as token, i (i)}{#if token.key}<kbd
-													>{token.text}</kbd
-												>{:else}<span class="bind-sep">{token.text}</span>{/if}{/each}
-									</dd>
-								</div>
-							{/each}
-						</dl>
-					</section>
+				{#each [KEYBIND_GROUPS.slice(0, 2), KEYBIND_GROUPS.slice(2)] as column, c (c)}
+					<div class="keybinds-column">
+						{#each column as group (group.title)}
+							<section class="keybinds-group">
+								<h3 class="group-title">
+									{group.title}{#if group.title === 'Timeline'}<span class="group-note"
+											>when the timeline has focus</span
+										>{/if}
+								</h3>
+								<dl class="bind-list">
+									{#each group.binds as bind (bind.keys)}
+										<div class="bind-row">
+											<dt>{bind.action}</dt>
+											<dd>
+												{#each keyTokens(bind.keys) as token, i (i)}{#if token.key}<kbd
+															>{token.text}</kbd
+														>{:else}<span class="bind-sep">{token.text}</span>{/if}{/each}
+											</dd>
+										</div>
+									{/each}
+								</dl>
+							</section>
+						{/each}
+					</div>
 				{/each}
 			</div>
 		</div>
@@ -139,7 +147,7 @@
 
 	.dialog-card {
 		width: 100%;
-		max-width: 760px;
+		max-width: 800px;
 		max-height: 85dvh;
 		overflow-y: auto;
 		padding: 0 0 24px;
@@ -195,9 +203,23 @@
 
 	.keybinds-groups {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 		gap: 24px 40px;
 		padding: 20px 24px 0;
+	}
+
+	.keybinds-column {
+		display: flex;
+		flex-direction: column;
+		gap: 24px;
+	}
+
+	.group-note {
+		margin-left: 8px;
+		color: hsl(var(--at-fg-muted));
+		font-weight: 500;
+		letter-spacing: 0;
+		text-transform: none;
 	}
 
 	.group-title {

@@ -187,10 +187,10 @@
 								<span class="status-text"
 									>{protectDeclined
 										? 'The browser declined to protect these; it may still clear them if space runs low.'
-										: 'The browser may clear these if space runs low.'}</span
+										: 'The browser may clear saved sessions when storage runs low.'}</span
 								>
 								{#if !protectDeclined}<button class="status-action" onclick={handleProtect}
-										>Protect</button
+										>Prevent this</button
 									>{/if}
 							</p>
 						{/if}
@@ -554,14 +554,9 @@
 			border-color 120ms ease;
 	}
 
-	.session-row:hover {
-		border-color: hsl(var(--at-border-hover));
-		background: hsl(var(--at-surface) / 0.6);
-	}
-
 	.session-row.current {
-		border-color: hsl(var(--at-accent) / 0.45);
-		background: hsl(var(--at-accent) / 0.06);
+		border-color: hsl(var(--at-fg) / 0.2);
+		background: hsl(var(--at-surface) / 0.8);
 	}
 
 	.session-height {
@@ -613,8 +608,8 @@
 		flex: 0 0 auto;
 		padding: 2px 7px;
 		border-radius: 999px;
-		background: hsl(var(--at-accent) / 0.18);
-		color: hsl(var(--at-accent-hover));
+		background: hsl(var(--at-fg) / 0.12);
+		color: hsl(var(--at-fg));
 		font-size: 10px;
 		font-weight: 600;
 	}

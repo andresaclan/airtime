@@ -766,7 +766,9 @@
 						d="M3.5 7.5v9a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2V9.5a2 2 0 0 0-2-2h-6l-2-2h-5a2 2 0 0 0-2 2z"
 					/></svg
 				>
-				<span class="header-open-label">{videoSrc ? 'Change video' : 'Open video'}</span>
+				<span class="header-open-label">{videoSrc ? 'Change video' : 'Open video'}</span><span
+					class="header-open-short">Open</span
+				>
 			</button>
 			{#if videoSrc}
 				<button
@@ -775,7 +777,9 @@
 					disabled={!isDirty || isSaving}
 					title="Save marks to this browser ({saveShortcut})"
 				>
-					Save{#if isDirty}<kbd class="btn-kbd">{saveShortcut}</kbd>{/if}
+					Save{#if isDirty}<span class="header-dirty-dot" aria-label="Unsaved changes"></span><kbd
+							class="btn-kbd">{saveShortcut}</kbd
+						>{/if}
 				</button>
 			{/if}
 		</div>
@@ -848,7 +852,7 @@
 				<ol class="empty-steps at-reveal" style="--delay: 120ms">
 					<li>
 						<strong><span class="empty-step-num">1</span>Find takeoff</strong>
-						Step to the first frame the feet leave the ground.
+						Step to the first frame where the feet leave the ground.
 					</li>
 					<li>
 						<strong><span class="empty-step-num">2</span>Find landing</strong>
@@ -889,135 +893,134 @@
 				</p>
 			</div>
 		{:else}
-			<div
-				class="viewer-frame"
-				class:landscape={fitLandscape}
-				style:--video-aspect={videoAspect ?? undefined}
-			>
-				<VideoViewer
-					bind:this={videoViewerRef}
-					bind:videoElement
-					{videoSrc}
-					bind:isPlaying
-					bind:currentTime
-					bind:duration
-					{sourceFrameRate}
-					frameTimes={timing.frameTimes}
-					bind:frameRate
-					bind:playbackFrameRate
-					bind:volume
-					bind:isMuted
-					bind:zoomLevel
-					{playbackRate}
-					onFrameRateDetected={() => (frameRateSettled = true)}
-					onDurationChange={handleVideoMetadata}
-					onError={handleMediaError}
-				/>
+			<div class="viewer-column" style:--video-aspect={videoAspect ?? undefined}>
+				<div class="viewer-frame" class:landscape={fitLandscape}>
+					<VideoViewer
+						bind:this={videoViewerRef}
+						bind:videoElement
+						{videoSrc}
+						bind:isPlaying
+						bind:currentTime
+						bind:duration
+						{sourceFrameRate}
+						frameTimes={timing.frameTimes}
+						bind:frameRate
+						bind:playbackFrameRate
+						bind:volume
+						bind:isMuted
+						bind:zoomLevel
+						{playbackRate}
+						onFrameRateDetected={() => (frameRateSettled = true)}
+						onDurationChange={handleVideoMetadata}
+						onError={handleMediaError}
+					/>
 
-				{#if mediaError}
-					<div class="viewer-overlay z-10">
-						<span class="viewer-overlay-icon" aria-hidden="true">
-							<svg
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.7"
-								stroke-linecap="round"
-								><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5h.01" /></svg
-							>
-						</span>
-						<p class="viewer-overlay-title">Unable to play this video</p>
-						<p class="viewer-overlay-text">
-							The file may be unsupported or damaged. Choose another video to continue.
-						</p>
-					</div>
-				{:else}
-					<div class="viewer-badge">
-						<span class="viewer-badge-dot" class:uncertain={!sourceFrameRate}
-						></span>{#if sourceFrameRate && variableFrameRate}
-							<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps · variable</span>
-						{:else if sourceFrameRate}
-							{sourceFrameRate} fps
-						{:else if playbackFrameRate}
-							<span title="Couldn't read the frame rate from the file; estimated from playback">
-								~{playbackFrameRate} fps · estimated
+					{#if mediaError}
+						<div class="viewer-overlay z-10">
+							<span class="viewer-overlay-icon" aria-hidden="true">
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.7"
+									stroke-linecap="round"
+									><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5h.01" /></svg
+								>
 							</span>
-						{:else if frameRateFailed}
-							<span title={FRAME_RATE_FAILED}>Frame rate unknown</span>
-						{:else}
-							Detecting fps…
-						{/if}{#if playbackRate !== 1}<span class="viewer-badge-rate">{playbackRate}×</span>{/if}
-					</div>
-				{/if}
+							<p class="viewer-overlay-title">Unable to play this video</p>
+							<p class="viewer-overlay-text">
+								The file may be unsupported or damaged. Choose another video to continue.
+							</p>
+						</div>
+					{:else}
+						<div class="viewer-badge">
+							<span class="viewer-badge-dot" class:uncertain={!sourceFrameRate}
+							></span>{#if sourceFrameRate && variableFrameRate}
+								<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps · variable</span>
+							{:else if sourceFrameRate}
+								{sourceFrameRate} fps
+							{:else if playbackFrameRate}
+								<span title="Couldn't read the frame rate from the file; estimated from playback">
+									~{playbackFrameRate} fps · estimated
+								</span>
+							{:else if frameRateFailed}
+								<span title={FRAME_RATE_FAILED}>Frame rate unknown</span>
+							{:else}
+								Detecting fps…
+							{/if}{#if playbackRate !== 1}<span class="viewer-badge-rate">{playbackRate}×</span
+								>{/if}
+						</div>
+					{/if}
 
-				<!-- Drag overlay -->
-				{#if isDragging}
-					<div class="viewer-overlay drop z-20">
-						<span class="viewer-overlay-icon" aria-hidden="true">
-							<svg
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.6"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5" /><path
-									d="M4 14.5v3A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5v-3"
-								/></svg
-							>
-						</span>
-						<p class="viewer-overlay-title">Drop to replace video</p>
-					</div>
-				{/if}
-				<div class="control-bar">
-					<div class="control-bar-inner">
-						<VideoScrubber
-							{currentTime}
-							{duration}
-							{timing}
-							{videoElement}
-							{marks}
-							intervals={analysis.intervals}
-							activeMarkId={activeMark?.id ?? null}
-							bind:isScrubbing
-						/>
-
-						<div class="control-toolbar">
-							<div class="time-readout">
-								<span class="time-current">{formatTimecode(currentTime, timing)}</span>
-								<span class="time-separator">/</span>
-								<span class="time-duration">{formatDuration()}</span>
-							</div>
-
-							<VideoControls
-								{isPlaying}
+					<!-- Drag overlay -->
+					{#if isDragging}
+						<div class="viewer-overlay drop z-20">
+							<span class="viewer-overlay-icon" aria-hidden="true">
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.6"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5" /><path
+										d="M4 14.5v3A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5v-3"
+									/></svg
+								>
+							</span>
+							<p class="viewer-overlay-title">Drop to replace video</p>
+						</div>
+					{/if}
+					<div class="control-bar">
+						<div class="control-bar-inner">
+							<VideoScrubber
 								{currentTime}
 								{duration}
 								{timing}
 								{videoElement}
-								bind:volume
-								bind:isMuted
-								{playbackRate}
-								onCyclePlaybackRate={cyclePlaybackRate}
+								{marks}
+								intervals={analysis.intervals}
+								activeMarkId={activeMark?.id ?? null}
+								bind:isScrubbing
 							/>
 
-							<div class="mark-actions">
-								<button
-									class="mark-action mark-action-takeoff"
-									class:on-frame={activeMark?.type === 'takeoff'}
-									onclick={() => addMark('takeoff')}
-									title="Mark takeoff on this frame (T)"
-								>
-									<span class="mark-action-dot"></span>Takeoff<kbd>T</kbd>
-								</button>
-								<button
-									class="mark-action mark-action-landing"
-									class:on-frame={activeMark?.type === 'landing'}
-									onclick={() => addMark('landing')}
-									title="Mark landing on this frame (L)"
-								>
-									<span class="mark-action-dot"></span>Landing<kbd>L</kbd>
-								</button>
+							<div class="control-toolbar">
+								<div class="time-readout">
+									<span class="time-current">{formatTimecode(currentTime, timing)}</span>
+									<span class="time-separator">/</span>
+									<span class="time-duration">{formatDuration()}</span>
+								</div>
+
+								<VideoControls
+									{isPlaying}
+									{currentTime}
+									{duration}
+									{timing}
+									{videoElement}
+									bind:volume
+									bind:isMuted
+									{playbackRate}
+									onCyclePlaybackRate={cyclePlaybackRate}
+								/>
+
+								<div class="mark-actions">
+									<button
+										class="mark-action mark-action-takeoff"
+										class:on-frame={activeMark?.type === 'takeoff'}
+										onclick={() => addMark('takeoff')}
+										title="Mark takeoff on this frame (T)"
+									>
+										<span class="mark-action-dot"></span>Takeoff<kbd>T</kbd>
+									</button>
+									<button
+										class="mark-action mark-action-landing"
+										class:on-frame={activeMark?.type === 'landing'}
+										onclick={() => addMark('landing')}
+										title="Mark landing on this frame (L)"
+									>
+										<span class="mark-action-dot"></span>Landing<kbd>L</kbd>
+									</button>
+								</div>
 							</div>
 						</div>
 					</div>

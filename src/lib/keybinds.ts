@@ -7,8 +7,7 @@ export const KEYBIND_GROUPS: KeybindGroup[] = [
 		title: 'Playback',
 		binds: [
 			{ keys: 'Space / K', action: 'Play / pause' },
-			{ keys: ', / .', action: 'Step back / forward one frame' },
-			{ keys: 'Shift + ← / →', action: 'Step one frame (arrow keys)' },
+			{ keys: ', / . or Shift + ← / →', action: 'Step one frame' },
 			{ keys: '↑ / ↓', action: 'Volume up / down' },
 			{ keys: 'R', action: 'Playback speed 1× / ½× / ¼×' },
 			{ keys: 'M', action: 'Mute / unmute' }
@@ -17,8 +16,8 @@ export const KEYBIND_GROUPS: KeybindGroup[] = [
 	{
 		title: 'Timeline',
 		binds: [
-			{ keys: '← / →', action: 'Scrub back / forward (timeline focused)' },
-			{ keys: 'Home / End', action: 'Jump to start / end (timeline focused)' }
+			{ keys: '← / →', action: 'Scrub back / forward' },
+			{ keys: 'Home / End', action: 'Jump to start / end' }
 		]
 	},
 	{
