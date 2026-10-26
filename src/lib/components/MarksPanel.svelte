@@ -105,7 +105,6 @@
 	let jumpTypeLabel = $derived(JUMP_TYPES.find((type) => type.value === jumpType)?.label);
 	let completedJumps = $derived(grouped.jumps.filter((jump) => jump.flight).length);
 
-	let bestIndex = $derived(bestJump ? grouped.jumps.indexOf(bestJump) : -1);
 	let bestRsi = $derived(bestJump && contactApplies ? rsi(bestJump) : undefined);
 	// Contact only means something for drop and rebound jumps; there it gets a summary slot.
 	let contactMatters = $derived(jumpType !== null && hasMeaningfulContact(jumpType));
@@ -220,7 +219,7 @@
 						>
 					</span>
 					<span class="mp-peek-stat">
-						<span class="mp-peek-label">Flight</span>
+						<span class="mp-peek-label">Best flight</span>
 						<span class="mp-peek-value"
 							>{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span
 						>
@@ -266,9 +265,7 @@
 		<div class="mp-body">
 			{#if bestJump?.flight}
 				<div class="mp-summary">
-					<span class="mp-label"
-						>{completedJumps > 1 ? `Best jump · Jump ${bestIndex + 1}` : 'Jump height'}</span
-					>
+					<span class="mp-label">{completedJumps > 1 ? 'Best jump' : 'Jump height'}</span>
 					<p class="mp-hero-value">
 						{bestJump.flight.heightCm?.toFixed(1)}<span class="mp-unit">cm</span><span
 							class="mp-hero-alt">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span
@@ -321,14 +318,6 @@
 					{#if contactMatters && !bestJump.contact}
 						<p class="mp-caption">Mark the landing before the takeoff to get contact time.</p>
 					{/if}
-					<p class="mp-caption">
-						{#if longestFrameMs > frameMs + 0.05}
-							±1 frame = ±{frameMs.toFixed(1)}–{longestFrameMs.toFixed(1)} ms (variable frame rate)
-						{:else}
-							±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
-						{/if}{#if slowMotion}
-							· real time ({slowMotion.label.toLowerCase()}){/if}
-					</p>
 				</div>
 			{:else}
 				<div class="mp-hero is-empty">
@@ -466,8 +455,14 @@
 								>{/each}
 						</select>
 					</label>
-					<p class="mp-caption mp-sheet-precision">
-						±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
+					<p class="mp-caption">
+						{#if longestFrameMs > frameMs + 0.05}
+							Precision: ±1 frame = ±{frameMs.toFixed(1)}–{longestFrameMs.toFixed(1)} ms (variable frame
+							rate)
+						{:else}
+							Precision: ±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
+						{/if}{#if slowMotion}
+							· real time ({slowMotion.label.toLowerCase()}){/if}
 					</p>
 					{#if jumpType === null}
 						<p id="mp-jump-type-hint" class="mp-caption warn">
@@ -1005,7 +1000,8 @@
 	}
 
 	.mp-mark.active {
-		background: color-mix(in srgb, var(--mark-color) 9%, transparent);
+		background: hsl(var(--at-fg) / 0.05);
+		box-shadow: inset 2px 0 0 var(--mark-color);
 	}
 
 	.mp-mark.active .mp-mark-type {
@@ -1047,8 +1043,7 @@
 
 	.mp-mark-time {
 		color: hsl(var(--at-fg-muted));
-		font-family: var(--at-font-mono);
-		font-size: 11px;
+		font-size: 12px;
 		font-variant-numeric: tabular-nums;
 	}
 
@@ -1106,7 +1101,8 @@
 	.mp-remove {
 		margin-left: auto;
 		background: transparent;
-		color: hsl(var(--at-error) / 0.85);
+		color: hsl(var(--at-fg-muted));
+		font-weight: 500;
 	}
 
 	.mp-remove:hover,
@@ -1123,7 +1119,7 @@
 		align-items: center;
 		gap: 8px;
 		margin-left: 11px;
-		padding: 3px 8px 3px 17px;
+		padding: 3px 8px 3px 13px;
 		border-left: 2px dashed var(--interval-color);
 		color: hsl(var(--at-fg-muted));
 		font-size: 11px;
@@ -1213,10 +1209,14 @@
 
 	@media (pointer: coarse) {
 		.mp-icon-btn {
-			min-width: 38px;
-			height: 30px;
+			min-width: 44px;
+			height: 32px;
 			font-size: 13px;
 			background: hsl(var(--at-fg) / 0.08);
+		}
+
+		.mp-remove {
+			background: transparent;
 		}
 
 		.mp-text-btn {
@@ -1282,12 +1282,8 @@
 		display: none;
 	}
 
-	.mp-sheet-precision {
-		display: none;
-	}
-
-	.sheet .mp-sheet-precision {
-		display: block;
+	.sheet .mp-summary + .mp-section {
+		margin-top: 0;
 	}
 
 	.mp-sheet-heading {
@@ -1312,7 +1308,7 @@
 		position: relative;
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr)) 44px;
-		align-items: center;
+		align-items: last baseline;
 		gap: 8px;
 		width: 100%;
 		min-height: 64px;
@@ -1344,6 +1340,7 @@
 
 	.mp-sheet-chevron {
 		grid-column: 4;
+		align-self: center;
 		justify-self: center;
 		width: 18px;
 		height: 18px;

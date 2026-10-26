@@ -770,10 +770,11 @@
 					Analysis
 				</button>
 			{/if}
-			<span class="header-divider" aria-hidden="true"></span>
+			{#if videoSrc}<span class="header-divider" aria-hidden="true"></span>{/if}
 			<button
 				onclick={openFilePicker}
 				class="btn header-wide"
+				class:header-open-empty={!videoSrc}
 				aria-label={videoSrc ? 'Replace video' : 'Open video'}
 				title={videoSrc ? 'Change video' : 'Open video'}
 			>
@@ -861,6 +862,8 @@
 	<div
 		class="viewer-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
 		class:overflow-y-auto={!videoSrc}
+		class:has-video={videoSrc}
+		class:panel-open={panelOpen && !stacked.current}
 		style:--video-aspect={videoAspect ?? undefined}
 	>
 		{#if !videoSrc}
@@ -942,7 +945,7 @@
 				</p>
 			</div>
 		{:else}
-			<div class="viewer-column" style:--video-aspect={videoAspect ?? undefined}>
+			<div class="viewer-column">
 				<div class="viewer-frame" class:landscape={fitLandscape}>
 					<VideoViewer
 						bind:this={videoViewerRef}

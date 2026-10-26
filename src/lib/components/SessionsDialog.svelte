@@ -458,6 +458,10 @@
 	}
 
 	.status-line .link-btn {
+		color: hsl(var(--at-fg));
+		text-decoration: underline;
+		text-decoration-color: hsl(var(--at-fg) / 0.35);
+		text-underline-offset: 3px;
 		margin-left: 4px;
 	}
 
@@ -626,7 +630,7 @@
 		align-items: center;
 		justify-content: flex-end;
 		gap: 6px;
-		padding: 12px 16px 12px 24px;
+		padding: 12px 24px;
 		border-top: 1px solid hsl(var(--at-border));
 		background: hsl(var(--at-bg) / 0.4);
 	}
@@ -679,7 +683,7 @@
 		border: none;
 		border-radius: 7px;
 		background: transparent;
-		color: hsl(var(--at-error) / 0.85);
+		color: hsl(var(--at-fg-muted));
 		cursor: pointer;
 	}
 
@@ -691,21 +695,6 @@
 		stroke-width: 1.8;
 		stroke-linecap: round;
 		stroke-linejoin: round;
-	}
-
-	@media (hover: hover) {
-		.session-row .action-divider,
-		.session-row .icon-btn {
-			opacity: 0;
-			transition: opacity 120ms ease;
-		}
-
-		.session-row:hover .action-divider,
-		.session-row:hover .icon-btn,
-		.session-row:focus-within .action-divider,
-		.session-row:focus-within .icon-btn {
-			opacity: 1;
-		}
 	}
 
 	.icon-btn:hover {

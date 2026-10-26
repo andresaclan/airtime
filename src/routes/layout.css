@@ -20,7 +20,7 @@
 	/* Text Colors */
 	--at-fg: 220 14% 96%;
 	--at-fg-secondary: 220 10% 76%;
-	--at-fg-muted: 220 9% 66%;
+	--at-fg-muted: 220 9% 69%;
 
 	/* Borders */
 	--at-border: 222 9% 15%;
@@ -293,6 +293,13 @@ body {
 	display: none;
 }
 
+/* On the empty screen the drop zone is the one way in, so the header doesn't repeat it. */
+@media (min-width: 641px) {
+	.header-open-empty {
+		display: none;
+	}
+}
+
 .header-more-dot {
 	position: absolute;
 	top: 6px;
@@ -455,37 +462,52 @@ body {
 	background: hsl(var(--at-stage));
 }
 
-/* Desktop: the frame is the shape of the video plus its docked controls, aligned
-   with the top of the analysis panel, so there are no letterbox bands inside it. The analysis panel takes
-   the full workspace height so the jump list has as much room as the screen allows.
-   Sizes come from the column's own size (container units) and the video's aspect. */
+/* Desktop: the frame is the shape of the video plus its docked controls, and the
+   analysis panel matches its height (growing past it when the jumps need more
+   room). The two are centred together in the stage. Sizes come from the stage's
+   own size (container units), the panel width and the video's aspect ratio. */
 @media (min-width: 901px) {
-	.viewer-column {
+	.viewer-stage.has-video {
+		--bar-h: 92px;
 		--aspect: var(--video-aspect, 1.7778);
+		--panel-space: 0px;
+		--col-w: calc(100cqw - var(--panel-space));
+		--frame-h: min(100cqh, calc(var(--col-w) / var(--aspect) + var(--bar-h)));
 		container-type: size;
+	}
+
+	.viewer-stage.has-video.panel-open {
+		--panel-space: 348px;
+	}
+
+	.viewer-column {
 		display: flex;
 		flex: 1 1 0;
-		align-items: flex-start;
 		min-width: 0;
-		height: 100%;
+		height: var(--frame-h);
 	}
 
 	.viewer-column > .viewer-frame {
 		display: flex;
 		flex-direction: column;
-		height: auto;
 	}
 
 	.viewer-column > .viewer-frame > :first-child {
-		flex: 0 0 auto;
-		height: min(calc(100cqh - 92px), calc(100cqw / var(--aspect)));
+		flex: 1 1 0;
+		min-height: 0;
 	}
 
 	.viewer-column .control-bar {
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
-		height: 92px;
+		height: var(--bar-h);
+	}
+
+	.viewer-stage.has-video > .marks-panel {
+		height: auto;
+		min-height: var(--frame-h);
+		max-height: 100%;
 	}
 }
 
@@ -745,6 +767,12 @@ body {
 		font-size: 14px;
 	}
 	.mark-action kbd {
+		display: none;
+	}
+}
+
+@container control-bar (max-width: 1060px) {
+	.time-frame {
 		display: none;
 	}
 }
@@ -1137,17 +1165,13 @@ body {
 		gap: 4px;
 		margin-top: 16px;
 	}
-	/* Phones: the three steps as one compact row of titles. */
+	/* Phones: the steps stacked, each title above its one-line description. */
 	.empty-steps {
-		grid-template-columns: repeat(3, auto);
-		justify-content: center;
-		gap: 14px;
+		gap: 10px;
+		margin-top: 18px;
 	}
 	.empty-steps li {
-		padding: 0;
-	}
-	.empty-step-text {
-		display: none;
+		padding: 0 4px;
 	}
 	.empty-steps strong {
 		gap: 6px;

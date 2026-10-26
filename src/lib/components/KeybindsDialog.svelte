@@ -40,10 +40,10 @@
 		}
 	}
 
-	// Playback, Timeline and General on the left; the longer Marks list on the right.
+	// Playback and Timeline on the left; Marks and General on the right.
 	const columns = [
-		KEYBIND_GROUPS.filter((group) => group.title !== 'Marks'),
-		KEYBIND_GROUPS.filter((group) => group.title === 'Marks')
+		KEYBIND_GROUPS.filter((group) => group.title === 'Playback' || group.title === 'Timeline'),
+		KEYBIND_GROUPS.filter((group) => group.title === 'Marks' || group.title === 'General')
 	];
 
 	// "Ctrl / ⌘ + Z" → keys with the separators between them, so each key gets its own cap.
@@ -210,21 +210,14 @@
 	.keybinds-groups {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-		gap: 16px 16px;
+		gap: 24px 40px;
 		padding: 20px 24px 0;
 	}
 
 	.keybinds-column {
 		display: flex;
 		flex-direction: column;
-		gap: 16px;
-	}
-
-	.keybinds-group {
-		padding: 12px 14px 6px;
-		border: 1px solid hsl(var(--at-border));
-		border-radius: 12px;
-		background: hsl(var(--at-fg) / 0.02);
+		gap: 24px;
 	}
 
 	.group-note {
