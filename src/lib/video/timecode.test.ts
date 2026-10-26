@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest';
-import { formatTimecode, isDropFrameRate, nominalFrameRate, parseTimecode } from './timecode';
+import {
+	formatTimecode,
+	isDropFrameRate,
+	nominalFrameRate,
+	parseTimecode,
+	shortTimecode
+} from './timecode';
 
 const NTSC_30 = 30000 / 1001;
 const NTSC_60 = 60000 / 1001;
@@ -127,5 +133,16 @@ describe('parseTimecode', () => {
 		expect(parseTimecode('00:00:60:00', 30)).toBeNull();
 		expect(parseTimecode('1.5', 30)).toBeNull();
 		expect(parseTimecode('00:00:01:00', 0)).toBeNull();
+	});
+});
+
+describe('shortTimecode', () => {
+	test('drops a zero hours field', () => {
+		expect(shortTimecode('00:00:02:15')).toBe('00:02:15');
+		expect(shortTimecode('00:01:00;02')).toBe('01:00;02');
+	});
+
+	test('keeps hours once there are any', () => {
+		expect(shortTimecode('01:00:02:15')).toBe('01:00:02:15');
 	});
 });

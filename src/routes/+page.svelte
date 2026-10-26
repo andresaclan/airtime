@@ -10,7 +10,7 @@
 	import { resolve } from '$app/paths';
 	import { isApplePlatform } from '$lib/keybinds';
 	import { detectSourceTimingFromFile } from '$lib/video/frameRate';
-	import { formatFrameTimecode, formatTimecode } from '$lib/video/timecode';
+	import { formatFrameTimecode, formatTimecode, shortTimecode } from '$lib/video/timecode';
 	import {
 		clampFrame,
 		frameAt,
@@ -688,8 +688,9 @@
 					<circle cx="6" cy="17.5" r="2.2" fill="hsl(var(--at-takeoff))" />
 					<circle cx="18" cy="17.5" r="2.2" fill="hsl(var(--at-landing))" />
 				</svg>
-				Airtime
+				<span class="brand-name">Airtime</span>
 			</a>
+			{#if isDirty}<span class="header-status unsaved header-status-phone">Unsaved</span>{/if}
 			{#if videoSrc}
 				<div class="header-file" title={videoFileName}>
 					<span class="header-file-name">{videoFileName}</span>
@@ -769,7 +770,7 @@
 					/></svg
 				>
 				<span class="header-open-label">{videoSrc ? 'Change video' : 'Open video'}</span><span
-					class="header-open-short">Open</span
+					class="header-open-short">Open video</span
 				>
 			</button>
 			{#if videoSrc}
@@ -991,9 +992,11 @@
 
 							<div class="control-toolbar">
 								<div class="time-readout">
-									<span class="time-current">{formatTimecode(currentTime, timing)}</span>
+									<span class="time-current"
+										>{shortTimecode(formatTimecode(currentTime, timing))}</span
+									>
 									<span class="time-separator">/</span>
-									<span class="time-duration">{formatDuration()}</span>
+									<span class="time-duration">{shortTimecode(formatDuration())}</span>
 								</div>
 
 								<VideoControls

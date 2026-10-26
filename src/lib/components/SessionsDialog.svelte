@@ -239,11 +239,10 @@
 								<span class="status-text"
 									>{protectDeclined
 										? 'The browser declined to protect these; it may still clear them if space runs low.'
-										: 'The browser may clear saved sessions when storage runs low.'}</span
+										: 'The browser may clear saved sessions when storage runs low.'}{#if !protectDeclined}
+										<button class="link-btn" onclick={handleProtect}>Ask it to keep them</button
+										>{/if}</span
 								>
-								{#if !protectDeclined}<button class="status-action" onclick={handleProtect}
-										>Prevent this</button
-									>{/if}
 							</p>
 						{/if}
 						{#if sessions.length > 0}
@@ -429,26 +428,6 @@
 		flex: 1;
 	}
 
-	.status-action {
-		flex: 0 0 auto;
-		align-self: center;
-		height: 24px;
-		padding: 0 10px;
-		border: 1px solid hsl(var(--at-border-hover));
-		border-radius: 6px;
-		background: hsl(var(--at-surface));
-		color: hsl(var(--at-fg));
-		font: inherit;
-		font-size: 12px;
-		font-weight: 600;
-		cursor: pointer;
-	}
-
-	.status-action:hover {
-		border-color: hsl(var(--at-fg) / 0.3);
-		background: hsl(var(--at-surface-hover));
-	}
-
 	.status-dot {
 		flex: 0 0 auto;
 		width: 6px;
@@ -460,6 +439,10 @@
 
 	.status-line.ok .status-dot {
 		background: hsl(var(--at-success));
+	}
+
+	.status-line .link-btn {
+		margin-left: 4px;
 	}
 
 	.status-line.warn .status-dot {

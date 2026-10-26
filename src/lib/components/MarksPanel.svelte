@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatFrameTimecode } from '$lib/video/timecode';
+	import { formatFrameTimecode, shortTimecode } from '$lib/video/timecode';
 	import { frameDurationRange, frameLabel, type FrameTiming } from '$lib/video/frames';
 	import {
 		frameOf,
@@ -145,7 +145,9 @@
 			<span class="mp-dot"></span>
 			<span class="mp-mark-type">{label}</span>
 			<span class="mp-mark-time"
-				>{formatFrameTimecode(frameLabel(frameOf(mark.time, timing), timing), timing)}</span
+				>{shortTimecode(
+					formatFrameTimecode(frameLabel(frameOf(mark.time, timing), timing), timing)
+				)}</span
 			>
 		</button>
 		<div class="mp-mark-actions">
@@ -290,12 +292,25 @@
 								>
 							</div>
 						{:else}
-							<p class="mp-metric-note">
-								No contact time: mark the landing before this jump's takeoff to add it.
+							<p
+								class="mp-metric-note"
+								title="Mark the landing before this jump's takeoff to measure contact time"
+							>
+								<span>Contact time</span><span class="mp-metric-note-value"
+									>— no landing before</span
+								>
 							</p>
 						{/if}
 					</div>
 				</div>
+				<p class="mp-caption mp-precision">
+					{#if longestFrameMs > frameMs + 0.05}
+						±1 frame = ±{frameMs.toFixed(1)}–{longestFrameMs.toFixed(1)} ms (variable frame rate)
+					{:else}
+						±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
+					{/if}{#if slowMotion}
+						· real time ({slowMotion.label.toLowerCase()}){/if}
+				</p>
 			{:else}
 				<div class="mp-hero is-empty">
 					<span class="mp-label">Jump height</span>
@@ -399,9 +414,18 @@
 				{/if}
 			</section>
 
-			<section class="mp-section" aria-labelledby="mp-setup-heading">
-				<h3 id="mp-setup-heading" class="mp-section-title">Setup</h3>
-				<div class="mp-setup-grid">
+			<details class="mp-details" open={jumpType === null}>
+				<summary>
+					<span class="mp-section-title">Setup</span>
+					<span class="mp-details-value"
+						>{TIME_SCALES.find((scale) => scale.value === timeScale)?.label} · {jumpTypeLabel ??
+							'Jump type not set'}</span
+					>
+					<svg class="mp-details-chevron" viewBox="0 0 24 24" aria-hidden="true"
+						><path d="m9 6 6 6-6 6" /></svg
+					>
+				</summary>
+				<div class="mp-details-body">
 					<label class="mp-stack">
 						<span>Footage</span>
 						<select class="mp-field mp-select" bind:value={timeScale}>
@@ -422,47 +446,53 @@
 								>{/each}
 						</select>
 					</label>
+					{#if jumpType === null}
+						<p id="mp-jump-type-hint" class="mp-caption warn">
+							Set the jump type to compare like with like.
+						</p>
+					{/if}
 				</div>
-				{#if jumpType === null}
-					<p id="mp-jump-type-hint" class="mp-caption warn">
-						Set the jump type to compare like with like.
-					</p>
-				{/if}
-				<p class="mp-caption">
-					{#if longestFrameMs > frameMs + 0.05}
-						±1 frame = ±{frameMs.toFixed(1)}–{longestFrameMs.toFixed(1)} ms (variable frame rate)
-					{:else}
-						±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
-					{/if}{#if slowMotion}
-						· real time ({slowMotion.label.toLowerCase()}){/if}
-				</p>
-			</section>
+			</details>
 
-			<section class="mp-section mp-session" aria-labelledby="mp-session-heading">
-				<h3 id="mp-session-heading" class="mp-section-title">Session</h3>
-				<input
-					class="mp-field mp-title"
-					bind:value={title}
-					placeholder={titlePlaceholder}
-					aria-label="Session title"
-					spellcheck="false"
-				/>
-				<label class="mp-row">
-					<span>Recorded</span>
-					<input
-						class="mp-field"
-						type="datetime-local"
-						bind:value={() => toLocalInput(recordedAt), fromLocalInput}
-					/>
-				</label>
-				<textarea
-					class="mp-field mp-notes"
-					bind:value={notes}
-					placeholder="Notes: exercise, attempt, how it felt…"
-					aria-label="Session notes"
-					rows="2"
-				></textarea>
-			</section>
+			<details class="mp-details">
+				<summary>
+					<span class="mp-section-title">Session</span>
+					<span class="mp-details-value"
+						>{title.trim() || titlePlaceholder}{notes.trim() ? ' · notes' : ''}</span
+					>
+					<svg class="mp-details-chevron" viewBox="0 0 24 24" aria-hidden="true"
+						><path d="m9 6 6 6-6 6" /></svg
+					>
+				</summary>
+				<div class="mp-details-body">
+					<label class="mp-stack">
+						<span>Title</span>
+						<input
+							class="mp-field mp-title"
+							bind:value={title}
+							placeholder={titlePlaceholder}
+							spellcheck="false"
+						/>
+					</label>
+					<label class="mp-stack">
+						<span>Recorded</span>
+						<input
+							class="mp-field"
+							type="datetime-local"
+							bind:value={() => toLocalInput(recordedAt), fromLocalInput}
+						/>
+					</label>
+					<label class="mp-stack">
+						<span>Notes</span>
+						<textarea
+							class="mp-field mp-notes"
+							bind:value={notes}
+							placeholder="Exercise, attempt, how it felt…"
+							rows="2"
+						></textarea>
+					</label>
+				</div>
+			</details>
 		</div>
 	{/if}
 </aside>
@@ -591,12 +621,87 @@
 	}
 
 	.mp-metric-note {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
 		margin: 0;
-		padding: 8px 12px 10px;
+		padding: 8px 12px;
 		border-top: 1px solid hsl(var(--at-border));
 		color: hsl(var(--at-fg-muted));
 		font-size: 12px;
-		line-height: 1.45;
+		cursor: help;
+	}
+
+	.mp-caption.mp-precision {
+		margin: 8px 16px 0;
+	}
+
+	.sheet .mp-summary .mp-metric-note {
+		grid-column: 1 / -1;
+		margin-top: 12px;
+		padding: 8px 0 0;
+	}
+
+	/* Setup and Session collapse to one line showing their current values. */
+	.mp-details {
+		margin: 0 16px;
+		border-top: 1px solid hsl(var(--at-border));
+	}
+
+	.mp-details summary {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		min-height: 44px;
+		cursor: pointer;
+		list-style: none;
+	}
+
+	.mp-details summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.mp-details summary .mp-section-title {
+		flex: 0 0 auto;
+		margin: 0;
+	}
+
+	.mp-details-value {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 12px;
+		text-align: right;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.mp-details-chevron {
+		width: 14px;
+		height: 14px;
+		flex: 0 0 auto;
+		fill: none;
+		stroke: hsl(var(--at-fg-muted));
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		transition: transform 160ms ease;
+	}
+
+	.mp-details[open] .mp-details-chevron {
+		transform: rotate(90deg);
+	}
+
+	.mp-details summary:hover .mp-details-value {
+		color: hsl(var(--at-fg));
+	}
+
+	.mp-details-body {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 2px 0 14px;
 	}
 
 	.mp-metric + .mp-metric {
@@ -703,34 +808,6 @@
 		font-weight: 500;
 		letter-spacing: 0;
 		text-transform: none;
-	}
-
-	.mp-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-		color: hsl(var(--at-fg-secondary));
-		font-size: 13px;
-	}
-
-	.mp-row > span {
-		flex: 0 0 auto;
-	}
-
-	.mp-row .mp-field {
-		flex: 0 1 196px;
-		width: auto;
-		min-width: 0;
-	}
-
-	.mp-session .mp-row .mp-field {
-		flex-basis: 212px;
-	}
-
-	.sheet .mp-row .mp-field {
-		flex: 1 1 auto;
-		max-width: 260px;
 	}
 
 	.mp-caption {
@@ -853,12 +930,6 @@
 		font-size: 12px;
 	}
 
-	.mp-setup-grid {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
-		gap: 8px;
-	}
-
 	.mp-stack {
 		display: flex;
 		flex-direction: column;
@@ -896,11 +967,6 @@
 		padding: 4px;
 		border-radius: 10px;
 		background: hsl(var(--at-surface) / 0.55);
-	}
-
-	.mp-jump.mp-best {
-		background: hsl(var(--at-surface));
-		box-shadow: inset 0 0 0 1px hsl(var(--at-fg) / 0.1);
 	}
 
 	.mp-jump-head {
@@ -955,7 +1021,7 @@
 	}
 
 	.mp-mark.active {
-		background: color-mix(in srgb, var(--mark-color) 12%, transparent);
+		background: color-mix(in srgb, var(--mark-color) 9%, transparent);
 	}
 
 	.mp-mark.active .mp-mark-type {
@@ -1102,10 +1168,6 @@
 		line-height: 1.4;
 	}
 
-	.mp-session {
-		gap: 8px;
-	}
-
 	.mp-text-btn {
 		display: inline-flex;
 		align-items: center;
@@ -1175,9 +1237,16 @@
 			font-size: 16px;
 		}
 
-		.mp-row,
 		.mp-mark-type {
+			font-size: 14px;
+		}
+
+		.mp-jump-head {
 			font-size: 15px;
+		}
+
+		.mp-details-value {
+			font-size: 13px;
 		}
 	}
 

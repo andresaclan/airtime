@@ -68,3 +68,8 @@ export function parseTimecode(input: string, fps: number): number | null {
 	const count = (hours * 3600 + minutes * 60 + seconds) * nominal + frames - dropped;
 	return Math.max(0, count / fps);
 }
+
+/** Drops the hours field while it is zero, so short clips read 00:02:15 rather than 00:00:02:15. */
+export function shortTimecode(timecode: string): string {
+	return timecode.startsWith('00:') ? timecode.slice(3) : timecode;
+}

@@ -260,7 +260,7 @@
 			disabled={!canStep(-1)}
 			class="frame-btn step-btn"
 			aria-label="Previous frame"
-			title="Previous frame (hold to repeat)"
+			title="Previous frame (, or Shift ←) — hold to repeat"
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
@@ -277,6 +277,7 @@
 			disabled={!videoElement}
 			class="play-btn"
 			aria-label={isPlaying ? 'Pause' : 'Play'}
+			title="{isPlaying ? 'Pause' : 'Play'} (Space)"
 		>
 			{#if isPlaying}
 				<svg
@@ -308,7 +309,7 @@
 			disabled={!canStep(1)}
 			class="frame-btn step-btn"
 			aria-label="Next frame"
-			title="Next frame (hold to repeat)"
+			title="Next frame (. or Shift →) — hold to repeat"
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"

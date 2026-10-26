@@ -256,6 +256,10 @@ body {
 	font-weight: 400;
 }
 
+.header-status-phone {
+	display: none;
+}
+
 .header-status::before {
 	content: '';
 	width: 6px;
@@ -431,6 +435,10 @@ body {
 		--panel-space: 348px;
 	}
 
+	.viewer-stage.has-video {
+		align-items: flex-start;
+	}
+
 	.viewer-column {
 		flex: 0 0 auto;
 		width: var(--frame-w);
@@ -452,10 +460,6 @@ body {
 		flex-direction: column;
 		justify-content: center;
 		height: var(--bar-h);
-	}
-
-	.viewer-stage.has-video > .marks-panel {
-		height: var(--frame-h);
 	}
 }
 
@@ -1017,6 +1021,14 @@ body {
 	}
 	.header-open-short {
 		display: inline;
+	}
+	/* With a video open the wordmark gives way to the save state. */
+	.header-status-phone {
+		display: inline-flex;
+	}
+	.header-status-phone ~ .brand-name,
+	.brand-mark:has(~ .header-status-phone) .brand-name {
+		display: none;
 	}
 	.app-header .btn {
 		padding: 0 10px;
