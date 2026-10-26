@@ -20,6 +20,7 @@
 		type FrameTiming
 	} from '$lib/video/frames';
 	import { displayedFrame, settledDisplayedFrame } from '$lib/video/presentedFrame';
+	import { seek } from '$lib/video/seek';
 	import {
 		analyzeMarks,
 		frameOf,
@@ -110,7 +111,7 @@
 
 	// Saving is explicit (⌘S). The session is "dirty" whenever the marks or details
 	// differ from what was last saved or restored for this video.
-	let videoFile: File | null = null;
+	let videoFile: File | null = $state.raw(null);
 	let fingerprintPromise: Promise<string> | null = null;
 	let sessionId: string | null = $state(null);
 	let sessionCreatedAt: string | null = null;
@@ -524,7 +525,7 @@
 		if (!videoElement) return;
 		videoElement.pause();
 		const time = frameSeekTime(clampFrame(frame, duration, timing), timing, duration);
-		videoElement.currentTime = time;
+		seek(videoElement, time, timing);
 		currentTime = time;
 	}
 
@@ -970,6 +971,7 @@
 						bind:this={videoViewerRef}
 						bind:videoElement
 						{videoSrc}
+						{videoFile}
 						bind:isPlaying
 						bind:currentTime
 						bind:duration

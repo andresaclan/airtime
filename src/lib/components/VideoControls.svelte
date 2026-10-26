@@ -7,6 +7,7 @@
 		type FrameTiming
 	} from '$lib/video/frames';
 	import { displayedFrame } from '$lib/video/presentedFrame';
+	import { seek, targetTime } from '$lib/video/seek';
 
 	interface Props {
 		isPlaying: boolean;
@@ -105,10 +106,9 @@
 		}, HOLD_DELAY_MS);
 	}
 
-	// Reads the element's time: the prop only catches up on the next timeupdate.
+	// Reads the element's target: the prop only catches up on the next timeupdate.
 	function repeatStep(direction: 1 | -1) {
-		if (stepInFlight()) return;
-		if (videoElement && canStep(direction, videoElement.currentTime)) {
+		if (videoElement && canStep(direction, targetTime(videoElement))) {
 			step(direction);
 		} else {
 			// The button is about to disable, so no click will follow to clear the hold.
@@ -134,17 +134,11 @@
 
 	$effect(() => stopHold);
 
-	// Repeated steps wait for the last seek to land. Seeking on a long-GOP clip can take
-	// longer than a repeat, and a new seek before then restarts the decode: the picture
-	// would freeze until the button is released.
-	function stepInFlight(): boolean {
-		return videoElement?.seeking ?? false;
-	}
-
+	// Repeated steps don't wait for seeks to land: seek() keeps one in flight and shows
+	// cached frames meanwhile, so the picture keeps moving on long-GOP clips.
 	function repeatKeyStep(event: KeyboardEvent, direction: 1 | -1) {
 		event.preventDefault();
-		if (event.repeat && stepInFlight()) return;
-		if (canStep(direction, videoElement?.currentTime)) step(direction);
+		if (canStep(direction, videoElement ? targetTime(videoElement) : undefined)) step(direction);
 	}
 
 	// Stepping while playing would be overtaken by playback, so a step always pauses first.
@@ -152,7 +146,7 @@
 		if (!videoElement) return;
 		videoElement.pause();
 		const newTime = getSteppedTime(1);
-		videoElement.currentTime = newTime;
+		seek(videoElement, newTime, timing);
 		onFrameForward?.(newTime);
 	}
 
@@ -160,7 +154,7 @@
 		if (!videoElement) return;
 		videoElement.pause();
 		const newTime = getSteppedTime(-1);
-		videoElement.currentTime = newTime;
+		seek(videoElement, newTime, timing);
 		onFrameBack?.(newTime);
 	}
 

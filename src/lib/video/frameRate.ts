@@ -69,22 +69,22 @@ export type VideoTiming = FrameTimingAnalysis & {
 	timescale: number;
 };
 
-interface Box {
+export interface Box {
 	type: string;
 	start: number;
 	end: number;
 	headerSize: number;
 }
 
-function readUint32(view: DataView, offset: number): number {
+export function readUint32(view: DataView, offset: number): number {
 	return view.getUint32(offset, false);
 }
 
-function readUint64(view: DataView, offset: number): number {
+export function readUint64(view: DataView, offset: number): number {
 	return readUint32(view, offset) * 2 ** 32 + readUint32(view, offset + 4);
 }
 
-function readType(view: DataView, offset: number): string {
+export function readType(view: DataView, offset: number): string {
 	return String.fromCharCode(
 		view.getUint8(offset),
 		view.getUint8(offset + 1),
@@ -93,7 +93,7 @@ function readType(view: DataView, offset: number): string {
 	);
 }
 
-function parseBoxes(view: DataView, start: number, end: number): Box[] {
+export function parseBoxes(view: DataView, start: number, end: number): Box[] {
 	const boxes: Box[] = [];
 	let offset = start;
 
@@ -131,7 +131,7 @@ function parseBoxes(view: DataView, start: number, end: number): Box[] {
 	return boxes;
 }
 
-function getChildren(view: DataView, box: Box): Box[] {
+export function getChildren(view: DataView, box: Box): Box[] {
 	if (!ISO_BMFF_CONTAINER_TYPES.has(box.type)) return [];
 	let payloadStart = box.start + box.headerSize;
 
@@ -143,14 +143,14 @@ function getChildren(view: DataView, box: Box): Box[] {
 	return parseBoxes(view, payloadStart, box.end);
 }
 
-function findChild(view: DataView, parent: Box | null, type: string): Box | null {
+export function findChild(view: DataView, parent: Box | null, type: string): Box | null {
 	if (!parent) return null;
 	const children = getChildren(view, parent);
 	return children.find((box) => box.type === type) ?? null;
 }
 
 /** Timescale from `mvhd` or `mdhd`, which share their layout up to it. */
-function parseTimescale(view: DataView, box: Box): number | null {
+export function parseTimescale(view: DataView, box: Box): number | null {
 	const offset = box.start + box.headerSize;
 	if (offset + 12 > box.end) return null;
 
@@ -162,7 +162,7 @@ function parseTimescale(view: DataView, box: Box): number | null {
 	return timescale > 0 ? timescale : null;
 }
 
-function parseHdlrHandlerType(view: DataView, hdlr: Box): string | null {
+export function parseHdlrHandlerType(view: DataView, hdlr: Box): string | null {
 	const payloadOffset = hdlr.start + hdlr.headerSize;
 	const handlerOffset = payloadOffset + 8;
 	if (handlerOffset + 4 > hdlr.end) return null;
@@ -170,7 +170,7 @@ function parseHdlrHandlerType(view: DataView, hdlr: Box): string | null {
 }
 
 /** Reads a full box's entry table, or null when it's truncated. */
-function parseEntries<T>(
+export function parseEntries<T>(
 	view: DataView,
 	box: Box,
 	entrySize: (version: number) => number,
@@ -189,7 +189,7 @@ function parseEntries<T>(
 	return entries;
 }
 
-function parseStts(view: DataView, stts: Box): SttsEntry[] | null {
+export function parseStts(view: DataView, stts: Box): SttsEntry[] | null {
 	return parseEntries(
 		view,
 		stts,
@@ -200,7 +200,7 @@ function parseStts(view: DataView, stts: Box): SttsEntry[] | null {
 
 // Offsets are read as signed in both versions: writers such as ffmpeg put negative
 // offsets in version 0 boxes.
-function parseCtts(view: DataView, ctts: Box): CttsEntry[] | null {
+export function parseCtts(view: DataView, ctts: Box): CttsEntry[] | null {
 	return parseEntries(
 		view,
 		ctts,
@@ -209,7 +209,7 @@ function parseCtts(view: DataView, ctts: Box): CttsEntry[] | null {
 	);
 }
 
-function parseElst(view: DataView, elst: Box): EditListEntry[] | null {
+export function parseElst(view: DataView, elst: Box): EditListEntry[] | null {
 	return parseEntries(
 		view,
 		elst,
@@ -274,8 +274,15 @@ export function parseSampleTables(bytes: ArrayBuffer): SampleTables | null {
  * (such as the pre-roll of iPhone slow motion) and shifts the rest, as ffmpeg does.
  */
 export function buildFrameTimestamps(tables: SampleTables): number[] {
-	const { timescale, movieTimescale, stts, ctts, elst } = tables;
+	return buildPresentedFrames(tables).times;
+}
 
+/**
+ * Composition times in media ticks of every sample, in decode (file) order. Adding
+ * `ctts` to the decode time gives the time the frame is presented at.
+ */
+export function buildCompositionTimes(tables: SampleTables): number[] {
+	const { stts, ctts } = tables;
 	const compositionTimes: number[] = [];
 	let decodeTime = 0;
 	let cttsIndex = 0;
@@ -295,11 +302,23 @@ export function buildFrameTimestamps(tables: SampleTables): number[] {
 			decodeTime += delta;
 		}
 	}
-	compositionTimes.sort((a, b) => a - b);
+	return compositionTimes;
+}
 
-	if (elst.length === 0) return compositionTimes.map((ticks) => ticks / timescale);
+/**
+ * The frames that play, in order: `times[k]` is frame k's presentation time in seconds
+ * and `ticks[k]` the composition time (media ticks) of the sample that shows it.
+ */
+export function buildPresentedFrames(tables: SampleTables): { times: number[]; ticks: number[] } {
+	const { timescale, movieTimescale, elst } = tables;
+	const compositionTimes = buildCompositionTimes(tables).sort((a, b) => a - b);
+
+	if (elst.length === 0) {
+		return { times: compositionTimes.map((ticks) => ticks / timescale), ticks: compositionTimes };
+	}
 
 	const times: number[] = [];
+	const shown: number[] = [];
 	let editStart = 0;
 	let leadingEmpty: number | null = null;
 	for (const edit of elst) {
@@ -311,6 +330,7 @@ export function buildFrameTimestamps(tables: SampleTables): number[] {
 			for (const ticks of compositionTimes) {
 				if (ticks >= edit.mediaTime && ticks < end) {
 					times.push(editStart + (ticks - edit.mediaTime) / timescale);
+					shown.push(ticks);
 				}
 			}
 		}
@@ -319,7 +339,7 @@ export function buildFrameTimestamps(tables: SampleTables): number[] {
 	// An edit that starts partway through a frame hides that frame, and ffmpeg moves the
 	// next one back to the start of the edit rather than leave a gap.
 	const gap = times.length > 0 && leadingEmpty !== null ? times[0] - leadingEmpty : 0;
-	return gap > 0 ? times.map((time) => time - gap) : times;
+	return { times: gap > 0 ? times.map((time) => time - gap) : times, ticks: shown };
 }
 
 // Longer gaps (a pause in recording) say nothing about the frame rate.
@@ -421,7 +441,7 @@ export function parseVideoTiming(bytes: ArrayBuffer): VideoTiming | null {
 }
 
 /** Walks the top-level boxes by their headers and reads only `moov`. */
-async function readMoov(file: Blob): Promise<ArrayBuffer | null> {
+export async function readMoov(file: Blob): Promise<ArrayBuffer | null> {
 	let offset = 0;
 	while (offset + 8 <= file.size) {
 		const header = new DataView(await file.slice(offset, offset + 16).arrayBuffer());
