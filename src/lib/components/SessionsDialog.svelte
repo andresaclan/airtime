@@ -667,6 +667,10 @@
 		color: hsl(var(--at-fg));
 	}
 
+	.text-btn.danger {
+		color: hsl(var(--at-error) / 0.85);
+	}
+
 	.text-btn.danger:hover {
 		background: hsl(var(--at-error) / 0.12);
 		color: hsl(var(--at-error));

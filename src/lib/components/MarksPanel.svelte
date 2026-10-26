@@ -148,22 +148,24 @@
 			>
 		</button>
 		<div class="mp-mark-actions">
-			<button
-				class="mp-icon-btn"
-				onclick={() => onNudge(mark.id, -1)}
-				aria-label="Move {label.toLowerCase()} one frame earlier"
-				title="1 frame earlier"
-				><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5 9 12l5.5 5.5" /></svg
-				></button
-			>
-			<button
-				class="mp-icon-btn"
-				onclick={() => onNudge(mark.id, 1)}
-				aria-label="Move {label.toLowerCase()} one frame later"
-				title="1 frame later"
-				><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6.5 15 12l-5.5 5.5" /></svg
-				></button
-			>
+			<span class="mp-nudge">
+				<button
+					class="mp-icon-btn"
+					onclick={() => onNudge(mark.id, -1)}
+					aria-label="Move {label.toLowerCase()} one frame earlier"
+					title="1 frame earlier"
+					><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5 9 12l5.5 5.5" /></svg
+					></button
+				>
+				<button
+					class="mp-icon-btn"
+					onclick={() => onNudge(mark.id, 1)}
+					aria-label="Move {label.toLowerCase()} one frame later"
+					title="1 frame later"
+					><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6.5 15 12l-5.5 5.5" /></svg
+					></button
+				>
+			</span>
 			<button
 				class="mp-icon-btn mp-remove"
 				onclick={() => onRemove(mark.id)}
@@ -176,9 +178,9 @@
 	</div>
 {/snippet}
 
-{#snippet interval(span: Interval)}
+{#snippet interval(span: Interval, label?: string)}
 	<div class="mp-interval mp-interval-{span.kind}" title={intervalDescription(span)}>
-		<span>{span.kind === 'flight' ? 'Flight' : 'Contact'}</span>
+		<span>{label ?? (span.kind === 'flight' ? 'Flight' : 'Contact')}</span>
 		<span class="mp-interval-value">{formatMs(span.realSeconds)} ms · {span.frames} fr</span>
 	</div>
 {/snippet}
@@ -239,69 +241,62 @@
 	{:else}
 		<header class="mp-header">
 			<h2>Analysis</h2>
-			<button
-				class="mp-icon-btn"
-				onclick={onToggle}
-				aria-label="Hide analysis"
-				title="Hide analysis (A)"
-			>
-				<svg viewBox="0 0 24 24" aria-hidden="true"
-					><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" /><path d="M15 4.5v15" /></svg
-				>
-			</button>
+			{#if completedJumps > 0}<span class="mp-header-meta"
+					>{completedJumps} jump{completedJumps === 1 ? '' : 's'}</span
+				>{/if}
 		</header>
 	{/if}
 
 	{#if showDetails}
 		<div class="mp-body">
-			<div class="mp-hero" class:is-empty={!bestJump?.flight}>
-				<span class="mp-label"
-					>{completedJumps > 1 ? `Best of ${completedJumps} jumps` : 'Jump height'}</span
-				>
-				{#if bestJump?.flight}
+			{#if bestJump?.flight}
+				<div class="mp-hero">
+					<span class="mp-label"
+						>{completedJumps > 1
+							? `Best jump · Jump ${bestIndex + 1} of ${completedJumps}`
+							: 'Jump height'}</span
+					>
 					<span class="mp-hero-value"
 						>{bestJump.flight.heightCm?.toFixed(1)}<span class="mp-unit">cm</span></span
 					>
-					<span class="mp-sub"
-						>{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in{completedJumps > 1
-							? ` · Jump ${bestIndex + 1}`
-							: ''}</span
-					>
-				{:else}
-					<span class="mp-hero-value">—<span class="mp-unit">cm</span></span>
-					<span class="mp-sub">Mark a takeoff and a landing</span>
-				{/if}
-			</div>
-			<div class="mp-metrics">
-				<div class="mp-metric">
-					<span class="mp-label">Flight time</span>
-					{#if bestJump?.flight}
+					<span class="mp-sub">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span>
+				</div>
+				<div class="mp-metrics">
+					<div class="mp-metric">
+						<span class="mp-label">Flight time</span>
 						<span class="mp-metric-value"
 							>{formatMs(bestJump.flight.realSeconds)}<span class="mp-unit">ms</span></span
 						>
 						<span class="mp-sub">{bestJump.flight.frames} frames</span>
-					{:else}
-						<span class="mp-metric-value muted">—</span>
-						<span class="mp-sub">Takeoff → landing</span>
-					{/if}
+					</div>
+					<div class="mp-metric" class:mp-metric-muted={!contactApplies}>
+						<span class="mp-label">Contact time</span>
+						{#if bestJump.contact}
+							<span class="mp-metric-value"
+								>{formatMs(bestJump.contact.realSeconds)}<span class="mp-unit">ms</span></span
+							>
+							<span class="mp-sub"
+								>{#if !contactApplies}Not used for {jumpTypeLabel?.toLowerCase()}{:else}{bestJump
+										.contact.frames} frames{#if bestRsi !== undefined}
+										· RSI {bestRsi.toFixed(2)}{/if}{/if}</span
+							>
+						{:else}
+							<span class="mp-metric-value muted">None</span>
+							<span class="mp-sub"
+								>{bestIndex === 0 ? 'No landing before it' : 'No landing marked before'}</span
+							>
+						{/if}
+					</div>
 				</div>
-				<div class="mp-metric" class:mp-metric-muted={!contactApplies}>
-					<span class="mp-label">Contact time</span>
-					{#if bestJump?.contact}
-						<span class="mp-metric-value"
-							>{formatMs(bestJump.contact.realSeconds)}<span class="mp-unit">ms</span></span
-						>
-						<span class="mp-sub"
-							>{#if !contactApplies}Not used for {jumpTypeLabel?.toLowerCase()}{:else}{bestJump
-									.contact.frames} frames{#if bestRsi !== undefined}
-									· RSI {bestRsi.toFixed(2)}{/if}{/if}</span
-						>
-					{:else}
-						<span class="mp-metric-value muted">—</span>
-						<span class="mp-sub">Landing → takeoff</span>
-					{/if}
+			{:else}
+				<div class="mp-hero is-empty">
+					<span class="mp-label">Jump height</span>
+					<span class="mp-hero-placeholder">No jump measured yet</span>
+					<span class="mp-sub"
+						>Mark a takeoff and its landing to see height, flight and contact time.</span
+					>
 				</div>
-			</div>
+			{/if}
 
 			<section class="mp-section" aria-labelledby="mp-setup-heading">
 				<h3 id="mp-setup-heading" class="mp-section-title">Setup</h3>
@@ -346,17 +341,16 @@
 						Jumps{#if marks.length > 0}<span class="mp-count">{marks.length} marks</span>{/if}
 					</h3>
 					<div class="mp-section-actions">
-						<button class="mp-text-btn" onclick={onUndo} disabled={!canUndo} title="Undo (⌘Z)"
-							><svg viewBox="0 0 24 24" aria-hidden="true"
-								><path d="M9 7 4.5 11.5 9 16" /><path d="M5 11.5h9.5a5 5 0 0 1 0 10H12" /></svg
-							>Undo</button
-						>
-						<button
-							class="mp-text-btn mp-danger"
-							onclick={onClear}
-							disabled={marks.length === 0}
-							title="Remove every mark (undoable)">Clear all</button
-						>
+						{#if canUndo}<button class="mp-text-btn" onclick={onUndo} title="Undo (⌘Z)"
+								><svg viewBox="0 0 24 24" aria-hidden="true"
+									><path d="M9 7 4.5 11.5 9 16" /><path d="M5 11.5h9.5a5 5 0 0 1 0 10H12" /></svg
+								>Undo</button
+							>{/if}
+						{#if marks.length > 0}<button
+								class="mp-text-btn mp-danger"
+								onclick={onClear}
+								title="Remove every mark (undoable)">Clear all</button
+							>{/if}
 					</div>
 				</div>
 				{#if marks.length === 0}
@@ -403,8 +397,13 @@
 									<span class="mp-jump-stats">{jumpStats(jump)}</span>
 								</h4>
 								{#if jump.contact}
-									{@render markRow(jump.contact.from, 'Touchdown')}
-									{@render interval(jump.contact)}
+									{#if grouped.jumps[index - 1]?.flight?.to.id === jump.contact.from.id}
+										<!-- The touchdown is the previous jump's landing; don't list it twice. -->
+										{@render interval(jump.contact, `Contact after Jump ${index}`)}
+									{:else}
+										{@render markRow(jump.contact.from, 'Touchdown')}
+										{@render interval(jump.contact)}
+									{/if}
 								{/if}
 								{@render markRow(jump.takeoff, 'Takeoff')}
 								{#if jump.flight}
@@ -466,8 +465,8 @@
 
 <style>
 	.marks-panel {
-		/* Three 26px action buttons plus padding; intervals reserve it so values line up. */
-		--mark-actions-width: 81px;
+		/* Three 26px action buttons, a gap and padding; intervals reserve it so values line up. */
+		--mark-actions-width: 85px;
 		display: flex;
 		flex: 0 0 320px;
 		flex-direction: column;
@@ -499,7 +498,7 @@
 		align-items: center;
 		justify-content: space-between;
 		height: 48px;
-		padding: 0 8px 0 16px;
+		padding: 0 16px;
 		border-bottom: 1px solid hsl(var(--at-border));
 	}
 
@@ -547,8 +546,26 @@
 		line-height: 1.05;
 	}
 
-	.mp-hero.is-empty .mp-hero-value {
-		color: hsl(var(--at-fg-muted) / 0.6);
+	.mp-hero.is-empty {
+		gap: 4px;
+	}
+
+	.mp-hero-placeholder {
+		margin-top: 4px;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 20px;
+		font-weight: 600;
+		letter-spacing: -0.015em;
+	}
+
+	.mp-hero.is-empty .mp-sub {
+		max-width: 260px;
+		line-height: 1.45;
+	}
+
+	.mp-header-meta {
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
 	}
 
 	.mp-metrics {
@@ -919,9 +936,16 @@
 		font-variant-numeric: tabular-nums;
 	}
 
+	.mp-nudge {
+		display: flex;
+		border-radius: 7px;
+		background: hsl(var(--at-fg) / 0.06);
+	}
+
 	.mp-mark-actions {
 		display: flex;
-		gap: 0;
+		align-items: center;
+		gap: 4px;
 		padding-right: 3px;
 		opacity: 0;
 		transition: opacity 120ms ease;
@@ -966,11 +990,6 @@
 
 	.mp-remove:hover {
 		color: hsl(var(--at-error));
-	}
-
-	.mp-header .mp-icon-btn {
-		width: 32px;
-		height: 32px;
 	}
 
 	/* The line between two marks runs through their dots (8px padding + half the dot). */
@@ -1059,8 +1078,7 @@
 
 	/* The glyph stays 16px; the button box itself reaches the 44px touch minimum. */
 	@media (pointer: coarse) {
-		.mp-icon-btn,
-		.mp-header .mp-icon-btn {
+		.mp-icon-btn {
 			width: 44px;
 			height: 44px;
 		}
@@ -1074,7 +1092,7 @@
 		}
 
 		.marks-panel {
-			--mark-actions-width: 132px;
+			--mark-actions-width: 136px;
 		}
 
 		.mp-text-btn {
@@ -1115,14 +1133,28 @@
 		font: inherit;
 	}
 
+	/* A grab handle, so the summary reads as a sheet that pulls up. */
+	.mp-sheet-toggle::before {
+		content: '';
+		position: absolute;
+		top: 6px;
+		left: 50%;
+		width: 36px;
+		height: 4px;
+		border-radius: 2px;
+		background: hsl(var(--at-fg) / 0.18);
+		transform: translateX(-50%);
+	}
+
 	.mp-sheet-toggle {
+		position: relative;
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr)) 44px;
 		align-items: center;
 		gap: 8px;
 		width: 100%;
-		min-height: 60px;
-		padding: 8px 2px 8px 16px;
+		min-height: 64px;
+		padding: 14px 2px 8px 16px;
 		border: none;
 		border-radius: var(--at-radius-lg);
 		background: transparent;
@@ -1134,7 +1166,7 @@
 	}
 
 	.sheet:not(.collapsed) .mp-sheet-toggle {
-		min-height: 48px;
+		min-height: 52px;
 		border-bottom: 1px solid hsl(var(--at-border));
 		border-radius: var(--at-radius-lg) var(--at-radius-lg) 0 0;
 	}

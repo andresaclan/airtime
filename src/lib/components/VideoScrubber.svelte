@@ -198,8 +198,8 @@
 
 	.timeline-track {
 		position: relative;
-		height: 3px;
-		background: hsl(var(--at-fg) / 0.16);
+		height: 4px;
+		background: hsl(var(--at-fg) / 0.14);
 		border-radius: 2px;
 		cursor: pointer;
 		transition: height 150ms ease;
@@ -207,7 +207,7 @@
 
 	.timeline-track:hover,
 	.timeline-track.active {
-		height: 4px;
+		height: 6px;
 	}
 
 	.timeline-progress {
@@ -324,8 +324,8 @@
 		}
 
 		.timeline-thumb {
-			width: 24px;
-			height: 24px;
+			width: 18px;
+			height: 18px;
 		}
 
 		/* 44px hit box centred on the same spot the 14px box and glyph occupied. */

@@ -323,7 +323,7 @@
 				viewBox="0 0 24 24"
 				fill="currentColor"
 			>
-				<path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+				<path d="M15 6h2v12h-2zM13.5 6 5 12l8.5 6z" />
 			</svg>
 		</button>
 
@@ -371,7 +371,7 @@
 				viewBox="0 0 24 24"
 				fill="currentColor"
 			>
-				<path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+				<path d="M7 6h2v12H7zM10.5 6l8.5 6-8.5 6z" />
 			</svg>
 		</button>
 	</div>
@@ -404,8 +404,13 @@
 		min-width: 0;
 	}
 
+	/* The slider opens on hover or focus; volume is rarely needed while marking. */
 	.volume-slider {
-		width: 64px;
+		width: 0;
+		opacity: 0;
+		transition:
+			width 160ms ease,
+			opacity 160ms ease;
 		height: 3px;
 		appearance: none;
 		background: linear-gradient(
@@ -417,6 +422,12 @@
 		);
 		border-radius: 2px;
 		cursor: pointer;
+	}
+
+	.volume-section:hover .volume-slider,
+	.volume-section:focus-within .volume-slider {
+		width: 64px;
+		opacity: 1;
 	}
 
 	.volume-slider::-webkit-slider-thumb {
@@ -474,6 +485,18 @@
 	.frame-btn :global(svg) {
 		width: 18px;
 		height: 18px;
+	}
+
+	/* Frame stepping is the main way to find a takeoff or landing, so it gets weight. */
+	.step-btn {
+		width: 36px;
+		height: 36px;
+		background: hsl(var(--at-fg) / 0.07);
+		color: hsl(var(--at-fg));
+	}
+
+	.step-btn:hover:not(:disabled) {
+		background: hsl(var(--at-fg) / 0.14);
 	}
 
 	.frame-btn:hover:not(:disabled) {

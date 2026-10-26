@@ -42,3 +42,14 @@ export const KEYBIND_GROUPS: KeybindGroup[] = [
 		]
 	}
 ];
+
+/** Macs and iOS devices use ⌘ where other platforms use Ctrl. */
+export function isApplePlatform(): boolean {
+	if (typeof navigator === 'undefined') return true;
+	return /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+}
+
+/** Shows only this platform's modifier, e.g. "Ctrl / ⌘ + Z" becomes "⌘ + Z" on a Mac. */
+export function platformKeys(keys: string): string {
+	return keys.replace('Ctrl / ⌘', isApplePlatform() ? '⌘' : 'Ctrl');
+}

@@ -8,6 +8,7 @@
 	import { onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
+	import { isApplePlatform } from '$lib/keybinds';
 	import { detectSourceTimingFromFile } from '$lib/video/frameRate';
 	import { formatFrameTimecode, formatTimecode } from '$lib/video/timecode';
 	import {
@@ -149,6 +150,8 @@
 	// video is sized to fit and the analysis sheet takes the room left underneath.
 	let videoAspect: number | null = $state(null);
 	let fitLandscape = $derived(stacked.current && (videoAspect ?? 0) > 1);
+
+	let saveShortcut = $state('⌘S');
 
 	// Zoom state
 	let zoomLevel = $state(1);
@@ -343,6 +346,7 @@
 	}
 
 	onMount(() => {
+		saveShortcut = isApplePlatform() ? '⌘S' : 'Ctrl S';
 		// Phones start with the sheet collapsed so the video gets the height.
 		if (stacked.current) panelOpen = false;
 		void refreshBackup();
@@ -769,9 +773,9 @@
 					class="btn {isDirty ? 'btn-primary' : 'btn-secondary'}"
 					onclick={save}
 					disabled={!isDirty || isSaving}
-					title="Save marks to this browser (⌘S)"
+					title="Save marks to this browser ({saveShortcut})"
 				>
-					Save{#if isDirty}<kbd class="btn-kbd">⌘S</kbd>{/if}
+					Save{#if isDirty}<kbd class="btn-kbd">{saveShortcut}</kbd>{/if}
 				</button>
 			{/if}
 		</div>

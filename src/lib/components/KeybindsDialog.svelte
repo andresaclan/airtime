@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { KEYBIND_GROUPS } from '$lib/keybinds';
+	import { KEYBIND_GROUPS, platformKeys } from '$lib/keybinds';
 	import { dialogFocus, trapTab } from '$lib/dialogFocus';
 
 	interface Props {
@@ -42,7 +42,9 @@
 
 	// "Ctrl / ⌘ + Z" → keys with the separators between them, so each key gets its own cap.
 	function keyTokens(keys: string): { text: string; key: boolean }[] {
-		return keys.split(' ').map((text) => ({ text, key: text !== '/' && text !== '+' }));
+		return platformKeys(keys)
+			.split(' ')
+			.map((text) => ({ text, key: text !== '/' && text !== '+' }));
 	}
 
 	function handleBackdropKeyDown(event: KeyboardEvent) {
