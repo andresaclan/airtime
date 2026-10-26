@@ -319,8 +319,7 @@
 		align-items: center;
 		justify-content: center;
 		padding: 16px;
-		background: hsl(var(--at-bg) / 0.6);
-		backdrop-filter: blur(6px);
+		background: hsl(var(--at-shadow) / 0.5);
 		animation: fadeIn 160ms ease-out;
 	}
 
@@ -351,12 +350,10 @@
 		max-width: 680px;
 		max-height: 85dvh;
 		overflow: hidden;
-		background: hsl(222 11% 10%);
-		border: 1px solid hsl(var(--at-fg) / 0.12);
-		border-radius: 16px;
-		box-shadow:
-			0 32px 80px hsl(var(--at-shadow) / 0.7),
-			0 0 0 1px hsl(var(--at-shadow) / 0.6);
+		background: hsl(var(--at-popover));
+		border: 1px solid hsl(var(--at-border-hover));
+		border-radius: 14px;
+		box-shadow: 0 24px 64px hsl(var(--at-shadow) / 0.6);
 		outline: none;
 		animation: rise 200ms cubic-bezier(0.2, 0, 0, 1);
 	}
@@ -424,9 +421,7 @@
 		grid-template-columns: 16px 1fr;
 		column-gap: 10px;
 		row-gap: 4px;
-		padding: 10px 12px;
-		border: 1px solid hsl(var(--at-border));
-		border-radius: 10px;
+		padding: 2px 0 0;
 	}
 
 	.sessions-status > :not(.status-icon) {
@@ -534,7 +529,8 @@
 	.sessions-list {
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
+		gap: 2px;
+		margin: 0 -12px;
 		list-style: none;
 	}
 
@@ -542,8 +538,7 @@
 		display: flex;
 		align-items: center;
 		gap: 14px;
-		padding: 10px 10px 10px 12px;
-		border: 1px solid hsl(var(--at-border));
+		padding: 8px 8px 8px 12px;
 		border-radius: 10px;
 		transition:
 			background 120ms ease,
@@ -551,14 +546,13 @@
 	}
 
 	.session-row.current {
-		border-color: hsl(var(--at-fg) / 0.2);
-		background: hsl(var(--at-surface) / 0.8);
+		background: hsl(var(--at-fg) / 0.05);
 	}
 
 	.session-height {
 		flex: 0 0 64px;
 		color: hsl(var(--at-fg));
-		font-size: 18px;
+		font-size: 16px;
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: -0.02em;
@@ -603,11 +597,11 @@
 	.session-current {
 		flex: 0 0 auto;
 		padding: 2px 7px;
-		border-radius: 999px;
-		background: hsl(var(--at-fg) / 0.12);
-		color: hsl(var(--at-fg));
-		font-size: 10px;
-		font-weight: 600;
+		border: 1px solid hsl(var(--at-border-hover));
+		border-radius: 6px;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 11px;
+		font-weight: 500;
 	}
 
 	.session-meta {
@@ -632,13 +626,12 @@
 		gap: 6px;
 		padding: 12px 24px;
 		border-top: 1px solid hsl(var(--at-border));
-		background: hsl(var(--at-bg) / 0.4);
 	}
 
 	.text-btn,
 	.primary-btn {
-		height: 32px;
-		padding: 0 12px;
+		height: 30px;
+		padding: 0 10px;
 		border: none;
 		border-radius: 8px;
 		background: transparent;
@@ -650,11 +643,11 @@
 	}
 
 	.secondary-btn {
-		height: 32px;
-		padding: 0 12px;
+		height: 30px;
+		padding: 0 10px;
 		border: 1px solid hsl(var(--at-border-hover));
 		border-radius: 8px;
-		background: hsl(var(--at-surface));
+		background: transparent;
 		color: hsl(var(--at-fg));
 		font: inherit;
 		font-size: 13px;

@@ -126,8 +126,7 @@
 		align-items: center;
 		justify-content: center;
 		padding: 16px;
-		background: hsl(var(--at-bg) / 0.6);
-		backdrop-filter: blur(6px);
+		background: hsl(var(--at-shadow) / 0.5);
 		animation: fadeIn 160ms ease-out;
 	}
 
@@ -157,12 +156,10 @@
 		max-height: 85dvh;
 		overflow-y: auto;
 		padding: 0 0 24px;
-		background: hsl(222 11% 10%);
-		border: 1px solid hsl(var(--at-fg) / 0.12);
-		border-radius: 16px;
-		box-shadow:
-			0 32px 80px hsl(var(--at-shadow) / 0.7),
-			0 0 0 1px hsl(var(--at-shadow) / 0.6);
+		background: hsl(var(--at-popover));
+		border: 1px solid hsl(var(--at-border-hover));
+		border-radius: 14px;
+		box-shadow: 0 24px 64px hsl(var(--at-shadow) / 0.6);
 		outline: none;
 		animation: rise 200ms cubic-bezier(0.2, 0, 0, 1);
 	}
@@ -176,7 +173,7 @@
 		justify-content: space-between;
 		padding: 16px 16px 14px 24px;
 		border-bottom: 1px solid hsl(var(--at-border));
-		background: hsl(222 11% 10%);
+		background: hsl(var(--at-popover));
 	}
 
 	.dialog-title {
@@ -223,18 +220,14 @@
 	.group-note {
 		margin-left: 8px;
 		color: hsl(var(--at-fg-muted));
-		font-weight: 500;
-		letter-spacing: 0;
-		text-transform: none;
+		font-weight: 400;
 	}
 
 	.group-title {
 		margin-bottom: 6px;
 		color: hsl(var(--at-fg-muted));
-		font-size: 11px;
-		font-weight: 600;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
+		font-size: 12px;
+		font-weight: 500;
 	}
 
 	.bind-list {
@@ -279,7 +272,6 @@
 		height: 22px;
 		padding: 0 6px;
 		border: 1px solid hsl(var(--at-border-hover));
-		border-bottom-width: 2px;
 		border-radius: 5px;
 		background: hsl(var(--at-surface));
 		color: hsl(var(--at-fg));

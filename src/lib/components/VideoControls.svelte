@@ -496,14 +496,12 @@
 
 	/* Frame stepping is the main way to find a takeoff or landing, so it gets weight. */
 	.step-btn {
-		width: 36px;
-		height: 36px;
-		background: hsl(var(--at-fg) / 0.07);
+		background: transparent;
 		color: hsl(var(--at-fg));
 	}
 
 	.step-btn:hover:not(:disabled) {
-		background: hsl(var(--at-fg) / 0.14);
+		background: hsl(var(--at-fg) / 0.08);
 	}
 
 	.frame-btn:hover:not(:disabled) {
@@ -531,10 +529,10 @@
 	.rate-btn {
 		width: auto;
 		min-width: 38px;
-		height: 24px;
-		padding: 0 7px;
-		border: 1px solid hsl(var(--at-fg) / 0.12);
-		border-radius: 6px;
+		height: 26px;
+		padding: 0 8px;
+		border: 1px solid hsl(var(--at-border-hover));
+		border-radius: 7px;
 		font-family: var(--at-font-mono);
 		font-size: 11px;
 		font-weight: 600;
@@ -548,31 +546,29 @@
 	}
 
 	.play-btn {
-		width: 40px;
-		height: 40px;
+		width: 36px;
+		height: 36px;
 		margin-inline: 2px;
 		border-radius: 50%;
-		background: hsl(var(--at-fg));
-		border: none;
-		color: hsl(var(--at-bg));
+		background: hsl(var(--at-fg) / 0.1);
+		border: 1px solid hsl(var(--at-fg) / 0.08);
+		color: hsl(var(--at-fg));
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		cursor: pointer;
-		box-shadow: 0 4px 14px hsl(var(--at-shadow) / 0.5);
 		transition:
 			background 140ms ease,
 			transform 140ms ease;
 	}
 
 	.play-btn :global(svg) {
-		width: 20px;
-		height: 20px;
+		width: 18px;
+		height: 18px;
 	}
 
 	.play-btn:hover:not(:disabled) {
-		background: hsl(0 0% 100%);
-		transform: scale(1.04);
+		background: hsl(var(--at-fg) / 0.16);
 	}
 
 	.play-btn:active:not(:disabled) {
@@ -593,12 +589,23 @@
 			margin-block: -8px;
 		}
 		.rate-btn {
+			position: relative;
 			width: auto;
 			min-width: 44px;
 			height: 28px;
 			margin-block: 0;
 			border-color: transparent;
 			background: hsl(var(--at-fg) / 0.07);
+		}
+		/* A 44px hit area around the 28px chip. */
+		.rate-btn::after {
+			content: '';
+			position: absolute;
+			inset: -9px -1px;
+		}
+		.play-btn {
+			width: 44px;
+			height: 44px;
 		}
 	}
 
