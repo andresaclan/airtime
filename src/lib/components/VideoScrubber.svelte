@@ -42,6 +42,15 @@
 
 	let progressPercent = $derived(duration > 0 ? (currentTime / duration) * 100 : 0);
 
+	// Faint ticks at a round interval, so the distance between marks can be judged.
+	const TICK_STEPS = [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
+	let ticks = $derived.by(() => {
+		if (!(duration > 0)) return [];
+		const step = TICK_STEPS.find((candidate) => duration / candidate <= 12) ?? 1200;
+		const count = Math.floor(duration / step);
+		return Array.from({ length: count }, (_, i) => (i + 1) * step).filter((t) => t < duration);
+	});
+
 	function percentOf(time: number): number {
 		return duration > 0 ? Math.max(0, Math.min(100, (time / duration) * 100)) : 0;
 	}
@@ -176,6 +185,10 @@
 		<div class="timeline-thumb" style="left: {progressPercent}%;"></div>
 	</div>
 
+	<div class="timeline-ticks" aria-hidden="true">
+		{#each ticks as tick (tick)}<span style="left: {percentOf(tick)}%;"></span>{/each}
+	</div>
+
 	{#each marks as mark (mark.id)}
 		<button
 			type="button"
@@ -192,13 +205,30 @@
 <style>
 	.timeline-container {
 		position: relative;
-		padding: 12px 0 4px;
+		padding: 12px 0 8px;
 		touch-action: none;
+	}
+
+	.timeline-ticks {
+		position: absolute;
+		right: 0;
+		bottom: 1px;
+		left: 0;
+		height: 4px;
+		pointer-events: none;
+	}
+
+	.timeline-ticks span {
+		position: absolute;
+		top: 0;
+		width: 1px;
+		height: 100%;
+		background: hsl(var(--at-fg) / 0.18);
 	}
 
 	.timeline-track {
 		position: relative;
-		height: 4px;
+		height: 6px;
 		background: hsl(var(--at-fg) / 0.14);
 		border-radius: 2px;
 		cursor: pointer;
@@ -207,7 +237,7 @@
 
 	.timeline-track:hover,
 	.timeline-track.active {
-		height: 6px;
+		height: 8px;
 	}
 
 	.timeline-progress {
@@ -220,14 +250,15 @@
 		pointer-events: none;
 	}
 
+	/* A tall playhead bar reads as a precise position, not a volume knob. */
 	.timeline-thumb {
 		position: absolute;
 		top: 50%;
-		width: 10px;
-		height: 10px;
+		width: 4px;
+		height: 18px;
 		background: hsl(var(--at-fg));
-		border: 2px solid hsl(var(--at-bg));
-		border-radius: 50%;
+		border: 1px solid hsl(var(--at-bg));
+		border-radius: 2px;
 		transform: translate(-50%, -50%);
 		box-shadow: 0 1px 6px hsl(var(--at-shadow) / 0.5);
 		pointer-events: none;
@@ -324,8 +355,9 @@
 		}
 
 		.timeline-thumb {
-			width: 18px;
-			height: 18px;
+			width: 6px;
+			height: 26px;
+			border-radius: 3px;
 		}
 
 		/* 44px hit box centred on the same spot the 14px box and glyph occupied. */

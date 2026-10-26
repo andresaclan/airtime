@@ -239,7 +239,7 @@
 									>{protectDeclined
 										? 'The browser declined to protect these; it may still clear them if space runs low.'
 										: 'The browser may clear saved sessions when storage runs low.'}{#if !protectDeclined}
-										<button class="link-btn" onclick={handleProtect}>Ask it to keep them</button
+										<button class="link-btn" onclick={handleProtect}>Keep them safe</button
 										>{/if}</span
 								>
 							</p>
@@ -280,7 +280,7 @@
 			</div>
 
 			<div class="dialog-footer">
-				<button class="text-btn" onclick={() => importInput?.click()}>Import backup…</button>
+				<button class="secondary-btn" onclick={() => importInput?.click()}>Import backup…</button>
 				<button class="primary-btn" onclick={handleExportAll} disabled={sessions.length === 0}>
 					Export all
 				</button>
@@ -630,6 +630,24 @@
 		cursor: pointer;
 	}
 
+	.secondary-btn {
+		height: 32px;
+		padding: 0 12px;
+		border: 1px solid hsl(var(--at-border-hover));
+		border-radius: 8px;
+		background: hsl(var(--at-surface));
+		color: hsl(var(--at-fg));
+		font: inherit;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+	}
+
+	.secondary-btn:hover {
+		border-color: hsl(var(--at-fg) / 0.28);
+		background: hsl(var(--at-surface-hover));
+	}
+
 	.text-btn:hover {
 		background: hsl(var(--at-surface-hover));
 		color: hsl(var(--at-fg));
@@ -676,6 +694,7 @@
 	@media (pointer: coarse) {
 		.text-btn,
 		.primary-btn,
+		.secondary-btn,
 		.close-btn {
 			min-height: 44px;
 			min-width: 44px;

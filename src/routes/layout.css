@@ -402,7 +402,6 @@ body {
 	}
 	.pointer-only,
 	.header-shortcuts,
-	.empty-hint,
 	.mark-action kbd,
 	.btn-kbd {
 		display: none;
@@ -456,40 +455,15 @@ body {
 	background: hsl(var(--at-stage));
 }
 
-/* Desktop: the frame hugs the video plus its docked controls, so a clip of any
-   shape sits in a frame of its own shape, and the analysis panel matches its
-   height. Frame and panel are centred together in the stage. All sizes come from
-   the stage's own size (container units), the video's aspect ratio and the
-   fixed control bar height. */
+/* Desktop: the frame and the analysis panel both fill the workspace height. The
+   picture letterboxes inside the frame, above its docked controls, so the
+   workspace has no dead band and the panel gets the whole height for jumps. */
 @media (min-width: 901px) {
-	.viewer-stage.has-video {
-		--bar-h: 80px;
-		--aspect: var(--video-aspect, 1.7778);
-		--panel-space: 0px;
-		--col-w: calc(100cqw - var(--panel-space));
-		--frame-w: min(var(--col-w), max(720px, calc((100cqh - var(--bar-h)) * var(--aspect))));
-		--video-h: min(calc(100cqh - var(--bar-h)), calc(var(--frame-w) / var(--aspect)));
-		--frame-h: calc(var(--video-h) + var(--bar-h));
-		container-type: size;
-	}
-
-	.viewer-stage.has-video.panel-open {
-		--panel-space: 348px;
-	}
-
-	.viewer-stage.has-video {
-		align-items: flex-start;
-	}
-
-	/* Frame and panel end on the same line; the panel scrolls inside itself. */
-	.viewer-stage.has-video > .marks-panel {
-		height: var(--frame-h);
-	}
-
 	.viewer-column {
-		flex: 0 0 auto;
-		width: var(--frame-w);
-		height: var(--frame-h);
+		display: flex;
+		flex: 1 1 0;
+		min-width: 0;
+		height: 100%;
 	}
 
 	.viewer-column > .viewer-frame {
@@ -498,15 +472,15 @@ body {
 	}
 
 	.viewer-column > .viewer-frame > :first-child {
-		flex: 0 0 auto;
-		height: var(--video-h);
+		flex: 1 1 0;
+		min-height: 0;
 	}
 
 	.viewer-column .control-bar {
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
-		height: var(--bar-h);
+		height: 80px;
 	}
 }
 
@@ -944,13 +918,7 @@ body {
 	font-size: 12px;
 }
 
-.empty-footer > span:not(.empty-hint) {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-}
-
-.empty-footer .empty-hint {
+.empty-footer > span {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
@@ -961,19 +929,10 @@ body {
 	height: 14px;
 }
 
-.empty-footer kbd {
-	display: inline-grid;
-	place-items: center;
-	min-width: 18px;
-	height: 18px;
-	padding: 0 4px;
-	border: 1px solid hsl(var(--at-border-hover));
-	border-radius: 4px;
-	background: hsl(var(--at-surface));
-	color: hsl(var(--at-fg-secondary));
-	font:
-		600 10px/1 var(--at-font-mono),
-		monospace;
+.empty-import {
+	margin-top: 12px;
+	color: hsl(var(--at-fg-muted));
+	font-size: 13px;
 }
 
 .link-btn {
@@ -1172,11 +1131,5 @@ body {
 	}
 	.backup-reminder .btn {
 		height: 36px;
-	}
-}
-
-@media (hover: none) and (pointer: coarse) {
-	.empty-footer .empty-hint {
-		display: none;
 	}
 }

@@ -858,8 +858,6 @@
 	<div
 		class="viewer-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
 		class:overflow-y-auto={!videoSrc}
-		class:has-video={videoSrc}
-		class:panel-open={panelOpen && !stacked.current}
 		style:--video-aspect={videoAspect ?? undefined}
 	>
 		{#if !videoSrc}
@@ -896,6 +894,13 @@
 					>
 					<span class="btn btn-primary">Choose video</span>
 				</button>
+				{#if isAppEmpty}
+					<p class="empty-import at-reveal" style="--delay: 100ms">
+						Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
+							>Import backup</button
+						>
+					</p>
+				{/if}
 				<ol class="empty-steps at-reveal" style="--delay: 120ms">
 					<li>
 						<strong><span class="empty-step-num">1</span>Find takeoff</strong>
@@ -926,14 +931,6 @@
 						>
 						Videos stay on your device
 					</span>
-					<span class="empty-hint">Press <kbd>?</kbd> for shortcuts</span>
-					{#if isAppEmpty}
-						<span
-							>Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
-								>Import backup</button
-							></span
-						>
-					{/if}
 				</div>
 				<p class="empty-import-message" class:error={importMessage?.error} role="status">
 					{importMessage?.text ?? ''}

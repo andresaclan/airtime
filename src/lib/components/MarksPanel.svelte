@@ -107,6 +107,14 @@
 
 	let bestIndex = $derived(bestJump ? grouped.jumps.indexOf(bestJump) : -1);
 	let bestRsi = $derived(bestJump && contactApplies ? rsi(bestJump) : undefined);
+	// Contact only means something for drop and rebound jumps; there it gets a summary slot.
+	let contactMatters = $derived(jumpType !== null && hasMeaningfulContact(jumpType));
+	let averageHeight = $derived.by(() => {
+		const heights = grouped.jumps
+			.map((jump) => jump.flight?.heightCm)
+			.filter((height) => height !== undefined);
+		return heights.length > 1 ? heights.reduce((sum, h) => sum + h, 0) / heights.length : null;
+	});
 
 	function jumpStats(jump: Jump): string {
 		if (jump.flight?.heightCm === undefined) return '';
@@ -164,6 +172,7 @@
 					aria-label="Move {label.toLowerCase()} one frame later"
 					title="1 frame later">+1</button
 				>
+				<span class="mp-action-divider" aria-hidden="true"></span>
 				<button
 					class="mp-icon-btn mp-remove"
 					onclick={() => onRemove(mark.id)}
@@ -255,61 +264,66 @@
 		<div class="mp-body">
 			{#if bestJump?.flight}
 				<div class="mp-summary">
-					<div class="mp-hero">
-						<span class="mp-label"
-							>{completedJumps > 1
-								? `Best · Jump ${bestIndex + 1} of ${completedJumps}`
-								: 'Jump height'}</span
+					<span class="mp-label"
+						>{completedJumps > 1
+							? `Best · Jump ${bestIndex + 1} of ${completedJumps}`
+							: 'Jump height'}</span
+					>
+					<p class="mp-hero-value">
+						{bestJump.flight.heightCm?.toFixed(1)}<span class="mp-unit">cm</span><span
+							class="mp-hero-alt">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span
 						>
-						<span class="mp-hero-value"
-							>{bestJump.flight.heightCm?.toFixed(1)}<span class="mp-unit">cm</span></span
-						>
-						<span class="mp-sub">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span>
-					</div>
-					<div class="mp-metrics" class:single={!bestJump.contact}>
-						<div class="mp-metric">
-							<span class="mp-label">Flight time</span>
-							<span class="mp-metric-value"
-								>{formatMs(bestJump.flight.realSeconds)}<span class="mp-unit">ms</span></span
-							>
-							<span class="mp-sub">{bestJump.flight.frames} fr</span>
+					</p>
+					<dl class="mp-stats">
+						<div>
+							<dt>Flight time</dt>
+							<dd>
+								{formatMs(bestJump.flight.realSeconds)}<span class="mp-unit">ms</span><small
+									>{bestJump.flight.frames} fr</small
+								>
+							</dd>
 						</div>
-						{#if bestJump.contact}
-							<div class="mp-metric" class:mp-metric-muted={!contactApplies}>
-								<span class="mp-label">Contact time</span>
-								<span class="mp-metric-value"
-									>{formatMs(bestJump.contact.realSeconds)}<span class="mp-unit">ms</span></span
-								>
-								<span class="mp-sub"
-									>{#if !contactApplies}Not used for {jumpTypeLabel?.toLowerCase()}{:else}{bestJump
-											.contact.frames} fr{#if bestRsi !== undefined}
-											· RSI {bestRsi.toFixed(2)}{/if}{/if}</span
-								>
+						{#if contactMatters || (averageHeight === null && bestJump.contact)}
+							<div class:muted={!bestJump.contact}>
+								<dt>Contact time</dt>
+								<dd>
+									{#if bestJump.contact}{formatMs(bestJump.contact.realSeconds)}<span
+											class="mp-unit">ms</span
+										><small
+											>{bestJump.contact.frames} fr{#if bestRsi !== undefined}
+												· RSI {bestRsi.toFixed(2)}{/if}</small
+										>{:else}—<small>not marked</small>{/if}
+								</dd>
 							</div>
-						{:else}
-							<p
-								class="mp-metric-note"
-								title="Mark the landing before this jump's takeoff to measure contact time"
-							>
-								<span>Contact time</span><span class="mp-metric-note-value"
-									>—<small>needs an earlier landing</small></span
-								>
-							</p>
+						{:else if averageHeight !== null}
+							<div>
+								<dt>Average height</dt>
+								<dd>
+									{averageHeight.toFixed(1)}<span class="mp-unit">cm</span><small
+										>{completedJumps} jumps</small
+									>
+								</dd>
+							</div>
 						{/if}
-					</div>
+					</dl>
+					{#if contactMatters && !bestJump.contact}
+						<p class="mp-caption">Mark the landing before the takeoff to get contact time.</p>
+					{/if}
+					<p class="mp-caption">
+						{#if longestFrameMs > frameMs + 0.05}
+							±1 frame = ±{frameMs.toFixed(1)}–{longestFrameMs.toFixed(1)} ms (variable frame rate)
+						{:else}
+							±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
+						{/if}{#if slowMotion}
+							· real time ({slowMotion.label.toLowerCase()}){/if}
+					</p>
 				</div>
-				<p class="mp-caption mp-precision">
-					{#if longestFrameMs > frameMs + 0.05}
-						±1 frame = ±{frameMs.toFixed(1)}–{longestFrameMs.toFixed(1)} ms (variable frame rate)
-					{:else}
-						±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
-					{/if}{#if slowMotion}
-						· real time ({slowMotion.label.toLowerCase()}){/if}
-				</p>
 			{:else}
 				<div class="mp-hero is-empty">
 					<span class="mp-label">Jump height</span>
-					<span class="mp-hero-placeholder">No jump measured yet</span>
+					<p class="mp-hero-value placeholder" aria-label="No jump measured yet">
+						–.–<span class="mp-unit">cm</span>
+					</p>
 				</div>
 			{/if}
 
@@ -319,10 +333,14 @@
 						Jumps{#if marks.length > 0}<span class="mp-count">{marks.length} marks</span>{/if}
 					</h3>
 					<div class="mp-section-actions">
-						{#if canUndo}<button class="mp-text-btn" onclick={onUndo} title="Undo (⌘Z)"
+						{#if canUndo}<button
+								class="mp-text-btn mp-undo"
+								onclick={onUndo}
+								title="Undo (⌘Z)"
+								aria-label="Undo"
 								><svg viewBox="0 0 24 24" aria-hidden="true"
 									><path d="M9 7 4.5 11.5 9 16" /><path d="M5 11.5h9.5a5 5 0 0 1 0 10H12" /></svg
-								>Undo</button
+								></button
 							>{/if}
 						{#if marks.length > 0}<button
 								class="mp-text-btn mp-danger"
@@ -561,15 +579,79 @@
 		letter-spacing: 0;
 	}
 
-	.mp-hero {
+	/* Best jump: the height leads; flight and contact sit in one row beneath it. */
+	.mp-summary {
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
-		padding: 14px 16px 10px;
+		padding: 14px 16px 4px;
+	}
+
+	.sheet .mp-hero-value {
+		font-size: 30px;
+	}
+
+	.mp-hero-alt {
+		margin-left: 10px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 13px;
+		font-weight: 500;
+		letter-spacing: 0;
+	}
+
+	.mp-stats {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		margin: 10px 0 6px;
+		padding: 10px 0;
+		border-block: 1px solid hsl(var(--at-border));
+	}
+
+	.mp-stats > div {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+
+	.mp-stats > div + div {
+		padding-left: 14px;
+		border-left: 1px solid hsl(var(--at-border));
+	}
+
+	.mp-stats dt {
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
+	}
+
+	.mp-stats dd {
+		margin: 0;
+		color: hsl(var(--at-fg));
+		font-size: 18px;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.015em;
+	}
+
+	.mp-stats dd small {
+		display: block;
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+		font-weight: 400;
+		letter-spacing: 0;
+	}
+
+	.mp-stats .mp-unit {
+		font-size: 12px;
+	}
+
+	.mp-stats .muted dd {
+		color: hsl(var(--at-fg-muted));
 	}
 
 	.mp-hero-value {
 		color: hsl(var(--at-fg));
+		margin: 0;
 		font-size: 36px;
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
@@ -577,69 +659,25 @@
 		line-height: 1.05;
 	}
 
+	.mp-hero {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 14px 16px 10px;
+	}
+
 	.mp-hero.is-empty {
 		gap: 4px;
 	}
 
-	.mp-hero-placeholder {
-		margin-top: 4px;
-		color: hsl(var(--at-fg-secondary));
-		font-size: 20px;
-		font-weight: 600;
-		letter-spacing: -0.015em;
+	.mp-hero-value.placeholder {
+		color: hsl(var(--at-fg-muted) / 0.7);
+		font-weight: 500;
 	}
 
 	.mp-header-meta {
 		color: hsl(var(--at-fg-muted));
 		font-size: 12px;
-	}
-
-	.mp-metrics {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		margin: 0 12px 4px;
-		border: 1px solid hsl(var(--at-border));
-		border-radius: 10px;
-		background: hsl(var(--at-surface) / 0.5);
-	}
-
-	.mp-metric {
-		display: flex;
-		flex-direction: column;
-		gap: 1px;
-		min-width: 0;
-		padding: 8px 12px;
-	}
-
-	.mp-metrics.single {
-		grid-template-columns: 1fr;
-	}
-
-	.mp-metric-note-value small {
-		margin-left: 8px;
-		font-size: 11px;
-	}
-
-	.mp-metric-note {
-		display: flex;
-		justify-content: space-between;
-		gap: 12px;
-		margin: 0;
-		padding: 8px 12px;
-		border-top: 1px solid hsl(var(--at-border));
-		color: hsl(var(--at-fg-muted));
-		font-size: 12px;
-		cursor: help;
-	}
-
-	.mp-caption.mp-precision {
-		margin: 10px 16px 0;
-	}
-
-	.sheet .mp-summary .mp-metric-note {
-		grid-column: 1 / -1;
-		margin-top: 12px;
-		padding: 8px 0 0;
 	}
 
 	/* Setup and Session collapse to one line showing their current values. */
@@ -704,31 +742,6 @@
 		padding: 2px 0 14px;
 	}
 
-	.mp-metric + .mp-metric {
-		border-left: 1px solid hsl(var(--at-border));
-	}
-
-	.mp-metric-value {
-		font-size: 20px;
-		font-weight: 600;
-		font-variant-numeric: tabular-nums;
-		letter-spacing: -0.02em;
-		line-height: 1.25;
-	}
-
-	.mp-metric-value .mp-unit {
-		font-size: 12px;
-	}
-
-	.mp-metric-value.muted,
-	.mp-metric-muted .mp-metric-value {
-		color: hsl(var(--at-fg-muted));
-	}
-
-	.mp-metric-value.muted {
-		font-weight: 500;
-	}
-
 	/* Sections */
 
 	.mp-section {
@@ -740,41 +753,6 @@
 
 	.mp-summary + .mp-section {
 		margin-top: 12px;
-	}
-
-	/* Sheet: height, flight and contact share one row so the jump list starts sooner. */
-	.sheet .mp-summary {
-		display: grid;
-		grid-template-columns: 1.25fr 1fr 1fr;
-		align-items: start;
-		padding: 14px 16px 0;
-	}
-
-	.sheet .mp-summary .mp-hero {
-		padding: 0;
-	}
-
-	.sheet .mp-summary .mp-hero-value {
-		font-size: 30px;
-	}
-
-	.sheet .mp-summary .mp-metrics {
-		display: contents;
-	}
-
-	.sheet .mp-summary .mp-metric {
-		padding: 0 0 0 12px;
-		border-left: 1px solid hsl(var(--at-border));
-	}
-
-	.sheet .mp-summary .mp-metric-value {
-		font-size: 18px;
-		line-height: 1.6;
-	}
-
-	.sheet .mp-summary .mp-label,
-	.sheet .mp-summary .mp-sub {
-		font-size: 12px;
 	}
 
 	.mp-section-head {
@@ -1067,12 +1045,8 @@
 	}
 
 	/* The selected mark (the one at the playhead; click or tap a row to go there)
-	   swaps its timecode for nudge and remove controls, in place, so the list doesn't
-	   move. The playhead readout shows the time meanwhile. */
-	.mp-mark.active .mp-mark-time {
-		display: none;
-	}
-
+	   shows nudge and remove controls beside its timecode, in place, so the list
+	   doesn't move and the value being nudged stays in view. */
 	.mp-mark-actions {
 		display: flex;
 		flex: 0 0 auto;
@@ -1080,20 +1054,32 @@
 		padding-right: 6px;
 	}
 
+	.mp-mark.active .mp-mark-main {
+		padding-right: 8px;
+	}
+
+	.mp-action-divider {
+		width: 1px;
+		height: 14px;
+		align-self: center;
+		margin: 0 2px;
+		background: hsl(var(--at-fg) / 0.14);
+	}
+
 	.mp-icon-btn {
 		display: inline-grid;
 		place-items: center;
-		min-width: 34px;
+		min-width: 30px;
 		height: 24px;
-		padding: 0 7px;
+		padding: 0 6px;
 		border: none;
 		border-radius: 6px;
 		background: hsl(var(--at-fg) / 0.1);
 		color: hsl(var(--at-fg));
 		font: inherit;
-		font-family: var(--at-font-mono);
-		font-size: 11px;
+		font-size: 12px;
 		font-weight: 600;
+		font-variant-numeric: tabular-nums;
 		cursor: pointer;
 		transition:
 			background 120ms ease,
@@ -1114,8 +1100,14 @@
 		background: hsl(var(--at-fg) / 0.14);
 	}
 
+	.mp-remove {
+		background: transparent;
+		color: hsl(var(--at-error) / 0.85);
+	}
+
 	.mp-remove:hover,
 	.mp-remove:active {
+		background: hsl(var(--at-error) / 0.14);
 		color: hsl(var(--at-error));
 	}
 
@@ -1196,6 +1188,16 @@
 		stroke-linejoin: round;
 	}
 
+	.mp-undo {
+		width: 28px;
+		padding: 0;
+		justify-content: center;
+	}
+
+	.mp-danger {
+		color: hsl(var(--at-fg-muted));
+	}
+
 	.mp-text-btn:hover:not(:disabled) {
 		background: hsl(var(--at-surface-hover));
 		color: hsl(var(--at-fg));
@@ -1213,7 +1215,7 @@
 
 	@media (pointer: coarse) {
 		.mp-icon-btn {
-			min-width: 44px;
+			min-width: 40px;
 			height: 34px;
 			font-size: 13px;
 		}
@@ -1221,6 +1223,10 @@
 		.mp-text-btn {
 			height: 44px;
 			font-size: 13px;
+		}
+
+		.mp-undo {
+			width: 44px;
 		}
 
 		.mp-section-head {
