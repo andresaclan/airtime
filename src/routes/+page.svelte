@@ -696,7 +696,9 @@
 					{#if isDirty}
 						<span class="header-status unsaved">Unsaved</span>
 					{:else if sessionId}
-						<span class="header-status">Saved</span>
+						<span class="header-status"
+							>Saved<span class="header-status-detail">to this browser</span></span
+						>
 					{/if}
 				</div>
 			{/if}
@@ -712,12 +714,12 @@
 					viewBox="0 0 24 24"
 					fill="none"
 					stroke="currentColor"
-					stroke-width="1.7"
+					stroke-width="1.8"
 					stroke-linecap="round"
 					stroke-linejoin="round"
 					aria-hidden="true"
-					><rect x="2.5" y="6" width="19" height="12" rx="2.5" /><path
-						d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M8 14h8"
+					><circle cx="12" cy="12" r="9" /><path
+						d="M9.6 9.4a2.5 2.5 0 0 1 4.85.85c0 1.65-2.45 2.1-2.45 3.6M12 17h.01"
 					/></svg
 				>
 			</button>
@@ -814,6 +816,9 @@
 	<div
 		class="viewer-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
 		class:overflow-y-auto={!videoSrc}
+		class:has-video={videoSrc}
+		class:panel-open={panelOpen && !stacked.current}
+		style:--video-aspect={videoAspect ?? undefined}
 	>
 		{#if !videoSrc}
 			<div class="empty">
@@ -883,7 +888,7 @@
 					{#if isAppEmpty}
 						<span
 							>Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
-								>Import it</button
+								>Import backup</button
 							></span
 						>
 					{/if}
@@ -893,7 +898,7 @@
 				</p>
 			</div>
 		{:else}
-			<div class="viewer-column" style:--video-aspect={videoAspect ?? undefined}>
+			<div class="viewer-column">
 				<div class="viewer-frame" class:landscape={fitLandscape}>
 					<VideoViewer
 						bind:this={videoViewerRef}

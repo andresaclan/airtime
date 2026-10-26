@@ -173,6 +173,58 @@
 					<p class="sessions-message" class:error={message.error}>{message.text}</p>
 				{/if}
 
+				{#if loading && sessions.length === 0}
+					<p class="sessions-empty">Loading…</p>
+				{:else if sessions.length === 0 && unreadableIds.length === 0}
+					<div class="sessions-empty">
+						<p class="sessions-empty-title">No saved sessions yet</p>
+						<p>Mark a video and press <kbd>⌘S</kbd> / <kbd>Ctrl S</kbd> to keep it here.</p>
+						<p class="sessions-empty-import">
+							Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
+								>Import backup</button
+							>
+						</p>
+					</div>
+				{:else}
+					<ul class="sessions-list">
+						{#each sessions as session (session.id)}
+							{@const height = bestHeight(session)}
+							<li class="session-row" class:current={session.id === currentSessionId}>
+								<div class="session-height" class:none={height === null}>
+									{#if height !== null}{height.toFixed(1)}<small>cm</small>{:else}—{/if}
+								</div>
+								<div class="session-info">
+									<span class="session-name">
+										<span class="session-title">{session.title}</span>
+										{#if session.id === currentSessionId}<span class="session-current">Current</span
+											>{/if}
+									</span>
+									<span class="session-meta">
+										{formatDate(session.updatedAt)} · {session.marks.length} mark{session.marks
+											.length === 1
+											? ''
+											: 's'} · {session.media.fileName}
+									</span>
+								</div>
+								<div class="session-actions">
+									{#if session.id !== currentSessionId}
+										<button
+											class="text-btn"
+											onclick={() => onOpen(session)}
+											title="Choose {session.media.fileName} to reopen its marks"
+										>
+											Open…
+										</button>
+									{/if}
+									<button class="text-btn" onclick={() => downloadExport([session])}>Export</button>
+									<button class="text-btn danger" onclick={() => handleDelete(session)}
+										>Delete</button
+									>
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 				{#if sessions.length > 0 || backup.unreadable > 0}
 					<div class="sessions-status">
 						{#if protection === 'protected'}
@@ -227,64 +279,11 @@
 						{/if}
 					</div>
 				{/if}
-
-				{#if loading && sessions.length === 0}
-					<p class="sessions-empty">Loading…</p>
-				{:else if sessions.length === 0 && unreadableIds.length === 0}
-					<div class="sessions-empty">
-						<p class="sessions-empty-title">No saved sessions yet</p>
-						<p>Mark a video and press <kbd>⌘S</kbd> / <kbd>Ctrl S</kbd> to keep it here.</p>
-						<p class="sessions-empty-import">
-							Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
-								>Import it</button
-							>
-						</p>
-					</div>
-				{:else}
-					<ul class="sessions-list">
-						{#each sessions as session (session.id)}
-							{@const height = bestHeight(session)}
-							<li class="session-row" class:current={session.id === currentSessionId}>
-								<div class="session-height" class:none={height === null}>
-									{#if height !== null}{height.toFixed(1)}<small>cm</small>{:else}—{/if}
-								</div>
-								<div class="session-info">
-									<span class="session-name">
-										<span class="session-title">{session.title}</span>
-										{#if session.id === currentSessionId}<span class="session-current">Current</span
-											>{/if}
-									</span>
-									<span class="session-meta">
-										{formatDate(session.updatedAt)} · {session.marks.length} mark{session.marks
-											.length === 1
-											? ''
-											: 's'} · {session.media.fileName}
-									</span>
-								</div>
-								<div class="session-actions">
-									{#if session.id !== currentSessionId}
-										<button
-											class="text-btn"
-											onclick={() => onOpen(session)}
-											title="Choose {session.media.fileName} to reopen its marks"
-										>
-											Open…
-										</button>
-									{/if}
-									<button class="text-btn" onclick={() => downloadExport([session])}>Export</button>
-									<button class="text-btn danger" onclick={() => handleDelete(session)}
-										>Delete</button
-									>
-								</div>
-							</li>
-						{/each}
-					</ul>
-				{/if}
 			</div>
 
 			<div class="dialog-footer">
 				<span class="footer-note">Exports are JSON files you can import in any browser.</span>
-				<button class="text-btn" onclick={() => importInput?.click()}>Import…</button>
+				<button class="text-btn" onclick={() => importInput?.click()}>Import backup…</button>
 				<button class="primary-btn" onclick={handleExportAll} disabled={sessions.length === 0}>
 					Export all
 				</button>
@@ -408,14 +407,12 @@
 		overflow-y: auto;
 	}
 
+	/* Storage notes sit quietly under the list; the sessions are the focus. */
 	.sessions-status {
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
-		padding: 10px 12px;
-		border: 1px solid hsl(var(--at-border));
-		border-radius: 10px;
-		background: hsl(var(--at-surface) / 0.5);
+		gap: 4px;
+		padding: 0 2px;
 	}
 
 	.status-line {
@@ -423,7 +420,7 @@
 		align-items: baseline;
 		min-height: 24px;
 		gap: 9px;
-		color: hsl(var(--at-fg-secondary));
+		color: hsl(var(--at-fg-muted));
 		font-size: 12px;
 		line-height: 1.5;
 	}

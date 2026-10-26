@@ -129,8 +129,9 @@
 		if (!Number.isNaN(date.getTime())) recordedAt = date.toISOString();
 	}
 
+	// Whole milliseconds: one frame is several ms, so tenths would be false precision.
 	function formatMs(seconds: number): string {
-		return `${(seconds * 1000).toFixed(1)}`;
+		return `${Math.round(seconds * 1000)}`;
 	}
 
 	function intervalDescription(interval: Interval): string {
@@ -154,7 +155,7 @@
 				aria-label="Move {label.toLowerCase()} one frame earlier"
 				title="1 frame earlier"
 				><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5 9 12l5.5 5.5" /></svg><span
-					class="mp-action-label">1 frame</span
+					class="mp-action-label">Earlier</span
 				></button
 			>
 			<button
@@ -162,11 +163,10 @@
 				onclick={() => onNudge(mark.id, 1)}
 				aria-label="Move {label.toLowerCase()} one frame later"
 				title="1 frame later"
-				><span class="mp-action-label">1 frame</span><svg viewBox="0 0 24 24" aria-hidden="true"
+				><span class="mp-action-label">Later</span><svg viewBox="0 0 24 24" aria-hidden="true"
 					><path d="M9.5 6.5 15 12l-5.5 5.5" /></svg
 				></button
 			>
-			<span class="mp-action-divider" aria-hidden="true"></span>
 			<button
 				class="mp-icon-btn mp-remove"
 				onclick={() => onRemove(mark.id)}
@@ -257,41 +257,42 @@
 	{#if showDetails}
 		<div class="mp-body">
 			{#if bestJump?.flight}
-				<div class="mp-hero">
-					<span class="mp-label"
-						>{completedJumps > 1
-							? `Best jump · Jump ${bestIndex + 1} of ${completedJumps}`
-							: 'Jump height'}</span
-					>
-					<span class="mp-hero-value"
-						>{bestJump.flight.heightCm?.toFixed(1)}<span class="mp-unit">cm</span></span
-					>
-					<span class="mp-sub">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span>
-				</div>
-				<div class="mp-metrics">
-					<div class="mp-metric">
-						<span class="mp-label">Flight time</span>
-						<span class="mp-metric-value"
-							>{formatMs(bestJump.flight.realSeconds)}<span class="mp-unit">ms</span></span
+				<div class="mp-summary">
+					<div class="mp-hero">
+						<span class="mp-label"
+							>{completedJumps > 1
+								? `Best · Jump ${bestIndex + 1} of ${completedJumps}`
+								: 'Jump height'}</span
 						>
-						<span class="mp-sub">{bestJump.flight.frames} frames</span>
+						<span class="mp-hero-value"
+							>{bestJump.flight.heightCm?.toFixed(1)}<span class="mp-unit">cm</span></span
+						>
+						<span class="mp-sub">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span>
 					</div>
-					<div class="mp-metric" class:mp-metric-muted={!contactApplies}>
-						<span class="mp-label">Contact time</span>
-						{#if bestJump.contact}
+					<div class="mp-metrics" class:single={!bestJump.contact}>
+						<div class="mp-metric">
+							<span class="mp-label">Flight time</span>
 							<span class="mp-metric-value"
-								>{formatMs(bestJump.contact.realSeconds)}<span class="mp-unit">ms</span></span
+								>{formatMs(bestJump.flight.realSeconds)}<span class="mp-unit">ms</span></span
 							>
-							<span class="mp-sub"
-								>{#if !contactApplies}Not used for {jumpTypeLabel?.toLowerCase()}{:else}{bestJump
-										.contact.frames} frames{#if bestRsi !== undefined}
-										· RSI {bestRsi.toFixed(2)}{/if}{/if}</span
-							>
+							<span class="mp-sub">{bestJump.flight.frames} fr</span>
+						</div>
+						{#if bestJump.contact}
+							<div class="mp-metric" class:mp-metric-muted={!contactApplies}>
+								<span class="mp-label">Contact time</span>
+								<span class="mp-metric-value"
+									>{formatMs(bestJump.contact.realSeconds)}<span class="mp-unit">ms</span></span
+								>
+								<span class="mp-sub"
+									>{#if !contactApplies}Not used for {jumpTypeLabel?.toLowerCase()}{:else}{bestJump
+											.contact.frames} fr{#if bestRsi !== undefined}
+											· RSI {bestRsi.toFixed(2)}{/if}{/if}</span
+								>
+							</div>
 						{:else}
-							<span class="mp-metric-value muted" aria-label="None">–</span>
-							<span class="mp-sub"
-								>{bestIndex === 0 ? 'No landing before it' : 'No landing marked before'}</span
-							>
+							<p class="mp-metric-note">
+								No contact time: mark the landing before this jump's takeoff to add it.
+							</p>
 						{/if}
 					</div>
 				</div>
@@ -299,9 +300,6 @@
 				<div class="mp-hero is-empty">
 					<span class="mp-label">Jump height</span>
 					<span class="mp-hero-placeholder">No jump measured yet</span>
-					<span class="mp-sub"
-						>Mark a takeoff and its landing to see height, flight and contact time.</span
-					>
 				</div>
 			{/if}
 
@@ -344,12 +342,9 @@
 							</li>
 						</ol>
 						<p class="mp-empty-hint">
-							<span class="pointer-only">Step frames with <kbd>,</kbd> and <kbd>.</kbd></span><span
-								class="touch-only">Hold the frame buttons to step quickly.</span
-							>
-						</p>
-						<p class="mp-empty-hint secondary">
-							Mark a landing before the takeoff to also get contact time.
+							<span class="pointer-only"
+								>Step frames with <kbd>,</kbd> <kbd>.</kbd>&nbsp;·&nbsp;</span
+							>A landing before the takeoff adds contact time.
 						</p>
 					</div>
 				{:else}
@@ -406,26 +401,28 @@
 
 			<section class="mp-section" aria-labelledby="mp-setup-heading">
 				<h3 id="mp-setup-heading" class="mp-section-title">Setup</h3>
-				<label class="mp-row">
-					<span>Footage</span>
-					<select class="mp-field mp-select" bind:value={timeScale}>
-						{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
-								>{scale.label}</option
-							>{/each}
-					</select>
-				</label>
-				<label class="mp-row">
-					<span>Jump type</span>
-					<select
-						class="mp-field mp-select"
-						bind:value={jumpType}
-						aria-describedby={jumpType === null ? 'mp-jump-type-hint' : undefined}
-					>
-						{#if jumpType === null}<option value={null}>Not set</option>{/if}
-						{#each JUMP_TYPES as type (type.value)}<option value={type.value}>{type.label}</option
-							>{/each}
-					</select>
-				</label>
+				<div class="mp-setup-grid">
+					<label class="mp-stack">
+						<span>Footage</span>
+						<select class="mp-field mp-select" bind:value={timeScale}>
+							{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
+									>{scale.label}</option
+								>{/each}
+						</select>
+					</label>
+					<label class="mp-stack">
+						<span>Jump type</span>
+						<select
+							class="mp-field mp-select"
+							bind:value={jumpType}
+							aria-describedby={jumpType === null ? 'mp-jump-type-hint' : undefined}
+						>
+							{#if jumpType === null}<option value={null}>Not set</option>{/if}
+							{#each JUMP_TYPES as type (type.value)}<option value={type.value}>{type.label}</option
+								>{/each}
+						</select>
+					</label>
+				</div>
 				{#if jumpType === null}
 					<p id="mp-jump-type-hint" class="mp-caption warn">
 						Set the jump type to compare like with like.
@@ -472,12 +469,10 @@
 
 <style>
 	.marks-panel {
-		/* Three 26px action buttons, a divider and a margin; intervals reserve it so values line up. */
-		--mark-actions-width: 82px;
 		display: flex;
-		flex: 0 0 320px;
+		flex: 0 0 336px;
 		flex-direction: column;
-		width: 320px;
+		width: 336px;
 		min-height: 0;
 		height: 100%;
 		overflow: hidden;
@@ -488,11 +483,15 @@
 		font-size: 13px;
 	}
 
+	/* Fades out at the bottom so it's clear the panel scrolls; the padding lets the
+	   last field scroll clear of the fade. */
 	.mp-body {
 		display: flex;
 		flex: 1 1 auto;
 		flex-direction: column;
 		min-height: 0;
+		padding-bottom: 20px;
+		mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
 		overflow-y: auto;
 		overscroll-behavior: contain;
 		scrollbar-width: thin;
@@ -541,12 +540,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
-		padding: 18px 16px 14px;
+		padding: 16px 16px 12px;
 	}
 
 	.mp-hero-value {
 		color: hsl(var(--at-fg));
-		font-size: 44px;
+		font-size: 40px;
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: -0.035em;
@@ -563,11 +562,6 @@
 		font-size: 20px;
 		font-weight: 600;
 		letter-spacing: -0.015em;
-	}
-
-	.mp-hero.is-empty .mp-sub {
-		max-width: 260px;
-		line-height: 1.45;
 	}
 
 	.mp-header-meta {
@@ -590,6 +584,19 @@
 		gap: 2px;
 		min-width: 0;
 		padding: 10px 12px;
+	}
+
+	.mp-metrics.single {
+		grid-template-columns: 1fr;
+	}
+
+	.mp-metric-note {
+		margin: 0;
+		padding: 8px 12px 10px;
+		border-top: 1px solid hsl(var(--at-border));
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
+		line-height: 1.45;
 	}
 
 	.mp-metric + .mp-metric {
@@ -623,12 +630,46 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		padding: 14px 16px 16px;
-		border-top: 1px solid hsl(var(--at-border));
+		padding: 14px 16px 10px;
 	}
 
-	.mp-metrics + .mp-section {
+	.mp-summary + .mp-section {
 		margin-top: 12px;
+	}
+
+	/* Sheet: height, flight and contact share one row so the jump list starts sooner. */
+	.sheet .mp-summary {
+		display: grid;
+		grid-template-columns: 1.25fr 1fr 1fr;
+		align-items: start;
+		padding: 14px 16px 0;
+	}
+
+	.sheet .mp-summary .mp-hero {
+		padding: 0;
+	}
+
+	.sheet .mp-summary .mp-hero-value {
+		font-size: 30px;
+	}
+
+	.sheet .mp-summary .mp-metrics {
+		display: contents;
+	}
+
+	.sheet .mp-summary .mp-metric {
+		padding: 0 0 0 12px;
+		border-left: 1px solid hsl(var(--at-border));
+	}
+
+	.sheet .mp-summary .mp-metric-value {
+		font-size: 18px;
+		line-height: 1.6;
+	}
+
+	.sheet .mp-summary .mp-label,
+	.sheet .mp-summary .mp-sub {
+		font-size: 12px;
 	}
 
 	.mp-section-head {
@@ -812,10 +853,19 @@
 		font-size: 12px;
 	}
 
-	.mp-empty-hint.secondary {
-		margin-top: 4px;
-		padding-top: 0;
-		border-top: none;
+	.mp-setup-grid {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+		gap: 8px;
+	}
+
+	.mp-stack {
+		display: flex;
+		flex-direction: column;
+		gap: 5px;
+		min-width: 0;
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
 	}
 
 	kbd {
@@ -844,14 +894,13 @@
 
 	.mp-jump {
 		padding: 4px;
-		border: 1px solid hsl(var(--at-border));
 		border-radius: 10px;
-		background: hsl(var(--at-surface) / 0.4);
+		background: hsl(var(--at-surface) / 0.55);
 	}
 
 	.mp-jump.mp-best {
-		border-color: hsl(var(--at-fg) / 0.2);
-		background: hsl(var(--at-surface) / 0.8);
+		background: hsl(var(--at-surface));
+		box-shadow: inset 0 0 0 1px hsl(var(--at-fg) / 0.1);
 	}
 
 	.mp-jump-head {
@@ -860,14 +909,14 @@
 		gap: 8px;
 		margin: 0;
 		padding: 6px 8px 4px;
-		font-size: 12px;
+		font-size: 13px;
 		font-weight: 600;
 	}
 
 	.mp-jump-stats {
 		margin-left: auto;
-		color: hsl(var(--at-fg-secondary));
-		font-weight: 500;
+		color: hsl(var(--at-fg));
+		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
 	}
@@ -906,8 +955,11 @@
 	}
 
 	.mp-mark.active {
-		background: color-mix(in srgb, var(--mark-color) 14%, transparent);
-		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mark-color) 35%, transparent);
+		background: color-mix(in srgb, var(--mark-color) 12%, transparent);
+	}
+
+	.mp-mark.active .mp-mark-type {
+		color: hsl(var(--at-fg));
 	}
 
 	.mp-mark-main {
@@ -938,7 +990,8 @@
 
 	.mp-mark-type {
 		flex: 1;
-		font-weight: 500;
+		color: hsl(var(--at-fg-secondary));
+		font-weight: 400;
 	}
 
 	.mp-mark-time {
@@ -948,46 +1001,40 @@
 		font-variant-numeric: tabular-nums;
 	}
 
-	/* Nudge earlier / later | remove, as one segmented control. */
+	/* A mark's controls appear as a small labelled toolbar under the selected mark
+	   (the one at the playhead; click or tap a row to go there), so rows stay clean
+	   and every value lines up at the right edge. */
+	.mp-mark {
+		flex-wrap: wrap;
+	}
+
 	.mp-mark-actions {
-		display: flex;
-		align-items: center;
-		margin-right: 3px;
-		border-radius: 7px;
-		background: hsl(var(--at-fg) / 0.06);
-		opacity: 0;
-		transition: opacity 120ms ease;
-	}
-
-	.mp-mark:hover .mp-mark-actions,
-	.mp-mark.active .mp-mark-actions,
-	.mp-mark:focus-within .mp-mark-actions {
-		opacity: 1;
-	}
-
-	.mp-action-divider {
-		width: 1px;
-		height: 14px;
-		background: hsl(var(--at-fg) / 0.12);
-	}
-
-	.mp-action-label {
 		display: none;
+		gap: 6px;
+		width: 100%;
+		margin-top: -2px;
+		padding: 0 8px 8px 26px;
+	}
+
+	.mp-mark.active .mp-mark-actions {
+		display: flex;
 	}
 
 	.mp-icon-btn {
 		display: inline-flex;
+		flex: 1 1 0;
 		align-items: center;
 		justify-content: center;
-		gap: 6px;
-		width: 26px;
-		height: 26px;
-		padding: 0;
+		gap: 5px;
+		height: 28px;
+		padding: 0 8px;
 		border: none;
 		border-radius: 7px;
-		background: transparent;
-		color: hsl(var(--at-fg-secondary));
+		background: hsl(var(--at-fg) / 0.08);
+		color: hsl(var(--at-fg));
 		font: inherit;
+		font-size: 12px;
+		font-weight: 500;
 		cursor: pointer;
 		transition:
 			background 120ms ease,
@@ -995,8 +1042,8 @@
 	}
 
 	.mp-icon-btn svg {
-		width: 15px;
-		height: 15px;
+		width: 14px;
+		height: 14px;
 		flex: 0 0 auto;
 		fill: none;
 		stroke: currentColor;
@@ -1006,11 +1053,11 @@
 	}
 
 	.mp-icon-btn:hover {
-		background: hsl(var(--at-fg) / 0.1);
-		color: hsl(var(--at-fg));
+		background: hsl(var(--at-fg) / 0.14);
 	}
 
-	.mp-remove:hover {
+	.mp-remove:hover,
+	.mp-remove:active {
 		color: hsl(var(--at-error));
 	}
 
@@ -1022,7 +1069,7 @@
 		align-items: center;
 		gap: 8px;
 		margin-left: 11px;
-		padding: 3px calc(var(--mark-actions-width) + 8px) 3px 17px;
+		padding: 3px 8px 3px 17px;
 		border-left: 2px dashed var(--interval-color);
 		color: hsl(var(--at-fg-muted));
 		font-size: 11px;
@@ -1090,10 +1137,6 @@
 		color: hsl(var(--at-fg));
 	}
 
-	.mp-danger {
-		color: hsl(var(--at-error) / 0.9);
-	}
-
 	.mp-danger:hover:not(:disabled) {
 		background: hsl(var(--at-error) / 0.12);
 		color: hsl(var(--at-error));
@@ -1104,58 +1147,14 @@
 		cursor: default;
 	}
 
-	/* Touch: no hover, so a mark's controls appear as a labelled toolbar under the
-	   selected row (tap a row to select it) instead of crowding every row. */
-	@media (hover: none) {
-		.marks-panel {
-			--mark-actions-width: 0px;
-		}
-
-		.mp-mark {
-			flex-wrap: wrap;
-		}
-
-		.mp-mark-actions {
-			display: none;
-			gap: 6px;
-			width: 100%;
-			margin: 0;
-			padding: 0 8px 8px 26px;
-			background: none;
-			opacity: 1;
-		}
-
-		.mp-mark.active .mp-mark-actions {
-			display: flex;
-		}
-
-		.mp-action-divider {
-			display: none;
-		}
-
-		.mp-action-label {
-			display: inline;
-		}
-
-		.mp-icon-btn {
-			flex: 1 1 0;
-			width: auto;
-			height: 40px;
-			border-radius: 8px;
-			background: hsl(var(--at-fg) / 0.07);
-			color: hsl(var(--at-fg));
-			font-size: 14px;
-			font-weight: 500;
-		}
-
-		.mp-remove {
-			color: hsl(var(--at-error));
-		}
-	}
-
 	@media (pointer: coarse) {
 		.mp-mark-main {
 			height: 44px;
+		}
+
+		.mp-icon-btn {
+			height: 36px;
+			font-size: 14px;
 		}
 
 		.mp-text-btn {

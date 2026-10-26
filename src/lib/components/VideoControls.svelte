@@ -594,8 +594,10 @@
 		.rate-btn {
 			width: auto;
 			min-width: 44px;
-			height: 32px;
+			height: 28px;
 			margin-block: 0;
+			border-color: transparent;
+			background: hsl(var(--at-fg) / 0.07);
 		}
 	}
 
