@@ -393,27 +393,27 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 8px;
+		gap: 10px;
 		padding: 0;
 	}
 
 	.volume-section {
 		display: flex;
 		align-items: center;
-		gap: 5px;
+		gap: 4px;
 		min-width: 0;
 	}
 
 	.volume-slider {
-		width: 58px;
-		height: 4px;
+		width: 64px;
+		height: 3px;
 		appearance: none;
 		background: linear-gradient(
 			to right,
-			hsl(var(--at-fg-secondary)) 0%,
-			hsl(var(--at-fg-secondary)) var(--volume-progress),
-			hsl(var(--at-border)) var(--volume-progress),
-			hsl(var(--at-border)) 100%
+			hsl(var(--at-fg) / 0.7) 0%,
+			hsl(var(--at-fg) / 0.7) var(--volume-progress),
+			hsl(var(--at-fg) / 0.16) var(--volume-progress),
+			hsl(var(--at-fg) / 0.16) 100%
 		);
 		border-radius: 2px;
 		cursor: pointer;
@@ -421,10 +421,11 @@
 
 	.volume-slider::-webkit-slider-thumb {
 		appearance: none;
-		width: 12px;
-		height: 12px;
+		width: 11px;
+		height: 11px;
 		background: hsl(var(--at-fg));
 		border-radius: 50%;
+		box-shadow: 0 1px 3px hsl(var(--at-shadow) / 0.6);
 		cursor: pointer;
 		transition: transform 150ms ease;
 	}
@@ -434,8 +435,8 @@
 	}
 
 	.volume-slider::-moz-range-thumb {
-		width: 12px;
-		height: 12px;
+		width: 11px;
+		height: 11px;
 		background: hsl(var(--at-fg));
 		border-radius: 50%;
 		border: none;
@@ -450,12 +451,12 @@
 	.playback-controls {
 		display: flex;
 		align-items: center;
-		gap: 3px;
+		gap: 4px;
 	}
 
 	.frame-btn {
-		width: 28px;
-		height: 28px;
+		width: 32px;
+		height: 32px;
 		border-radius: 8px;
 		background: transparent;
 		border: none;
@@ -464,17 +465,24 @@
 		align-items: center;
 		justify-content: center;
 		cursor: pointer;
-		transition: all 150ms ease;
-		filter: drop-shadow(0 1px 2px hsl(var(--at-shadow) / 0.9));
+		transition:
+			background 140ms ease,
+			color 140ms ease,
+			transform 140ms ease;
+	}
+
+	.frame-btn :global(svg) {
+		width: 18px;
+		height: 18px;
 	}
 
 	.frame-btn:hover:not(:disabled) {
-		background: hsl(var(--at-fg) / 0.1);
+		background: hsl(var(--at-fg) / 0.08);
 		color: hsl(var(--at-fg));
 	}
 
 	.frame-btn:active:not(:disabled) {
-		transform: scale(0.95);
+		transform: scale(0.94);
 	}
 
 	.frame-btn:disabled {
@@ -492,34 +500,49 @@
 
 	.rate-btn {
 		width: auto;
-		min-width: 34px;
-		padding: 0 6px;
-		font-family: 'JetBrains Mono', monospace;
+		min-width: 38px;
+		height: 24px;
+		padding: 0 7px;
+		border: 1px solid hsl(var(--at-fg) / 0.12);
+		border-radius: 6px;
+		font-family: var(--at-font-mono);
 		font-size: 11px;
-		font-weight: 700;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
 	}
 
 	.rate-btn.slowed {
+		border-color: hsl(var(--at-fg) / 0.3);
 		color: hsl(var(--at-fg));
-		background: hsl(var(--at-fg) / 0.12);
+		background: hsl(var(--at-fg) / 0.1);
 	}
 
 	.play-btn {
-		width: 38px;
-		height: 38px;
+		width: 40px;
+		height: 40px;
+		margin-inline: 2px;
 		border-radius: 50%;
-		background: hsl(var(--at-fg) / 0.92);
+		background: hsl(var(--at-fg));
 		border: none;
 		color: hsl(var(--at-bg));
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		cursor: pointer;
-		transition: background 150ms ease;
+		box-shadow: 0 4px 14px hsl(var(--at-shadow) / 0.5);
+		transition:
+			background 140ms ease,
+			transform 140ms ease;
+	}
+
+	.play-btn :global(svg) {
+		width: 20px;
+		height: 20px;
 	}
 
 	.play-btn:hover:not(:disabled) {
-		background: hsl(var(--at-fg));
+		background: hsl(0 0% 100%);
+		transform: scale(1.04);
 	}
 
 	.play-btn:active:not(:disabled) {
@@ -538,6 +561,12 @@
 			width: 44px;
 			height: 44px;
 			margin-block: -8px;
+		}
+		.rate-btn {
+			width: auto;
+			min-width: 44px;
+			height: 32px;
+			margin-block: 0;
 		}
 	}
 

@@ -499,7 +499,7 @@
 <div
 	bind:this={containerRef}
 	class="relative flex h-full w-full items-center justify-center"
-	style="background: hsl(220 20% 4%); overflow: hidden; touch-action: none;"
+	style="background: hsl(var(--at-stage)); overflow: hidden; touch-action: none;"
 	onwheel={handleWheel}
 	onmousedown={handleMouseDown}
 	ondblclick={handleDoubleClick}
@@ -545,50 +545,29 @@
 
 		<!-- Zoom indicator -->
 		{#if zoomLevel > 1}
-			<div
-				class="absolute top-4 left-4 z-10 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
-				style="background: hsl(var(--at-bg-elevated) / 0.9); backdrop-filter: blur(8px); color: hsl(var(--at-fg)); border: 1px solid hsl(var(--at-border));"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-4 w-4"
-					style="color: hsl(var(--at-fg-secondary));"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-				>
-					<circle cx="11" cy="11" r="8" />
-					<path d="m21 21-4.35-4.35" />
-					<path d="M11 8v6" />
-					<path d="M8 11h6" />
-				</svg>
-				<span class="font-mono">{Math.round(zoomLevel * 100)}%</span>
+			<div class="zoom-pill">
+				<span>{Math.round(zoomLevel * 100)}%</span>
 				<button
 					onclick={(e) => {
 						e.stopPropagation();
 						resetZoom();
 					}}
-					class="ml-1 rounded-md p-1.5 transition-colors"
-					style="background: hsl(var(--at-fg) / 0.1);"
 					aria-label="Reset zoom"
-					title="Reset zoom"
+					title="Reset zoom (double-click)"
 				>
 					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-3.5 w-3.5"
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
 						stroke-width="2"
 						stroke-linecap="round"
 						stroke-linejoin="round"
+						aria-hidden="true"
 					>
 						<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
 						<path d="M3 3v5h5" />
 					</svg>
+					Reset
 				</button>
 			</div>
 		{/if}
@@ -598,3 +577,51 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	.zoom-pill {
+		position: absolute;
+		top: 12px;
+		left: 12px;
+		z-index: 10;
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		height: 28px;
+		padding: 0 3px 0 10px;
+		border: 1px solid hsl(var(--at-fg) / 0.08);
+		border-radius: 999px;
+		background: hsl(var(--at-stage) / 0.72);
+		color: hsl(var(--at-fg));
+		font-family: var(--at-font-mono);
+		font-size: 11px;
+		font-weight: 500;
+		font-variant-numeric: tabular-nums;
+		backdrop-filter: blur(10px);
+	}
+
+	.zoom-pill button {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		height: 22px;
+		padding: 0 8px;
+		border: none;
+		border-radius: 999px;
+		background: hsl(var(--at-fg) / 0.1);
+		color: hsl(var(--at-fg-secondary));
+		font: inherit;
+		font-family: inherit;
+		cursor: pointer;
+	}
+
+	.zoom-pill button:hover {
+		background: hsl(var(--at-fg) / 0.18);
+		color: hsl(var(--at-fg));
+	}
+
+	.zoom-pill svg {
+		width: 12px;
+		height: 12px;
+	}
+</style>

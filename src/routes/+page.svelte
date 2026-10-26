@@ -145,6 +145,11 @@
 	let analysis = $derived(analyzeMarks(marks, timing, timeScale));
 	let activeMark = $derived(markAtFrame(marks, currentTime, timing));
 
+	// Width over height, once the video's metadata is in. On narrow screens a landscape
+	// video is sized to fit and the analysis sheet takes the room left underneath.
+	let videoAspect: number | null = $state(null);
+	let fitLandscape = $derived(stacked.current && (videoAspect ?? 0) > 1);
+
 	// Zoom state
 	let zoomLevel = $state(1);
 	let videoViewerRef: { resetZoom: () => void; zoomIn: () => void; zoomOut: () => void } | null =
@@ -202,6 +207,7 @@
 		markHistory = [];
 		markFuture = [];
 		zoomLevel = 1;
+		videoAspect = null;
 
 		videoFile = file;
 		sessionId = null;
@@ -610,6 +616,15 @@
 		if (!event.relatedTarget) isDragging = false;
 	}
 
+	function handleVideoMetadata() {
+		const video = videoElement;
+		if (!video?.videoWidth || !video.videoHeight) return;
+		const first = videoAspect === null;
+		videoAspect = video.videoWidth / video.videoHeight;
+		// Below a landscape video the sheet has room, so open it rather than leave a gap.
+		if (first && fitLandscape) panelOpen = true;
+	}
+
 	function handleMediaError() {
 		mediaError = true;
 		isPlaying = false;
@@ -630,14 +645,7 @@
 </script>
 
 <svelte:head>
-	<title>Airtime</title>
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<link rel="preconnect" href="https://fonts.googleapis.com" />
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-	<link
-		href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap"
-		rel="stylesheet"
-	/>
+	<title>{videoSrc ? `${sessionTitle || defaultTitle} · Airtime` : 'Airtime'}</title>
 </svelte:head>
 
 <!-- Drag and drop is handled on the window so the app shell stays a plain, non-interactive element. -->
@@ -662,29 +670,55 @@
 
 <div class="app-shell flex h-dvh flex-col bg-[hsl(var(--at-bg))]">
 	<header class="app-header">
-		<a class="brand-mark" href={resolve('/')} aria-label="Airtime home">Airtime</a>
-		{#if videoSrc}
-			<div class="header-file" title={videoFileName}>
-				<span class="header-file-dot" class:unsaved={isDirty}></span>
-				<span class="truncate">{videoFileName}</span>
-				{#if notice}
-					<span class="header-status">{notice}</span>
-				{:else if isDirty}
-					<span class="header-status unsaved">Unsaved</span>
-				{/if}
-			</div>
-		{/if}
+		<div class="header-start">
+			<a class="brand-mark" href={resolve('/')} aria-label="Airtime home">
+				<svg class="brand-logo" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+					<rect width="24" height="24" rx="7" fill="hsl(var(--at-surface-hover))" />
+					<path
+						d="M6 17.5C7.6 8.8 9.7 6.5 12 6.5s4.4 2.3 6 11"
+						stroke="hsl(var(--at-fg) / 0.55)"
+						stroke-width="1.6"
+						stroke-linecap="round"
+						stroke-dasharray="0.1 2.6"
+					/>
+					<circle cx="6" cy="17.5" r="2.2" fill="hsl(var(--at-takeoff))" />
+					<circle cx="18" cy="17.5" r="2.2" fill="hsl(var(--at-landing))" />
+				</svg>
+				Airtime
+			</a>
+			{#if videoSrc}
+				<div class="header-file" title={videoFileName}>
+					<span class="header-file-name">{videoFileName}</span>
+					{#if isDirty}
+						<span class="header-status unsaved">Unsaved</span>
+					{:else if sessionId}
+						<span class="header-status">Saved</span>
+					{/if}
+				</div>
+			{/if}
+		</div>
 		<div class="header-actions">
 			<button
-				class="header-open header-icon"
+				class="btn btn-icon header-shortcuts"
 				onclick={() => (keybindsOpen = true)}
 				aria-label="Keyboard shortcuts"
 				title="Keyboard shortcuts (?)"
 			>
-				?
+				<svg
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.7"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+					><rect x="2.5" y="6" width="19" height="12" rx="2.5" /><path
+						d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M8 14h8"
+					/></svg
+				>
 			</button>
 			<button
-				class="header-open"
+				class="btn"
 				onclick={() => (sessionsOpen = true)}
 				title={backup?.due ? backupReminder(backup) : 'Saved sessions, export and import'}
 			>
@@ -693,44 +727,53 @@
 			</button>
 			{#if videoSrc}
 				<button
-					class="header-open"
-					onclick={save}
-					disabled={!isDirty || isSaving}
-					title="Save marks to this browser (⌘S)"
-				>
-					Save{#if isDirty}<span class="header-dirty-dot" aria-hidden="true"></span>{/if}
-				</button>
-				<button
-					class="header-open header-analysis"
-					class:active={panelOpen}
+					class="btn header-analysis"
 					onclick={() => (panelOpen = !panelOpen)}
 					aria-pressed={panelOpen}
 					title="Toggle analysis panel (A)"
 				>
+					<svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.7"
+						aria-hidden="true"
+						><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M15 4v16" /></svg
+					>
 					Analysis
 				</button>
 			{/if}
+			<span class="header-divider" aria-hidden="true"></span>
 			<button
 				onclick={openFilePicker}
-				class="header-open"
+				class="btn {videoSrc ? '' : 'btn-secondary'}"
 				aria-label={videoSrc ? 'Replace video' : 'Open video'}
 				title={videoSrc ? 'Change video' : 'Open video'}
 			>
 				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-4 w-4"
-					fill="none"
 					viewBox="0 0 24 24"
+					fill="none"
 					stroke="currentColor"
-					stroke-width="1.8"
+					stroke-width="1.7"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
 					><path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+						d="M3.5 7.5v9a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2V9.5a2 2 0 0 0-2-2h-6l-2-2h-5a2 2 0 0 0-2 2z"
 					/></svg
 				>
 				<span class="header-open-label">{videoSrc ? 'Change video' : 'Open video'}</span>
 			</button>
+			{#if videoSrc}
+				<button
+					class="btn {isDirty ? 'btn-primary' : 'btn-secondary'}"
+					onclick={save}
+					disabled={!isDirty || isSaving}
+					title="Save marks to this browser (⌘S)"
+				>
+					Save{#if isDirty}<kbd class="btn-kbd">⌘S</kbd>{/if}
+				</button>
+			{/if}
 		</div>
 		<div class="app-notice" class:visible={notice} role="status">{notice ?? ''}</div>
 	</header>
@@ -740,78 +783,113 @@
 			<span class="backup-reminder-text">
 				{backup.notBackedUp} session{backup.notBackedUp === 1 ? '' : 's'} not backed up
 			</span>
-			<button class="backup-reminder-action" onclick={handleBackUpNow}>Back up now</button>
+			<button class="btn btn-primary" onclick={handleBackUpNow}>Back up now</button>
 			<button
-				class="backup-reminder-dismiss"
+				class="btn btn-icon"
 				onclick={() => (reminderDismissed = true)}
 				aria-label="Dismiss backup reminder"
 				title="Hide until next visit"
 			>
 				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-3.5 w-3.5"
 					viewBox="0 0 24 24"
 					fill="none"
 					stroke="currentColor"
 					stroke-width="2"
+					aria-hidden="true"
 				>
-					<line x1="18" y1="6" x2="6" y2="18" />
-					<line x1="6" y1="6" x2="18" y2="18" />
+					<path d="M17 7 7 17M7 7l10 10" stroke-linecap="round" />
 				</svg>
 			</button>
 		</section>
 	{/if}
 	<!-- Viewing stage -->
 	<div
-		class="viewer-stage relative flex min-h-0 flex-1 items-center justify-center gap-3 overflow-hidden"
+		class="viewer-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
+		class:overflow-y-auto={!videoSrc}
 	>
 		{#if !videoSrc}
-			<!-- Empty state -->
-			<div class="empty-stack">
+			<div class="empty">
+				<h1 class="empty-title at-reveal">Measure jump height from video</h1>
+				<p class="empty-lede at-reveal" style="--delay: 40ms">
+					Step to the frames where your feet leave and touch the ground. Airtime turns the flight
+					time into jump height.
+				</p>
 				<button
 					onclick={openFilePicker}
-					class="empty-state at-reveal cursor-pointer"
-					style="--delay: 50ms"
+					class="dropzone at-reveal"
+					class:dragging={isDragging}
+					style="--delay: 80ms"
 				>
-					<div class="empty-state-icon" class:animate-pulse={isDragging}>
+					<span class="dropzone-icon" aria-hidden="true">
 						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-10 w-10"
-							fill="none"
 							viewBox="0 0 24 24"
+							fill="none"
 							stroke="currentColor"
-							stroke-width="1.5"
+							stroke-width="1.6"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5" /><path
+								d="M4 14.5v3A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5v-3"
+							/></svg
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-							/>
-						</svg>
-					</div>
-					<div class="empty-state-title">
-						{isDragging ? 'Drop video here' : 'Open a video'}
-					</div>
-					<div class="empty-state-description">
-						<span class="pointer-only">Click to browse or drag and drop a video file</span><span
-							class="touch-only">Tap to choose a video from your library or files</span
-						>
-					</div>
-					<div class="empty-state-hint">Press <kbd>?</kbd> for keyboard shortcuts</div>
+					</span>
+					<span class="dropzone-title">{isDragging ? 'Drop to open' : 'Open a jump video'}</span>
+					<span class="dropzone-sub"
+						><span class="pointer-only">Drag a clip here, or browse your files</span><span
+							class="touch-only">Choose a clip from your library or files</span
+						></span
+					>
+					<span class="btn btn-primary">Choose video</span>
 				</button>
-				{#if isAppEmpty}
-					<p class="empty-import at-reveal" style="--delay: 100ms">
-						Have a backup? <button class="empty-import-btn" onclick={() => importInput?.click()}
-							>Import it</button
+				<ol class="empty-steps at-reveal" style="--delay: 120ms">
+					<li>
+						<strong><span class="empty-step-num">1</span>Find takeoff</strong>
+						Step to the first frame the feet leave the ground.
+					</li>
+					<li>
+						<strong><span class="empty-step-num">2</span>Find landing</strong>
+						Step to the first frame they touch down again.
+					</li>
+					<li>
+						<strong><span class="empty-step-num">3</span>Read the jump</strong>
+						Flight time, contact time and height, per jump.
+					</li>
+				</ol>
+				<div class="empty-footer at-reveal" style="--delay: 160ms">
+					<span>
+						<svg
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.8"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"
+							><rect x="5" y="11" width="14" height="9" rx="2" /><path
+								d="M8 11V8a4 4 0 0 1 8 0v3"
+							/></svg
 						>
-					</p>
-				{/if}
+						Videos stay on your device
+					</span>
+					<span class="empty-hint">Press <kbd>?</kbd> for shortcuts</span>
+					{#if isAppEmpty}
+						<span
+							>Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
+								>Import it</button
+							></span
+						>
+					{/if}
+				</div>
 				<p class="empty-import-message" class:error={importMessage?.error} role="status">
 					{importMessage?.text ?? ''}
 				</p>
 			</div>
 		{:else}
-			<div class="viewer-frame">
+			<div
+				class="viewer-frame"
+				class:landscape={fitLandscape}
+				style:--video-aspect={videoAspect ?? undefined}
+			>
 				<VideoViewer
 					bind:this={videoViewerRef}
 					bind:videoElement
@@ -828,32 +906,37 @@
 					bind:zoomLevel
 					{playbackRate}
 					onFrameRateDetected={() => (frameRateSettled = true)}
+					onDurationChange={handleVideoMetadata}
 					onError={handleMediaError}
 				/>
 
 				{#if mediaError}
-					<div
-						class="absolute inset-0 z-10 flex items-center justify-center bg-[hsl(var(--at-bg)/0.9)] p-6 text-center backdrop-blur-sm"
-					>
-						<div>
-							<p class="text-lg font-semibold text-[hsl(var(--at-fg))]">
-								Unable to play this video
-							</p>
-							<p class="mt-2 text-sm text-[hsl(var(--at-fg-muted))]">
-								The file may be unsupported or damaged. Choose another video to continue.
-							</p>
-						</div>
+					<div class="viewer-overlay z-10">
+						<span class="viewer-overlay-icon" aria-hidden="true">
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.7"
+								stroke-linecap="round"
+								><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5h.01" /></svg
+							>
+						</span>
+						<p class="viewer-overlay-title">Unable to play this video</p>
+						<p class="viewer-overlay-text">
+							The file may be unsupported or damaged. Choose another video to continue.
+						</p>
 					</div>
 				{:else}
 					<div class="viewer-badge">
 						<span class="viewer-badge-dot" class:uncertain={!sourceFrameRate}
 						></span>{#if sourceFrameRate && variableFrameRate}
-							<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps (variable)</span>
+							<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps · variable</span>
 						{:else if sourceFrameRate}
 							{sourceFrameRate} fps
 						{:else if playbackFrameRate}
 							<span title="Couldn't read the frame rate from the file; estimated from playback">
-								~{playbackFrameRate} fps (estimated)
+								~{playbackFrameRate} fps · estimated
 							</span>
 						{:else if frameRateFailed}
 							<span title={FRAME_RATE_FAILED}>Frame rate unknown</span>
@@ -865,30 +948,21 @@
 
 				<!-- Drag overlay -->
 				{#if isDragging}
-					<div
-						class="absolute inset-0 z-20 flex items-center justify-center bg-[hsl(var(--at-bg)/0.9)] backdrop-blur-sm"
-					>
-						<div class="text-center">
-							<div
-								class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[hsl(var(--at-surface))]"
+					<div class="viewer-overlay drop z-20">
+						<span class="viewer-overlay-icon" aria-hidden="true">
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.6"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5" /><path
+									d="M4 14.5v3A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5v-3"
+								/></svg
 							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-8 w-8 text-[hsl(var(--at-fg-secondary))]"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="2"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-									/>
-								</svg>
-							</div>
-							<p class="text-lg font-semibold text-[hsl(var(--at-fg))]">Drop to replace video</p>
-						</div>
+						</span>
+						<p class="viewer-overlay-title">Drop to replace video</p>
 					</div>
 				{/if}
 				<div class="control-bar">
@@ -965,6 +1039,7 @@
 					onUndo={undoMarks}
 					onClear={clearMarks}
 					sheet={stacked.current}
+					fill={fitLandscape}
 					expanded={panelOpen}
 					onToggle={() => (panelOpen = !panelOpen)}
 				/>

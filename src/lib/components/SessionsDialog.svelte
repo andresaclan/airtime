@@ -138,135 +138,153 @@
 
 {#if isOpen}
 	<div
-		class="sessions-backdrop"
+		class="dialog-backdrop"
 		onclick={handleBackdropClick}
 		onkeydown={() => {}}
 		role="dialog"
 		aria-modal="true"
-		aria-label="Saved sessions"
+		aria-labelledby="sessions-title"
 		tabindex="-1"
 	>
-		<div class="sessions-card" bind:this={card} use:dialogFocus tabindex="-1">
-			<div class="sessions-header">
-				<h2 class="sessions-title">Saved sessions</h2>
-				<button class="close-btn" onclick={onClose} aria-label="Close">
+		<div class="dialog-card" bind:this={card} use:dialogFocus tabindex="-1">
+			<div class="dialog-header">
+				<div>
+					<h2 id="sessions-title" class="dialog-title">Saved sessions</h2>
+					<p class="dialog-subtitle">
+						Stored in this browser only. Videos aren't saved: open the same file again (or drop it
+						in) to bring back its marks.
+					</p>
+				</div>
+				<button class="close-btn" onclick={onClose} aria-label="Close" title="Close (Esc)">
 					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
 						stroke-width="2"
+						aria-hidden="true"
 					>
-						<line x1="18" y1="6" x2="6" y2="18" />
-						<line x1="6" y1="6" x2="18" y2="18" />
+						<path d="M17 7 7 17M7 7l10 10" stroke-linecap="round" />
 					</svg>
 				</button>
 			</div>
 
-			<p class="sessions-hint">
-				Stored in this browser only. Videos aren't saved — choose Open… and pick the same file (or
-				drop it in) to reopen its marks. Export to back up or to hand the data to an agent.
-			</p>
+			<div class="dialog-body">
+				{#if message}
+					<p class="sessions-message" class:error={message.error}>{message.text}</p>
+				{/if}
 
-			{#if message}
-				<p class="sessions-message" class:error={message.error}>{message.text}</p>
-			{/if}
-
-			{#if sessions.length > 0 || backup.unreadable > 0}
-				<div class="sessions-status">
-					{#if protection === 'protected'}
-						<p class="status-line ok">
-							<span class="status-dot"></span>Protected: the browser won't clear these to free
-							space.
-						</p>
-					{:else if protection === 'unprotected'}
-						<p class="status-line warn">
-							<span class="status-dot"></span>
-							{protectDeclined
-								? 'The browser declined to protect these; it may still clear them if space runs low.'
-								: 'The browser may clear these if space runs low.'}
-							{#if !protectDeclined}<button class="link-btn" onclick={handleProtect}>Protect</button
-								>{/if}
-						</p>
-					{/if}
-					{#if sessions.length > 0}
-						<p class="status-line" class:warn={backup.notBackedUp > 0 && backup.due}>
-							<span class="status-dot"></span>
-							{#if backup.notBackedUp === 0}
-								All sessions backed up {formatDate(backup.lastBackupAt ?? '')}.
-							{:else}
-								{backup.lastBackupAt
-									? `Last backup ${formatDate(backup.lastBackupAt)}`
-									: 'Never backed up'} · {backup.notBackedUp} session{backup.notBackedUp === 1
-									? ''
-									: 's'} only in this browser. Clearing browser data deletes them; Export all keeps a
-								copy.
-							{/if}
-						</p>
-					{/if}
-					{#if backup.unreadable > 0}
-						<p class="status-line warn">
-							<span class="status-dot"></span>
-							{backup.unreadable === 1
-								? "1 session was saved by a newer version of Airtime and can't be shown or exported here. It's kept safe"
-								: `${backup.unreadable} sessions were saved by a newer version of Airtime and can't be shown or exported here. They're kept safe`}
-							— reload the page to update the app.
-						</p>
-					{/if}
-				</div>
-			{/if}
-
-			{#if loading && sessions.length === 0}
-				<p class="sessions-empty">Loading…</p>
-			{:else if sessions.length === 0 && unreadableIds.length === 0}
-				<div class="sessions-empty">
-					<p>No saved sessions yet. Mark a video and press ⌘/Ctrl + S.</p>
-					<p class="sessions-empty-import">
-						Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
-							>Import it</button
-						>
-					</p>
-				</div>
-			{:else}
-				<ul class="sessions-list">
-					{#each sessions as session (session.id)}
-						{@const height = bestHeight(session)}
-						<li class="session-row">
-							<div class="session-info">
-								<span class="session-name">
-									{session.title}
-									{#if session.id === currentSessionId}<span class="session-current">Open</span
-										>{/if}
-								</span>
-								<span class="session-meta">
-									{session.media.fileName} · {session.marks.length} mark{session.marks.length === 1
-										? ''
-										: 's'}{#if height !== null}&nbsp;· best {height.toFixed(1)} cm{/if} · {formatDate(
-										session.updatedAt
-									)}
-								</span>
-							</div>
-							<div class="session-actions">
-								{#if session.id !== currentSessionId}
-									<button
-										class="text-btn"
-										onclick={() => onOpen(session)}
-										title="Choose {session.media.fileName} to reopen its marks"
-									>
-										Open…
-									</button>
-								{/if}
-								<button class="text-btn" onclick={() => downloadExport([session])}>Export</button>
-								<button class="text-btn danger" onclick={() => handleDelete(session)}>Delete</button
+				{#if sessions.length > 0 || backup.unreadable > 0}
+					<div class="sessions-status">
+						{#if protection === 'protected'}
+							<p class="status-line ok">
+								<span class="status-dot"></span><span
+									>Protected: the browser won't clear these to free space.</span
 								>
-							</div>
-						</li>
-					{/each}
-				</ul>
-			{/if}
+							</p>
+						{:else if protection === 'unprotected'}
+							<p class="status-line warn">
+								<span class="status-dot"></span>
+								<span
+									>{protectDeclined
+										? 'The browser declined to protect these; it may still clear them if space runs low.'
+										: 'The browser may clear these if space runs low.'}</span
+								>
+								{#if !protectDeclined}<button class="link-btn" onclick={handleProtect}
+										>Protect</button
+									>{/if}
+							</p>
+						{/if}
+						{#if sessions.length > 0}
+							<p
+								class="status-line"
+								class:ok={backup.notBackedUp === 0}
+								class:warn={backup.notBackedUp > 0 && backup.due}
+							>
+								<span class="status-dot"></span>
+								<span>
+									{#if backup.notBackedUp === 0}
+										All sessions backed up {formatDate(backup.lastBackupAt ?? '')}.
+									{:else}
+										{backup.lastBackupAt
+											? `Last backup ${formatDate(backup.lastBackupAt)}`
+											: 'Never backed up'} · {backup.notBackedUp} session{backup.notBackedUp === 1
+											? ''
+											: 's'} only in this browser. Clearing browser data deletes them; Export all keeps
+										a copy.
+									{/if}
+								</span>
+							</p>
+						{/if}
+						{#if backup.unreadable > 0}
+							<p class="status-line warn">
+								<span class="status-dot"></span>
+								<span
+									>{backup.unreadable === 1
+										? "1 session was saved by a newer version of Airtime and can't be shown or exported here. It's kept safe"
+										: `${backup.unreadable} sessions were saved by a newer version of Airtime and can't be shown or exported here. They're kept safe`}
+									— reload the page to update the app.</span
+								>
+							</p>
+						{/if}
+					</div>
+				{/if}
 
-			<div class="sessions-footer">
+				{#if loading && sessions.length === 0}
+					<p class="sessions-empty">Loading…</p>
+				{:else if sessions.length === 0 && unreadableIds.length === 0}
+					<div class="sessions-empty">
+						<p class="sessions-empty-title">No saved sessions yet</p>
+						<p>Mark a video and press <kbd>⌘S</kbd> / <kbd>Ctrl S</kbd> to keep it here.</p>
+						<p class="sessions-empty-import">
+							Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
+								>Import it</button
+							>
+						</p>
+					</div>
+				{:else}
+					<ul class="sessions-list">
+						{#each sessions as session (session.id)}
+							{@const height = bestHeight(session)}
+							<li class="session-row" class:current={session.id === currentSessionId}>
+								<div class="session-height" class:none={height === null}>
+									{#if height !== null}{height.toFixed(1)}<small>cm</small>{:else}—{/if}
+								</div>
+								<div class="session-info">
+									<span class="session-name">
+										<span class="session-title">{session.title}</span>
+										{#if session.id === currentSessionId}<span class="session-current">Open</span
+											>{/if}
+									</span>
+									<span class="session-meta">
+										{formatDate(session.updatedAt)} · {session.marks.length} mark{session.marks
+											.length === 1
+											? ''
+											: 's'} · {session.media.fileName}
+									</span>
+								</div>
+								<div class="session-actions">
+									{#if session.id !== currentSessionId}
+										<button
+											class="text-btn"
+											onclick={() => onOpen(session)}
+											title="Choose {session.media.fileName} to reopen its marks"
+										>
+											Open…
+										</button>
+									{/if}
+									<button class="text-btn" onclick={() => downloadExport([session])}>Export</button>
+									<button class="text-btn danger" onclick={() => handleDelete(session)}
+										>Delete</button
+									>
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</div>
+
+			<div class="dialog-footer">
+				<span class="footer-note">Export to back up, or to hand the data to an agent.</span>
 				<button class="text-btn" onclick={() => importInput?.click()}>Import…</button>
 				<button class="primary-btn" onclick={handleExportAll} disabled={sessions.length === 0}>
 					Export all
@@ -284,7 +302,7 @@
 {/if}
 
 <style>
-	.sessions-backdrop {
+	.dialog-backdrop {
 		position: fixed;
 		inset: 0;
 		z-index: 100;
@@ -292,9 +310,9 @@
 		align-items: center;
 		justify-content: center;
 		padding: 16px;
-		background: hsl(var(--at-bg) / 0.85);
-		backdrop-filter: blur(12px);
-		animation: fadeIn 150ms ease-out;
+		background: hsl(var(--at-bg) / 0.72);
+		backdrop-filter: blur(8px);
+		animation: fadeIn 160ms ease-out;
 	}
 
 	@keyframes fadeIn {
@@ -306,43 +324,74 @@
 		}
 	}
 
-	.sessions-card {
+	@keyframes rise {
+		from {
+			opacity: 0;
+			transform: translateY(8px) scale(0.985);
+		}
+		to {
+			opacity: 1;
+			transform: none;
+		}
+	}
+
+	.dialog-card {
 		display: flex;
 		flex-direction: column;
 		width: 100%;
-		max-width: 640px;
+		max-width: 680px;
 		max-height: 85dvh;
-		padding: 20px 24px 20px;
+		overflow: hidden;
 		background: hsl(var(--at-bg-elevated));
-		border: 1px solid hsl(var(--at-border));
+		border: 1px solid hsl(var(--at-border-hover));
 		border-radius: 16px;
-		box-shadow: 0 24px 60px hsl(var(--at-shadow) / 0.5);
+		box-shadow:
+			0 32px 80px hsl(var(--at-shadow) / 0.7),
+			0 0 0 1px hsl(var(--at-shadow) / 0.6);
 		outline: none;
+		animation: rise 200ms cubic-bezier(0.2, 0, 0, 1);
 	}
 
-	.sessions-header {
+	.dialog-header {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		justify-content: space-between;
-		margin-bottom: 8px;
+		gap: 16px;
+		padding: 18px 16px 16px 24px;
+		border-bottom: 1px solid hsl(var(--at-border));
 	}
 
-	.sessions-title {
-		font-size: 16px;
+	.dialog-title {
+		font-size: 15px;
 		font-weight: 600;
 		color: hsl(var(--at-fg));
 	}
 
+	.dialog-subtitle {
+		max-width: 480px;
+		margin-top: 4px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 13px;
+		line-height: 1.5;
+	}
+
 	.close-btn {
 		display: grid;
+		flex: 0 0 auto;
 		place-items: center;
 		width: 32px;
 		height: 32px;
+		margin-top: -4px;
 		border-radius: 8px;
-		color: hsl(var(--at-fg-secondary));
+		color: hsl(var(--at-fg-muted));
 		background: transparent;
 		border: none;
 		cursor: pointer;
+	}
+
+	.close-btn svg {
+		width: 18px;
+		height: 18px;
 	}
 
 	.close-btn:hover {
@@ -350,27 +399,33 @@
 		color: hsl(var(--at-fg));
 	}
 
-	.sessions-hint {
-		margin-bottom: 12px;
-		color: hsl(var(--at-fg-muted));
-		font-size: 12px;
-		line-height: 1.5;
+	.dialog-body {
+		display: flex;
+		flex: 1 1 auto;
+		flex-direction: column;
+		gap: 14px;
+		min-height: 0;
+		padding: 16px 24px;
+		overflow-y: auto;
 	}
 
 	.sessions-status {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
-		margin-bottom: 12px;
+		gap: 6px;
+		padding: 10px 12px;
+		border: 1px solid hsl(var(--at-border));
+		border-radius: 10px;
+		background: hsl(var(--at-surface) / 0.5);
 	}
 
 	.status-line {
 		display: flex;
 		align-items: baseline;
-		gap: 7px;
+		gap: 9px;
 		color: hsl(var(--at-fg-secondary));
 		font-size: 12px;
-		line-height: 1.45;
+		line-height: 1.5;
 	}
 
 	.status-dot {
@@ -391,10 +446,11 @@
 	}
 
 	.link-btn {
+		flex: 0 0 auto;
 		padding: 0;
 		border: none;
 		background: none;
-		color: hsl(var(--at-accent));
+		color: hsl(var(--at-accent-hover));
 		font: inherit;
 		font-weight: 600;
 		cursor: pointer;
@@ -402,77 +458,139 @@
 
 	.link-btn:hover {
 		text-decoration: underline;
+		text-underline-offset: 3px;
 	}
 
 	.sessions-message {
-		margin-bottom: 10px;
-		padding: 8px 10px;
+		padding: 9px 12px;
+		border: 1px solid hsl(var(--at-success) / 0.25);
 		border-radius: 8px;
-		background: hsl(var(--at-success) / 0.12);
+		background: hsl(var(--at-success) / 0.08);
 		color: hsl(var(--at-fg));
 		font-size: 12px;
 	}
 
 	.sessions-message.error {
-		background: hsl(var(--at-error) / 0.14);
+		border-color: hsl(var(--at-error) / 0.3);
+		background: hsl(var(--at-error) / 0.1);
 	}
 
 	.sessions-empty {
-		padding: 24px 0;
-		color: hsl(var(--at-fg-secondary));
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
+		padding: 32px 0;
+		color: hsl(var(--at-fg-muted));
 		font-size: 13px;
 		text-align: center;
 	}
 
+	.sessions-empty-title {
+		color: hsl(var(--at-fg));
+		font-size: 14px;
+		font-weight: 600;
+	}
+
 	.sessions-empty-import {
-		margin-top: 8px;
-		color: hsl(var(--at-fg-muted));
+		margin-top: 6px;
 		font-size: 12px;
 	}
 
+	kbd {
+		display: inline-grid;
+		place-items: center;
+		height: 20px;
+		padding: 0 5px;
+		border: 1px solid hsl(var(--at-border-hover));
+		border-radius: 4px;
+		background: hsl(var(--at-surface));
+		color: hsl(var(--at-fg));
+		font:
+			600 10px/1 var(--at-font-mono),
+			monospace;
+	}
+
 	.sessions-list {
-		flex: 1;
-		min-height: 0;
-		margin: 0 -8px;
-		overflow-y: auto;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
 		list-style: none;
 	}
 
 	.session-row {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		padding: 9px 8px;
-		border-radius: 8px;
+		gap: 14px;
+		padding: 10px 10px 10px 12px;
+		border: 1px solid hsl(var(--at-border));
+		border-radius: 10px;
+		transition:
+			background 120ms ease,
+			border-color 120ms ease;
 	}
 
 	.session-row:hover {
-		background: hsl(var(--at-surface));
+		border-color: hsl(var(--at-border-hover));
+		background: hsl(var(--at-surface) / 0.6);
+	}
+
+	.session-row.current {
+		border-color: hsl(var(--at-accent) / 0.45);
+		background: hsl(var(--at-accent) / 0.06);
+	}
+
+	.session-height {
+		flex: 0 0 64px;
+		color: hsl(var(--at-fg));
+		font-size: 18px;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		letter-spacing: -0.02em;
+	}
+
+	.session-height small {
+		margin-left: 2px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+		font-weight: 500;
+		letter-spacing: 0;
+	}
+
+	.session-height.none {
+		color: hsl(var(--at-fg-muted));
 	}
 
 	.session-info {
 		display: flex;
 		flex: 1;
 		flex-direction: column;
-		gap: 2px;
+		gap: 3px;
 		min-width: 0;
 	}
 
 	.session-name {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+	}
+
+	.session-title {
 		overflow: hidden;
 		color: hsl(var(--at-fg));
 		font-size: 13px;
-		font-weight: 500;
+		font-weight: 600;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 
 	.session-current {
-		margin-left: 6px;
-		padding: 1px 6px;
-		border-radius: 6px;
-		background: hsl(var(--at-fg) / 0.1);
-		color: hsl(var(--at-fg-secondary));
+		flex: 0 0 auto;
+		padding: 2px 7px;
+		border-radius: 999px;
+		background: hsl(var(--at-accent) / 0.18);
+		color: hsl(var(--at-accent-hover));
 		font-size: 10px;
 		font-weight: 600;
 	}
@@ -480,7 +598,7 @@
 	.session-meta {
 		overflow: hidden;
 		color: hsl(var(--at-fg-muted));
-		font-size: 11px;
+		font-size: 12px;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
@@ -491,24 +609,31 @@
 		gap: 2px;
 	}
 
-	.sessions-footer {
+	.dialog-footer {
 		display: flex;
-		justify-content: flex-end;
+		align-items: center;
 		gap: 6px;
-		margin-top: 14px;
-		padding-top: 12px;
-		border-top: 1px solid hsl(var(--at-border) / 0.8);
+		padding: 12px 16px 12px 24px;
+		border-top: 1px solid hsl(var(--at-border));
+		background: hsl(var(--at-bg) / 0.4);
+	}
+
+	.footer-note {
+		flex: 1;
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
 	}
 
 	.text-btn,
 	.primary-btn {
-		padding: 6px 10px;
+		height: 32px;
+		padding: 0 12px;
 		border: none;
-		border-radius: 7px;
+		border-radius: 8px;
 		background: transparent;
 		color: hsl(var(--at-fg-secondary));
 		font: inherit;
-		font-size: 12px;
+		font-size: 13px;
 		font-weight: 500;
 		cursor: pointer;
 	}
@@ -519,12 +644,13 @@
 	}
 
 	.text-btn.danger:hover {
+		background: hsl(var(--at-error) / 0.12);
 		color: hsl(var(--at-error));
 	}
 
 	.primary-btn {
 		background: hsl(var(--at-accent));
-		color: hsl(var(--at-bg));
+		color: hsl(var(--at-on-accent));
 		font-weight: 600;
 	}
 
@@ -535,5 +661,38 @@
 	.primary-btn:disabled {
 		opacity: 0.4;
 		cursor: default;
+	}
+
+	@media (max-width: 560px) {
+		.session-row {
+			flex-wrap: wrap;
+			gap: 4px 12px;
+		}
+		.session-actions {
+			width: 100%;
+			justify-content: flex-end;
+		}
+		.footer-note {
+			display: none;
+		}
+		.dialog-footer {
+			justify-content: flex-end;
+		}
+	}
+
+	@media (pointer: coarse) {
+		.text-btn,
+		.primary-btn,
+		.close-btn {
+			min-height: 44px;
+			min-width: 44px;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.dialog-backdrop,
+		.dialog-card {
+			animation: none;
+		}
 	}
 </style>
