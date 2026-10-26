@@ -151,8 +151,7 @@
 				<div>
 					<h2 id="sessions-title" class="dialog-title">Saved sessions</h2>
 					<p class="dialog-subtitle">
-						Stored in this browser only. Videos aren't saved: open the same file again (or drop it
-						in) to bring back its marks.
+						Saved in this browser. Open the same video again to bring back its marks.
 					</p>
 				</div>
 				<button class="close-btn" onclick={onClose} aria-label="Close" title="Close (Esc)">
@@ -281,7 +280,6 @@
 			</div>
 
 			<div class="dialog-footer">
-				<span class="footer-note">Exports are JSON files you can import in any browser.</span>
 				<button class="text-btn" onclick={() => importInput?.click()}>Import backup…</button>
 				<button class="primary-btn" onclick={handleExportAll} disabled={sessions.length === 0}>
 					Export all
@@ -611,16 +609,11 @@
 	.dialog-footer {
 		display: flex;
 		align-items: center;
+		justify-content: flex-end;
 		gap: 6px;
 		padding: 12px 16px 12px 24px;
 		border-top: 1px solid hsl(var(--at-border));
 		background: hsl(var(--at-bg) / 0.4);
-	}
-
-	.footer-note {
-		flex: 1;
-		color: hsl(var(--at-fg-muted));
-		font-size: 12px;
 	}
 
 	.text-btn,
@@ -674,9 +667,6 @@
 		.session-actions {
 			width: 100%;
 			justify-content: flex-end;
-		}
-		.footer-note {
-			display: none;
 		}
 		.dialog-footer {
 			justify-content: flex-end;

@@ -152,6 +152,19 @@
 	let fitLandscape = $derived(stacked.current && (videoAspect ?? 0) > 1);
 
 	let saveShortcut = $state('⌘S');
+	// Phones fold Open video, Sessions and Shortcuts into one menu.
+	let menuOpen = $state(false);
+
+	function menuAction(action: () => void) {
+		menuOpen = false;
+		action();
+	}
+
+	function handleWindowPointerDown(event: PointerEvent) {
+		if (menuOpen && !(event.target as Element).closest?.('.header-menu, .header-more')) {
+			menuOpen = false;
+		}
+	}
 
 	// Zoom state
 	let zoomLevel = $state(1);
@@ -533,6 +546,10 @@
 
 	function handleMarkKeyDown(event: KeyboardEvent) {
 		const target = event.target;
+		if (menuOpen && event.key === 'Escape') {
+			menuOpen = false;
+			return;
+		}
 		if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 's') {
 			event.preventDefault();
 			void save();
@@ -655,6 +672,7 @@
 <!-- Drag and drop is handled on the window so the app shell stays a plain, non-interactive element. -->
 <svelte:window
 	onkeydown={handleMarkKeyDown}
+	onpointerdown={handleWindowPointerDown}
 	onbeforeunload={handleBeforeUnload}
 	ondragover={handleDragOver}
 	ondrop={handleDrop}
@@ -690,7 +708,6 @@
 				</svg>
 				<span class="brand-name">Airtime</span>
 			</a>
-			{#if isDirty}<span class="header-status unsaved header-status-phone">Unsaved</span>{/if}
 			{#if videoSrc}
 				<div class="header-file" title={videoFileName}>
 					<span class="header-file-name">{videoFileName}</span>
@@ -706,7 +723,7 @@
 		</div>
 		<div class="header-actions">
 			<button
-				class="btn btn-icon header-shortcuts"
+				class="btn btn-icon header-shortcuts header-wide"
 				onclick={() => (keybindsOpen = true)}
 				aria-label="Keyboard shortcuts"
 				title="Keyboard shortcuts (?)"
@@ -725,7 +742,7 @@
 				>
 			</button>
 			<button
-				class="btn"
+				class="btn header-wide"
 				onclick={() => (sessionsOpen = true)}
 				title={backup?.due ? backupReminder(backup) : 'Saved sessions, export and import'}
 			>
@@ -753,7 +770,7 @@
 			<span class="header-divider" aria-hidden="true"></span>
 			<button
 				onclick={openFilePicker}
-				class="btn"
+				class="btn header-wide"
 				aria-label={videoSrc ? 'Replace video' : 'Open video'}
 				title={videoSrc ? 'Change video' : 'Open video'}
 			>
@@ -769,9 +786,7 @@
 						d="M3.5 7.5v9a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2V9.5a2 2 0 0 0-2-2h-6l-2-2h-5a2 2 0 0 0-2 2z"
 					/></svg
 				>
-				<span class="header-open-label">{videoSrc ? 'Change video' : 'Open video'}</span><span
-					class="header-open-short">Open video</span
-				>
+				<span class="header-open-label">{videoSrc ? 'Change video' : 'Open video'}</span>
 			</button>
 			{#if videoSrc}
 				<button
@@ -780,10 +795,36 @@
 					disabled={!isDirty || isSaving}
 					title="Save marks to this browser ({saveShortcut})"
 				>
-					Save{#if isDirty}<span class="header-dirty-dot" aria-label="Unsaved changes"></span><kbd
-							class="btn-kbd">{saveShortcut}</kbd
-						>{/if}
+					Save{#if isDirty}<kbd class="btn-kbd">{saveShortcut}</kbd>{/if}
 				</button>
+			{/if}
+			<button
+				class="btn btn-icon header-more"
+				onclick={() => (menuOpen = !menuOpen)}
+				aria-label="More"
+				aria-haspopup="menu"
+				aria-expanded={menuOpen}
+			>
+				<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"
+					><circle cx="5.5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle
+						cx="18.5"
+						cy="12"
+						r="1.6"
+					/></svg
+				>{#if backup?.due}<span class="header-more-dot" aria-label="Backup recommended"></span>{/if}
+			</button>
+			{#if menuOpen}
+				<div class="header-menu" role="menu">
+					<button role="menuitem" onclick={() => menuAction(openFilePicker)}
+						>{videoSrc ? 'Change video' : 'Open video'}</button
+					>
+					<button role="menuitem" onclick={() => menuAction(() => (sessionsOpen = true))}
+						>Sessions{#if backup?.due}<span class="header-backup-dot"></span>{/if}</button
+					>
+					<button role="menuitem" onclick={() => menuAction(() => (keybindsOpen = true))}
+						>Keyboard shortcuts</button
+					>
+				</div>
 			{/if}
 		</div>
 		<div class="app-notice" class:visible={notice} role="status">{notice ?? ''}</div>

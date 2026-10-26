@@ -256,10 +256,6 @@ body {
 	font-weight: 400;
 }
 
-.header-status-phone {
-	display: none;
-}
-
 .header-status::before {
 	content: '';
 	width: 6px;
@@ -268,13 +264,14 @@ body {
 	background: hsl(var(--at-success));
 }
 
+/* Neutral, so it can't be mistaken for a landing mark's orange. */
 .header-status.unsaved {
-	background: hsl(var(--at-warning) / 0.12);
-	color: hsl(var(--at-warning));
+	background: hsl(var(--at-fg) / 0.08);
+	color: hsl(var(--at-fg));
 }
 
 .header-status.unsaved::before {
-	background: hsl(var(--at-warning));
+	background: hsl(var(--at-accent-hover));
 }
 
 .header-actions {
@@ -291,11 +288,56 @@ body {
 	background: hsl(var(--at-border-hover));
 }
 
-/* Phones only: the short Open label, and an unsaved dot on Save in place of the
-   file name and status that don't fit. */
-.header-open-short,
-.header-dirty-dot {
+.header-more {
+	position: relative;
 	display: none;
+}
+
+.header-more-dot {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: hsl(var(--at-warning));
+}
+
+.header-menu {
+	position: absolute;
+	top: calc(100% + 6px);
+	right: 10px;
+	z-index: 50;
+	display: flex;
+	flex-direction: column;
+	min-width: 220px;
+	padding: 6px;
+	border: 1px solid hsl(var(--at-border-hover));
+	border-radius: 12px;
+	background: hsl(var(--at-surface));
+	box-shadow: 0 18px 40px hsl(var(--at-shadow) / 0.6);
+	animation: reveal 160ms var(--at-ease);
+}
+
+.header-menu button {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	min-height: 44px;
+	padding: 0 12px;
+	border: none;
+	border-radius: 8px;
+	background: transparent;
+	color: hsl(var(--at-fg));
+	font: inherit;
+	font-size: 15px;
+	text-align: left;
+	cursor: pointer;
+}
+
+.header-menu button:hover,
+.header-menu button:focus-visible {
+	background: hsl(var(--at-fg) / 0.08);
 }
 
 .header-backup-dot {
@@ -437,6 +479,11 @@ body {
 
 	.viewer-stage.has-video {
 		align-items: flex-start;
+	}
+
+	/* Frame and panel end on the same line; the panel scrolls inside itself. */
+	.viewer-stage.has-video > .marks-panel {
+		height: var(--frame-h);
 	}
 
 	.viewer-column {
@@ -637,8 +684,8 @@ body {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
-	height: 36px;
-	padding: 0 8px 0 12px;
+	height: 34px;
+	padding: 0 7px 0 11px;
 	border: 1px solid color-mix(in srgb, var(--mark-color) 38%, transparent);
 	border-radius: var(--at-radius);
 	background: color-mix(in srgb, var(--mark-color) 8%, transparent);
@@ -762,7 +809,6 @@ body {
 	align-items: center;
 	width: min(600px, 100%);
 	margin: auto;
-	padding-bottom: 6vh;
 	text-align: center;
 }
 
@@ -1013,29 +1059,34 @@ body {
 		gap: 10px;
 		padding: 0 10px 0 14px;
 	}
-	.header-file,
+	/* Phones: Save stays; Open video, Sessions and Shortcuts fold into the More
+	   menu, which leaves room for the file name and its save state. */
+	.header-wide,
 	.header-divider,
 	.header-analysis,
-	.header-open-label {
+	.header-status-detail {
 		display: none;
 	}
-	.header-open-short {
-		display: inline;
-	}
-	/* With a video open the wordmark gives way to the save state. */
-	.header-status-phone {
+	.header-more {
 		display: inline-flex;
 	}
-	.header-status-phone ~ .brand-name,
-	.brand-mark:has(~ .header-status-phone) .brand-name {
+	.app-header:has(.header-file) .brand-name {
 		display: none;
+	}
+	.header-file {
+		gap: 8px;
+		padding-left: 0;
+		border-left: none;
+	}
+	.header-file-name {
+		max-width: 34vw;
 	}
 	.app-header .btn {
-		padding: 0 10px;
+		padding: 0 12px;
 		font-size: 14px;
 	}
-	.app-header .btn svg {
-		display: none;
+	.app-header .btn-icon {
+		padding: 0;
 	}
 	.brand-mark {
 		font-size: 15px;
@@ -1088,19 +1139,14 @@ body {
 	.dropzone .btn {
 		margin-top: 12px;
 	}
-	/* Steps become a compact numbered list rather than three cards. */
+	/* The same bare numbered steps as on desktop, stacked. */
 	.empty-steps {
-		gap: 0;
+		gap: 4px;
 		margin-top: 16px;
-		border: 1px solid hsl(var(--at-border));
-		border-radius: 12px;
 	}
 	.empty-steps li {
 		gap: 2px;
-		padding: 10px 14px;
-	}
-	.empty-steps li + li {
-		border-top: 1px solid hsl(var(--at-border));
+		padding: 6px 4px;
 	}
 	.empty-footer {
 		margin-top: 16px;

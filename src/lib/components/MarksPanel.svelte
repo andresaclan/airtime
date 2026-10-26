@@ -150,41 +150,40 @@
 				)}</span
 			>
 		</button>
-		<div class="mp-mark-actions">
-			<button
-				class="mp-icon-btn"
-				onclick={() => onNudge(mark.id, -1)}
-				aria-label="Move {label.toLowerCase()} one frame earlier"
-				title="1 frame earlier"
-				><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5 9 12l5.5 5.5" /></svg><span
-					class="mp-action-label">Earlier</span
-				></button
-			>
-			<button
-				class="mp-icon-btn"
-				onclick={() => onNudge(mark.id, 1)}
-				aria-label="Move {label.toLowerCase()} one frame later"
-				title="1 frame later"
-				><span class="mp-action-label">Later</span><svg viewBox="0 0 24 24" aria-hidden="true"
-					><path d="M9.5 6.5 15 12l-5.5 5.5" /></svg
-				></button
-			>
-			<button
-				class="mp-icon-btn mp-remove"
-				onclick={() => onRemove(mark.id)}
-				aria-label="Remove {label.toLowerCase()}"
-				title="Remove (Backspace)"
-				><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 7.5l-9 9M7.5 7.5l9 9" /></svg
-				><span class="mp-action-label">Remove</span></button
-			>
-		</div>
+		{#if mark.id === activeMarkId}
+			<div class="mp-mark-actions">
+				<button
+					class="mp-icon-btn"
+					onclick={() => onNudge(mark.id, -1)}
+					aria-label="Move {label.toLowerCase()} one frame earlier"
+					title="1 frame earlier">−1</button
+				>
+				<button
+					class="mp-icon-btn"
+					onclick={() => onNudge(mark.id, 1)}
+					aria-label="Move {label.toLowerCase()} one frame later"
+					title="1 frame later">+1</button
+				>
+				<button
+					class="mp-icon-btn mp-remove"
+					onclick={() => onRemove(mark.id)}
+					aria-label="Remove {label.toLowerCase()}"
+					title="Remove (Backspace)"
+					><svg viewBox="0 0 24 24" aria-hidden="true"
+						><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" /></svg
+					></button
+				>
+			</div>
+		{/if}
 	</div>
 {/snippet}
 
 {#snippet interval(span: Interval)}
 	<div class="mp-interval mp-interval-{span.kind}" title={intervalDescription(span)}>
 		<span class="mp-interval-label"
-			>{span.kind === 'flight' ? 'Flight' : 'Contact'} · {span.frames} fr</span
+			>{span.kind === 'flight' ? 'Flight' : 'Contact'}<span class="mp-interval-frames"
+				>{span.frames} fr</span
+			></span
 		>
 		<span class="mp-interval-value">{formatMs(span.realSeconds)} ms</span>
 	</div>
@@ -202,11 +201,7 @@
 		<h2 class="mp-sheet-heading">
 			<button class="mp-sheet-toggle" onclick={onToggle} aria-expanded={expanded}>
 				{#if expanded}
-					<span class="mp-sheet-title"
-						>Analysis{#if bestJump?.flight}<span class="mp-sheet-best"
-								>Best {bestJump.flight.heightCm?.toFixed(1)} cm</span
-							>{/if}</span
-					>
+					<span class="mp-sheet-title">Analysis</span>
 				{:else}
 					<span class="sr-only">Analysis:</span>
 					{#if bestJump?.flight}
@@ -297,7 +292,7 @@
 								title="Mark the landing before this jump's takeoff to measure contact time"
 							>
 								<span>Contact time</span><span class="mp-metric-note-value"
-									>— no landing before</span
+									>—<small>needs an earlier landing</small></span
 								>
 							</p>
 						{/if}
@@ -570,12 +565,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
-		padding: 16px 16px 12px;
+		padding: 14px 16px 10px;
 	}
 
 	.mp-hero-value {
 		color: hsl(var(--at-fg));
-		font-size: 40px;
+		font-size: 36px;
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: -0.035em;
@@ -611,13 +606,18 @@
 	.mp-metric {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: 1px;
 		min-width: 0;
-		padding: 10px 12px;
+		padding: 8px 12px;
 	}
 
 	.mp-metrics.single {
 		grid-template-columns: 1fr;
+	}
+
+	.mp-metric-note-value small {
+		margin-left: 8px;
+		font-size: 11px;
 	}
 
 	.mp-metric-note {
@@ -633,7 +633,7 @@
 	}
 
 	.mp-caption.mp-precision {
-		margin: 8px 16px 0;
+		margin: 10px 16px 0;
 	}
 
 	.sheet .mp-summary .mp-metric-note {
@@ -887,9 +887,7 @@
 	/* Empty guide */
 
 	.mp-empty {
-		padding: 12px;
-		border: 1px dashed hsl(var(--at-border-hover));
-		border-radius: 10px;
+		padding: 4px 0 0;
 		color: hsl(var(--at-fg-secondary));
 		line-height: 1.5;
 	}
@@ -1057,50 +1055,45 @@
 	.mp-mark-type {
 		flex: 1;
 		color: hsl(var(--at-fg-secondary));
+		font-size: 12px;
 		font-weight: 400;
 	}
 
 	.mp-mark-time {
-		color: hsl(var(--at-fg-secondary));
+		color: hsl(var(--at-fg-muted));
 		font-family: var(--at-font-mono);
 		font-size: 11px;
 		font-variant-numeric: tabular-nums;
 	}
 
-	/* A mark's controls appear as a small labelled toolbar under the selected mark
-	   (the one at the playhead; click or tap a row to go there), so rows stay clean
-	   and every value lines up at the right edge. */
-	.mp-mark {
-		flex-wrap: wrap;
+	/* The selected mark (the one at the playhead; click or tap a row to go there)
+	   swaps its timecode for nudge and remove controls, in place, so the list doesn't
+	   move. The playhead readout shows the time meanwhile. */
+	.mp-mark.active .mp-mark-time {
+		display: none;
 	}
 
 	.mp-mark-actions {
-		display: none;
-		gap: 6px;
-		width: 100%;
-		margin-top: -2px;
-		padding: 0 8px 8px 26px;
-	}
-
-	.mp-mark.active .mp-mark-actions {
 		display: flex;
+		flex: 0 0 auto;
+		gap: 4px;
+		padding-right: 6px;
 	}
 
 	.mp-icon-btn {
-		display: inline-flex;
-		flex: 1 1 0;
-		align-items: center;
-		justify-content: center;
-		gap: 5px;
-		height: 28px;
-		padding: 0 8px;
+		display: inline-grid;
+		place-items: center;
+		min-width: 34px;
+		height: 24px;
+		padding: 0 7px;
 		border: none;
-		border-radius: 7px;
-		background: hsl(var(--at-fg) / 0.08);
+		border-radius: 6px;
+		background: hsl(var(--at-fg) / 0.1);
 		color: hsl(var(--at-fg));
 		font: inherit;
-		font-size: 12px;
-		font-weight: 500;
+		font-family: var(--at-font-mono);
+		font-size: 11px;
+		font-weight: 600;
 		cursor: pointer;
 		transition:
 			background 120ms ease,
@@ -1110,7 +1103,6 @@
 	.mp-icon-btn svg {
 		width: 14px;
 		height: 14px;
-		flex: 0 0 auto;
 		fill: none;
 		stroke: currentColor;
 		stroke-width: 1.8;
@@ -1148,13 +1140,23 @@
 
 	.mp-interval-label {
 		overflow: hidden;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 12px;
 		text-overflow: ellipsis;
 	}
 
+	.mp-interval-frames {
+		margin-left: 6px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+	}
+
+	/* The measurement is the point of the card, so it is the strongest value. */
 	.mp-interval-value {
 		margin-left: auto;
-		color: hsl(var(--at-fg-secondary));
-		font-family: var(--at-font-mono);
+		color: hsl(var(--at-fg));
+		font-size: 13px;
+		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 	}
 
@@ -1210,13 +1212,10 @@
 	}
 
 	@media (pointer: coarse) {
-		.mp-mark-main {
-			height: 44px;
-		}
-
 		.mp-icon-btn {
-			height: 36px;
-			font-size: 14px;
+			min-width: 44px;
+			height: 34px;
+			font-size: 13px;
 		}
 
 		.mp-text-btn {
@@ -1238,6 +1237,14 @@
 		}
 
 		.mp-mark-type {
+			font-size: 13px;
+		}
+
+		.mp-mark-main {
+			height: 40px;
+		}
+
+		.mp-interval-value {
 			font-size: 14px;
 		}
 
@@ -1259,9 +1266,14 @@
 		max-height: min(58dvh, 600px);
 	}
 
+	/* Under a landscape video the expanded sheet runs to the bottom of the screen
+	   as a pane of its own rather than a card that looks cut off. */
 	.marks-panel.sheet.fill {
 		flex: 1 1 auto;
 		max-height: none;
+		margin: 0 -8px -8px;
+		border-width: 1px 0 0;
+		border-radius: 14px 14px 0 0;
 	}
 
 	.mp-sheet-heading {
@@ -1305,13 +1317,6 @@
 		gap: 10px;
 		font-size: 14px;
 		font-weight: 600;
-	}
-
-	.mp-sheet-best {
-		color: hsl(var(--at-fg-secondary));
-		font-size: 13px;
-		font-weight: 500;
-		font-variant-numeric: tabular-nums;
 	}
 
 	.mp-peek-hint {
