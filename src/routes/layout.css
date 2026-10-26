@@ -10,25 +10,28 @@
 :root {
 	color-scheme: dark;
 
-	/* Neutral surfaces; color is reserved for marked movement events */
-	--at-bg: 222 14% 5%;
-	--at-bg-elevated: 222 12% 8%;
-	--at-surface: 222 11% 11.5%;
-	--at-surface-hover: 222 10% 15%;
-	--at-stage: 222 18% 3%;
+	/* Neutral near-black surfaces, one step lighter per layer; color is reserved
+	   for marked movement events */
+	--at-bg: 0 0% 4%;
+	--at-bg-elevated: 0 0% 6.5%;
+	--at-surface: 0 0% 9.5%;
+	--at-surface-hover: 0 0% 13%;
+	--at-stage: 0 0% 2.5%;
+	--at-popover: 0 0% 8%;
 
 	/* Text Colors */
-	--at-fg: 220 14% 96%;
-	--at-fg-secondary: 220 10% 76%;
-	--at-fg-muted: 220 9% 69%;
+	--at-fg: 0 0% 95%;
+	--at-fg-secondary: 0 0% 74%;
+	--at-fg-muted: 0 0% 60%;
 
 	/* Borders */
-	--at-border: 222 9% 15%;
-	--at-border-hover: 222 8% 23%;
+	--at-border: 0 0% 13%;
+	--at-border-hover: 0 0% 19%;
 
 	/* Accent: focus rings and primary actions only */
-	--at-accent: 221 83% 56%;
-	--at-accent-hover: 221 90% 63%;
+	--at-accent: 217 72% 53%;
+	--at-accent-hover: 217 80% 60%;
+	--at-accent-fg: 217 90% 84%;
 	--at-on-accent: 0 0% 100%;
 
 	/* Semantic Colors */
@@ -40,7 +43,7 @@
 	--at-takeoff: 168 76% 46%;
 	--at-landing: 32 95% 58%;
 
-	--at-shadow: 222 50% 2%;
+	--at-shadow: 0 0% 0%;
 
 	--at-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
 	--at-radius-sm: 6px;
@@ -91,9 +94,9 @@ body {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	gap: 7px;
-	height: 32px;
-	padding: 0 12px;
+	gap: 6px;
+	height: 30px;
+	padding: 0 10px;
 	border: 1px solid transparent;
 	border-radius: var(--at-radius);
 	background: transparent;
@@ -128,7 +131,7 @@ body {
 
 .btn-secondary {
 	border-color: hsl(var(--at-border-hover));
-	background: hsl(var(--at-surface));
+	background: transparent;
 	color: hsl(var(--at-fg));
 }
 
@@ -137,18 +140,19 @@ body {
 }
 
 .btn-primary {
-	background: hsl(var(--at-accent));
-	color: hsl(var(--at-on-accent));
-	font-weight: 600;
+	border-color: hsl(var(--at-accent) / 0.5);
+	background: hsl(var(--at-accent) / 0.18);
+	color: hsl(var(--at-accent-fg));
 }
 
 .btn-primary:hover:not(:disabled) {
-	background: hsl(var(--at-accent-hover));
-	color: hsl(var(--at-on-accent));
+	border-color: hsl(var(--at-accent-hover) / 0.7);
+	background: hsl(var(--at-accent) / 0.28);
+	color: hsl(var(--at-fg));
 }
 
 .btn-icon {
-	width: 32px;
+	width: 30px;
 	padding: 0;
 }
 
@@ -159,11 +163,10 @@ body {
 }
 
 .btn-kbd {
-	margin-right: -4px;
-	padding: 2px 5px;
-	border-radius: 4px;
-	background: hsl(var(--at-on-accent) / 0.26);
-	color: hsl(var(--at-on-accent));
+	margin-right: -2px;
+	padding: 0;
+	background: none;
+	color: hsl(var(--at-accent-fg) / 0.8);
 	font:
 		600 10px/1 var(--at-font-mono),
 		monospace;
@@ -188,7 +191,7 @@ body {
 	justify-content: space-between;
 	gap: 16px;
 	height: 52px;
-	padding: 0 12px 0 18px;
+	padding: 0 12px 0 16px;
 	border-bottom: 1px solid hsl(var(--at-border));
 	background: hsl(var(--at-bg));
 }
@@ -196,7 +199,7 @@ body {
 .header-start {
 	display: flex;
 	align-items: center;
-	gap: 14px;
+	gap: 10px;
 	min-width: 0;
 }
 
@@ -206,10 +209,16 @@ body {
 	align-items: center;
 	gap: 9px;
 	color: hsl(var(--at-fg));
-	font-size: 15px;
-	font-weight: 650;
-	letter-spacing: -0.02em;
+	font-size: 14px;
+	font-weight: 600;
+	letter-spacing: -0.01em;
 	text-decoration: none;
+}
+
+/* With a file open the brand becomes the first crumb: "Airtime / clip.mp4". */
+.header-start:has(.header-file) .brand-name {
+	color: hsl(var(--at-fg-secondary));
+	font-weight: 500;
 }
 
 .brand-logo {
@@ -222,10 +231,14 @@ body {
 	align-items: center;
 	gap: 8px;
 	min-width: 0;
-	padding-left: 14px;
-	border-left: 1px solid hsl(var(--at-border-hover));
 	color: hsl(var(--at-fg-secondary));
-	font-size: 13px;
+	font-size: 14px;
+}
+
+.header-file::before {
+	content: '/';
+	color: hsl(var(--at-fg-muted) / 0.7);
+	font-weight: 400;
 }
 
 .header-file-name {
@@ -284,7 +297,7 @@ body {
 
 .header-divider {
 	width: 1px;
-	height: 20px;
+	height: 18px;
 	margin: 0 6px;
 	background: hsl(var(--at-border-hover));
 }
@@ -292,6 +305,10 @@ body {
 .header-more {
 	position: relative;
 	display: none;
+}
+
+.header-sessions {
+	position: relative;
 }
 
 /* On the empty screen the drop zone is the one way in, so the header doesn't repeat it. */
@@ -321,9 +338,9 @@ body {
 	min-width: 220px;
 	padding: 6px;
 	border: 1px solid hsl(var(--at-border-hover));
-	border-radius: 12px;
-	background: hsl(var(--at-surface));
-	box-shadow: 0 18px 40px hsl(var(--at-shadow) / 0.6);
+	border-radius: 14px;
+	background: hsl(var(--at-popover));
+	box-shadow: 0 16px 40px hsl(var(--at-shadow) / 0.55);
 	animation: reveal 160ms var(--at-ease);
 }
 
@@ -369,10 +386,8 @@ body {
 	padding: 9px 14px;
 	border: 1px solid hsl(var(--at-border-hover));
 	border-radius: 10px;
-	background: hsl(var(--at-surface) / 0.96);
-	box-shadow:
-		0 12px 32px hsl(var(--at-shadow) / 0.55),
-		0 2px 6px hsl(var(--at-shadow) / 0.4);
+	background: hsl(var(--at-popover) / 0.96);
+	box-shadow: 0 12px 32px hsl(var(--at-shadow) / 0.5);
 	color: hsl(var(--at-fg));
 	font-size: 13px;
 	line-height: 1.4;
@@ -463,22 +478,22 @@ body {
 	background: hsl(var(--at-stage));
 }
 
-/* Desktop: the frame is the shape of the video plus its docked controls, and the
-   analysis panel shares its top and bottom (scrolling inside when the jumps need
-   more room). The two sit just under the header; spare height falls below. Sizes come from the stage's
-   own size (container units), the panel width and the video's aspect ratio. */
+/* Desktop: flush panes split by hairlines, as in an editor. The video column
+   fills the height under the header, the picture letterboxed on the dark stage
+   with its controls docked along the bottom; the analysis panel runs the full
+   height on the right and scrolls inside. */
 @media (min-width: 901px) {
 	.viewer-stage.has-video {
 		--bar-h: 92px;
-		--aspect: var(--video-aspect, 1.7778);
-		--panel-space: 0px;
-		--col-w: calc(100cqw - var(--panel-space));
-		--frame-h: min(100cqh, calc(var(--col-w) / var(--aspect) + var(--bar-h)));
-		container-type: size;
+		--frame-h: 100%;
+		gap: 0;
+		padding: 0;
+		align-items: stretch;
 	}
 
-	.viewer-stage.has-video.panel-open {
-		--panel-space: 348px;
+	.viewer-stage.has-video .viewer-frame {
+		border: none;
+		border-radius: 0;
 	}
 
 	.viewer-column {
@@ -505,12 +520,42 @@ body {
 		height: var(--bar-h);
 	}
 
-	.viewer-stage.has-video {
-		align-items: flex-start;
+	.viewer-stage.has-video > .marks-panel {
+		height: 100%;
+		border-width: 0 0 0 1px;
+		border-radius: 0;
 	}
 
-	.viewer-stage.has-video > .marks-panel {
-		height: var(--frame-h);
+	/* With the panel open, the panel runs from the top of the window, its own
+	   header in the same band as the app header (as an editor's side panel
+	   does), and the app header spans only the video column. */
+	.app-shell:has(> .viewer-stage.has-video.panel-open) {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		grid-template-rows: auto auto minmax(0, 1fr);
+	}
+
+	.app-shell:has(> .viewer-stage.has-video.panel-open) > .app-header {
+		grid-area: 1 / 1;
+		min-width: 0;
+	}
+
+	.app-shell:has(> .viewer-stage.has-video.panel-open) > .backup-reminder {
+		grid-area: 2 / 1;
+	}
+
+	.viewer-stage.has-video.panel-open {
+		display: contents;
+	}
+
+	.viewer-stage.panel-open > .viewer-column {
+		grid-area: 3 / 1;
+		height: 100%;
+		min-height: 0;
+	}
+
+	.viewer-stage.panel-open > .marks-panel {
+		grid-area: 1 / 2 / 4 / 3;
 	}
 }
 
@@ -622,7 +667,7 @@ body {
 	z-index: 30;
 	flex: 0 0 auto;
 	border-top: 1px solid hsl(var(--at-border));
-	background: hsl(var(--at-bg-elevated));
+	background: hsl(var(--at-bg));
 }
 
 .control-bar-inner {
@@ -635,7 +680,7 @@ body {
 	grid-template-areas: 'time takeoff transport landing extras';
 	align-items: center;
 	min-height: 44px;
-	column-gap: 10px;
+	column-gap: 6px;
 }
 
 .control-toolbar .playback-controls {
@@ -697,15 +742,15 @@ body {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
-	height: 34px;
-	padding: 0 7px 0 11px;
-	border: 1px solid color-mix(in srgb, var(--mark-color) 38%, transparent);
+	height: 32px;
+	padding: 0 9px 0 11px;
+	border: 1px solid transparent;
 	border-radius: var(--at-radius);
-	background: color-mix(in srgb, var(--mark-color) 8%, transparent);
+	background: hsl(var(--at-fg) / 0.06);
 	color: hsl(var(--at-fg));
 	font: inherit;
 	font-size: 13px;
-	font-weight: 600;
+	font-weight: 500;
 	white-space: nowrap;
 	cursor: pointer;
 	transition:
@@ -717,10 +762,13 @@ body {
 	--mark-color: hsl(var(--at-landing));
 }
 
-.mark-action:hover,
+.mark-action:hover {
+	background: hsl(var(--at-fg) / 0.1);
+}
+
 .mark-action.on-frame {
-	border-color: var(--mark-color);
-	background: color-mix(in srgb, var(--mark-color) 20%, transparent);
+	border-color: color-mix(in srgb, var(--mark-color) 55%, transparent);
+	background: color-mix(in srgb, var(--mark-color) 12%, hsl(var(--at-surface)));
 }
 
 .mark-action:active {
@@ -732,20 +780,12 @@ body {
 	height: 7px;
 	border-radius: 50%;
 	background: var(--mark-color);
-	box-shadow: 0 0 0 3px color-mix(in srgb, var(--mark-color) 22%, transparent);
 }
 
 .mark-action kbd {
-	display: grid;
-	place-items: center;
-	min-width: 18px;
-	height: 18px;
-	padding: 0 4px;
-	border-radius: 4px;
-	background: hsl(var(--at-fg) / 0.09);
-	color: hsl(var(--at-fg-secondary));
+	color: hsl(var(--at-fg-muted));
 	font:
-		600 10px/1 var(--at-font-mono),
+		500 11px/1 var(--at-font-mono),
 		monospace;
 }
 
@@ -830,119 +870,128 @@ body {
 .empty {
 	display: flex;
 	flex-direction: column;
-	align-items: center;
-	width: min(600px, 100%);
+	align-items: stretch;
+	width: min(560px, 100%);
 	margin: auto;
-	text-align: center;
+}
+
+/* One compact card: what the app does, the way in, then the three steps. */
+.empty-card {
+	overflow: hidden;
+	border: 1px solid hsl(var(--at-border-hover));
+	border-radius: 14px;
+	background: hsl(var(--at-bg-elevated));
+}
+
+.empty-head {
+	padding: 18px 20px 16px;
 }
 
 .empty-title {
 	margin: 0;
 	color: hsl(var(--at-fg));
-	font-size: 32px;
-	font-weight: 650;
-	letter-spacing: -0.025em;
-	line-height: 1.15;
+	font-size: 15px;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	line-height: 1.3;
 }
 
 .empty-lede {
-	max-width: 420px;
-	margin: 10px 0 28px;
-	color: hsl(var(--at-fg-secondary));
-	font-size: 15px;
-	line-height: 1.55;
+	margin: 4px 0 0;
+	color: hsl(var(--at-fg-muted));
+	font-size: 13px;
+	line-height: 1.5;
 }
 
 .dropzone {
 	display: flex;
-	flex-direction: column;
 	align-items: center;
-	gap: 6px;
+	gap: 12px;
 	width: 100%;
-	padding: 36px 24px 30px;
-	border: 1px dashed hsl(var(--at-border-hover));
-	border-radius: 16px;
-	background:
-		radial-gradient(120% 90% at 50% 0%, hsl(var(--at-fg) / 0.035), transparent 70%),
-		hsl(var(--at-bg-elevated));
+	padding: 14px 20px;
+	border: none;
+	border-block: 1px solid hsl(var(--at-border));
+	background: hsl(var(--at-bg));
 	color: inherit;
 	font: inherit;
+	text-align: left;
 	cursor: pointer;
-	transition:
-		border-color 160ms var(--at-ease),
-		background 160ms var(--at-ease);
+	transition: background 160ms var(--at-ease);
 }
 
-.dropzone:hover,
+.dropzone:hover {
+	background: hsl(var(--at-surface));
+}
+
 .dropzone.dragging {
-	border-color: hsl(var(--at-accent) / 0.75);
-	background:
-		radial-gradient(120% 90% at 50% 0%, hsl(var(--at-accent) / 0.09), transparent 70%),
-		hsl(var(--at-bg-elevated));
+	background: hsl(var(--at-accent) / 0.1);
+	box-shadow: inset 0 0 0 1px hsl(var(--at-accent) / 0.6);
 }
 
 .dropzone-icon {
 	display: grid;
+	flex: 0 0 auto;
 	place-items: center;
-	width: 52px;
-	height: 52px;
-	margin-bottom: 10px;
+	width: 36px;
+	height: 36px;
 	border: 1px solid hsl(var(--at-border-hover));
-	border-radius: 14px;
+	border-radius: 10px;
 	background: hsl(var(--at-surface));
 	color: hsl(var(--at-fg-secondary));
-	box-shadow: 0 8px 24px hsl(var(--at-shadow) / 0.5);
 }
 
 .dropzone-icon svg {
-	width: 24px;
-	height: 24px;
+	width: 18px;
+	height: 18px;
+}
+
+.dropzone-text {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
 }
 
 .dropzone-title {
 	color: hsl(var(--at-fg));
-	font-size: 15px;
-	font-weight: 600;
+	font-size: 13px;
+	font-weight: 500;
 }
 
 .dropzone-sub {
 	color: hsl(var(--at-fg-muted));
-	font-size: 13px;
+	font-size: 12px;
 }
 
 .dropzone .btn {
-	margin-top: 16px;
+	flex: 0 0 auto;
 	pointer-events: none;
 }
 
 .empty-steps {
-	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: 12px;
-	width: 100%;
-	margin: 24px 0 0;
-	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin: 0;
+	padding: 10px 20px 14px;
 	list-style: none;
-	text-align: left;
 }
 
 .empty-steps li {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	padding: 4px 6px;
+	display: grid;
+	grid-template-columns: 18px 104px minmax(0, 1fr);
+	align-items: baseline;
+	column-gap: 10px;
+	padding: 5px 0;
 	color: hsl(var(--at-fg-muted));
-	font-size: 12px;
+	font-size: 13px;
 	line-height: 1.45;
 }
 
 .empty-steps strong {
-	display: flex;
-	align-items: center;
-	gap: 7px;
 	color: hsl(var(--at-fg));
-	font-size: 13px;
-	font-weight: 600;
+	font-weight: 500;
 }
 
 .empty-step-num {
@@ -950,20 +999,24 @@ body {
 	place-items: center;
 	width: 18px;
 	height: 18px;
-	border-radius: 50%;
+	border-radius: 5px;
 	background: hsl(var(--at-fg) / 0.08);
 	color: hsl(var(--at-fg-secondary));
+	font-family: var(--at-font-mono);
 	font-size: 11px;
-	font-weight: 600;
+	font-weight: 500;
+	line-height: 1;
+	align-self: center;
 }
 
 .empty-footer {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-	justify-content: center;
+	justify-content: space-between;
 	gap: 6px 18px;
-	margin-top: 22px;
+	margin-top: 12px;
+	padding: 0 4px;
 	color: hsl(var(--at-fg-muted));
 	font-size: 12px;
 }
@@ -980,9 +1033,7 @@ body {
 }
 
 .empty-import {
-	margin-top: 12px;
 	color: hsl(var(--at-fg-muted));
-	font-size: 13px;
 }
 
 .link-btn {
@@ -991,7 +1042,7 @@ body {
 	background: none;
 	color: hsl(var(--at-accent-hover));
 	font: inherit;
-	font-weight: 600;
+	font-weight: 500;
 	cursor: pointer;
 }
 
@@ -1001,13 +1052,12 @@ body {
 }
 
 .empty-import-message {
-	max-width: 360px;
 	min-height: 1.5em;
-	margin-top: 10px;
+	margin-top: 8px;
+	padding: 0 4px;
 	color: hsl(var(--at-fg-secondary));
 	font-size: 12px;
 	line-height: 1.5;
-	text-align: center;
 }
 
 .empty-import-message.error {
@@ -1057,9 +1107,6 @@ body {
 		height: auto;
 		aspect-ratio: var(--video-aspect);
 	}
-	.empty-steps {
-		grid-template-columns: 1fr;
-	}
 }
 
 @media (max-width: 640px) {
@@ -1084,8 +1131,9 @@ body {
 	}
 	.header-file {
 		gap: 8px;
-		padding-left: 0;
-		border-left: none;
+	}
+	.header-file::before {
+		display: none;
 	}
 	.header-file-name {
 		max-width: 46vw;
@@ -1146,56 +1194,38 @@ body {
 		padding: 0 10px 8px;
 	}
 	.empty {
-		margin-top: 8px;
-		padding: 12px 4px 0;
+		margin: 4px auto auto;
 	}
-	.empty-title {
-		font-size: 20px;
-	}
-	.empty-lede {
-		margin: 6px 0 16px;
-		font-size: 13px;
-		line-height: 1.5;
+	.empty-head {
+		padding: 14px 16px 12px;
 	}
 	.dropzone {
-		padding: 22px 18px 20px;
-	}
-	.dropzone-icon {
-		width: 44px;
-		height: 44px;
-		margin-bottom: 6px;
+		flex-wrap: wrap;
+		padding: 12px 16px;
 	}
 	.dropzone .btn {
-		margin-top: 12px;
+		width: 100%;
+		height: 40px;
 	}
-	/* The same bare numbered steps as on desktop, stacked. */
 	.empty-steps {
-		gap: 4px;
-		margin-top: 16px;
+		padding: 8px 16px 12px;
 	}
-	/* Phones: the steps stacked, each title above its one-line description. */
-	.empty-steps {
-		gap: 10px;
-		margin-top: 18px;
-	}
+	/* Phones: each step's description under its title. */
 	.empty-steps li {
-		padding: 0 4px;
+		grid-template-columns: 18px minmax(0, 1fr);
+		row-gap: 2px;
 	}
-	.empty-steps strong {
-		gap: 6px;
+	.empty-step-text {
+		grid-column: 2;
 		font-size: 12px;
-		font-weight: 500;
-		white-space: nowrap;
-	}
-	.empty-footer {
-		margin-top: 16px;
 	}
 }
 
 /* Header buttons meet the 44px touch minimum. Last so it wins over the
    narrow-screen sizing above. */
 @media (pointer: coarse) {
-	/* Visually 36px; an invisible 44px hit area around each one. */
+	/* Visually 36px; an invisible 44px hit area around each one. Insets count
+	   from inside the 1px border, so -5px reaches 44. */
 	.app-header .btn {
 		position: relative;
 		height: 36px;
@@ -1204,7 +1234,21 @@ body {
 	.app-header .btn::after {
 		content: '';
 		position: absolute;
-		inset: -4px;
+		inset: -5px;
+	}
+	.brand-mark,
+	.link-btn {
+		position: relative;
+	}
+	.brand-mark::after {
+		content: '';
+		position: absolute;
+		inset: -10px;
+	}
+	.link-btn::after {
+		content: '';
+		position: absolute;
+		inset: -14px -4px;
 	}
 	.app-header .btn-icon {
 		width: 36px;

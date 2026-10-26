@@ -256,7 +256,12 @@
 			</button>
 		</h2>
 	{:else}
-		<h2 class="sr-only">Analysis</h2>
+		<div class="mp-head">
+			<h2 class="mp-head-title">Analysis</h2>
+			{#if completedJumps > 0}<span class="mp-head-meta"
+					>{completedJumps} jump{completedJumps === 1 ? '' : 's'}</span
+				>{/if}
+		</div>
 	{/if}
 
 	{#if showDetails}
@@ -529,6 +534,29 @@
 		font-size: 13px;
 	}
 
+	/* The panel's own header, in the same 52px band as the app header. */
+	.mp-head {
+		display: flex;
+		flex: 0 0 auto;
+		align-items: center;
+		gap: 8px;
+		height: 52px;
+		padding: 0 16px;
+		border-bottom: 1px solid hsl(var(--at-border));
+	}
+
+	.mp-head-title {
+		margin: 0;
+		color: hsl(var(--at-fg));
+		font-size: 14px;
+		font-weight: 500;
+	}
+
+	.mp-head-meta {
+		color: hsl(var(--at-fg-muted));
+		font-size: 13px;
+	}
+
 	/* Fades out at the bottom so it's clear the panel scrolls; the padding lets the
 	   last field scroll clear of the fade. */
 	.mp-body {
@@ -575,7 +603,7 @@
 	}
 
 	.sheet .mp-hero-value {
-		font-size: 30px;
+		font-size: 26px;
 	}
 
 	.mp-hero-alt {
@@ -615,7 +643,7 @@
 	.mp-stats dd {
 		margin: 0;
 		color: hsl(var(--at-fg));
-		font-size: 18px;
+		font-size: 16px;
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: -0.015em;
@@ -640,11 +668,11 @@
 	.mp-hero-value {
 		color: hsl(var(--at-fg));
 		margin: 0;
-		font-size: 36px;
+		font-size: 24px;
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
-		letter-spacing: -0.035em;
-		line-height: 1.05;
+		letter-spacing: -0.03em;
+		line-height: 1.1;
 	}
 
 	.mp-hero {
@@ -760,17 +788,13 @@
 		gap: 8px;
 		margin: 0 0 2px;
 		color: hsl(var(--at-fg-secondary));
-		font-size: 11px;
-		font-weight: 600;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
+		font-size: 12px;
+		font-weight: 500;
 	}
 
 	.mp-count {
 		color: hsl(var(--at-fg-muted));
-		font-weight: 500;
-		letter-spacing: 0;
-		text-transform: none;
+		font-weight: 400;
 	}
 
 	.mp-caption {
@@ -921,13 +945,16 @@
 	.mp-results {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		margin: 0 -8px;
 	}
 
 	.mp-jump {
-		padding: 4px;
-		border-radius: 10px;
-		background: hsl(var(--at-surface) / 0.55);
+		padding: 4px 0 6px;
+	}
+
+	.mp-jump + .mp-jump {
+		padding-top: 8px;
+		border-top: 1px solid hsl(var(--at-border));
 	}
 
 	.mp-jump-head {
@@ -950,11 +977,11 @@
 
 	.mp-badge {
 		padding: 2px 7px;
-		border-radius: 999px;
-		background: hsl(var(--at-fg) / 0.12);
-		color: hsl(var(--at-fg));
-		font-size: 10px;
-		font-weight: 600;
+		border: 1px solid hsl(var(--at-border-hover));
+		border-radius: 6px;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 11px;
+		font-weight: 500;
 	}
 
 	.mp-incomplete {
@@ -1012,7 +1039,6 @@
 		flex: 0 0 auto;
 		border-radius: 50%;
 		background: var(--mark-color);
-		box-shadow: 0 0 0 3px color-mix(in srgb, var(--mark-color) 20%, transparent);
 	}
 
 	.mp-mark-type {
@@ -1190,11 +1216,19 @@
 	}
 
 	@media (pointer: coarse) {
+		/* Visually 32px; the hit area reaches 44. */
 		.mp-icon-btn {
+			position: relative;
 			min-width: 44px;
 			height: 32px;
 			font-size: 13px;
 			background: hsl(var(--at-fg) / 0.08);
+		}
+
+		.mp-icon-btn::after {
+			content: '';
+			position: absolute;
+			inset: -6px 0;
 		}
 
 		.mp-remove {
@@ -1224,7 +1258,7 @@
 		}
 
 		.mp-mark-main {
-			height: 40px;
+			height: 44px;
 		}
 
 		.mp-interval-value {
@@ -1370,7 +1404,7 @@
 	}
 
 	.mp-peek-value {
-		font-size: 16px;
+		font-size: 15px;
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: -0.02em;
@@ -1378,7 +1412,7 @@
 	}
 
 	.mp-peek-primary .mp-peek-value {
-		font-size: 22px;
+		font-size: 18px;
 	}
 
 	.mp-peek-value small {
