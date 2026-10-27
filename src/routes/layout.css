@@ -61,6 +61,16 @@ html {
 	background: hsl(var(--at-bg));
 }
 
+/* Taps on controls act at once: no wait to see whether a double-tap zoom follows. */
+button,
+a,
+summary,
+label,
+select,
+[role='button'] {
+	touch-action: manipulation;
+}
+
 body {
 	font-family:
 		'Inter',
@@ -119,9 +129,11 @@ body {
 	flex: 0 0 auto;
 }
 
-.btn:hover:not(:disabled) {
-	background: hsl(var(--at-surface-hover));
-	color: hsl(var(--at-fg));
+@media (hover: hover) {
+	.btn:hover:not(:disabled) {
+		background: hsl(var(--at-surface-hover));
+		color: hsl(var(--at-fg));
+	}
 }
 
 .btn:disabled {
@@ -135,8 +147,10 @@ body {
 	color: hsl(var(--at-fg));
 }
 
-.btn-secondary:hover:not(:disabled) {
-	border-color: hsl(var(--at-fg) / 0.28);
+@media (hover: hover) {
+	.btn-secondary:hover:not(:disabled) {
+		border-color: hsl(var(--at-fg) / 0.28);
+	}
 }
 
 .btn-primary {
@@ -145,10 +159,12 @@ body {
 	color: hsl(var(--at-accent-fg));
 }
 
-.btn-primary:hover:not(:disabled) {
-	border-color: hsl(var(--at-accent-hover) / 0.7);
-	background: hsl(var(--at-accent) / 0.28);
-	color: hsl(var(--at-fg));
+@media (hover: hover) {
+	.btn-primary:hover:not(:disabled) {
+		border-color: hsl(var(--at-accent-hover) / 0.7);
+		background: hsl(var(--at-accent) / 0.28);
+		color: hsl(var(--at-fg));
+	}
 }
 
 .btn-icon {
@@ -424,7 +440,6 @@ body {
 		display: inline;
 	}
 	.pointer-only,
-	.header-shortcuts,
 	.mark-action kbd,
 	.btn-kbd {
 		display: none;
@@ -482,7 +497,8 @@ body {
    fills the height under the header, the picture letterboxed on the dark stage
    with its controls docked along the bottom; the analysis panel runs the full
    height on the right and scrolls inside. */
-@media (min-width: 901px) {
+/* Also phones held sideways: too short to stack the panel under the video. */
+@media (min-width: 901px), (max-height: 500px) {
 	.viewer-stage.has-video {
 		--bar-h: 92px;
 		--frame-h: 100%;
@@ -518,6 +534,13 @@ body {
 		flex-direction: column;
 		justify-content: center;
 		height: var(--bar-h);
+	}
+
+	/* A phone held sideways: the bar is narrow, so its buttons wrap to a second row. */
+	@media (max-height: 500px) {
+		.viewer-column .control-bar {
+			height: auto;
+		}
 	}
 
 	.viewer-stage.has-video > .marks-panel {
@@ -674,6 +697,15 @@ body {
 	padding: 2px 14px 10px;
 }
 
+/* Pinches anywhere over the video and its controls zoom the video (VideoViewer),
+   never the page, and long presses don't select text or open callouts. */
+.viewer-stage.has-video .viewer-frame {
+	touch-action: none;
+	user-select: none;
+	-webkit-user-select: none;
+	-webkit-touch-callout: none;
+}
+
 .control-toolbar {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
@@ -762,8 +794,10 @@ body {
 	--mark-color: hsl(var(--at-landing));
 }
 
-.mark-action:hover {
-	background: hsl(var(--at-fg) / 0.1);
+@media (hover: hover) {
+	.mark-action:hover {
+		background: hsl(var(--at-fg) / 0.1);
+	}
 }
 
 .mark-action.on-frame {
@@ -919,8 +953,10 @@ body {
 	transition: background 160ms var(--at-ease);
 }
 
-.dropzone:hover {
-	background: hsl(var(--at-surface));
+@media (hover: hover) {
+	.dropzone:hover {
+		background: hsl(var(--at-surface));
+	}
 }
 
 .dropzone.dragging {
@@ -1068,7 +1104,7 @@ body {
    Responsive
    ======================================== */
 
-@media (max-width: 900px) {
+@media (max-width: 900px) and (min-height: 501px) {
 	.viewer-stage {
 		flex-direction: column;
 		justify-content: flex-start;
@@ -1253,7 +1289,46 @@ body {
 	.app-header .btn-icon {
 		width: 36px;
 	}
+	/* Hit areas 4px apart reach 44 without overlapping. */
+	.header-actions {
+		gap: 8px;
+	}
+	/* Visually 36px; 44px hit areas, as in the header. */
 	.backup-reminder .btn {
+		position: relative;
 		height: 36px;
+	}
+	.backup-reminder .btn::after {
+		content: '';
+		position: absolute;
+		inset: -5px;
+	}
+	.backup-reminder .btn-icon {
+		width: 36px;
+	}
+	.backup-reminder {
+		padding-block: 4px;
+	}
+	/* Takeoff and Landing are 44px tall at every width, not only in a narrow bar
+	   (a phone held sideways has a wide one). Above the speed chip's hit area. */
+	.mark-action {
+		position: relative;
+		z-index: 1;
+		height: 44px;
+	}
+	.viewer-badge {
+		font-size: 11px;
+	}
+}
+
+/* A narrow bar on a touchscreen: room between the rows for the 44px hit areas
+   (mute, the speed chip) that reach past their 28px row, so none overlaps the
+   timeline band above or the mark buttons below. */
+@media (pointer: coarse) {
+	@container control-bar (max-width: 700px) {
+		.control-toolbar {
+			margin-top: 8px;
+			row-gap: 9px;
+		}
 	}
 }

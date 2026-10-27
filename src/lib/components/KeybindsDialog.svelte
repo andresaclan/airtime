@@ -155,6 +155,7 @@
 		max-width: 740px;
 		max-height: 85dvh;
 		overflow-y: auto;
+		overscroll-behavior: contain;
 		padding: 0 0 24px;
 		background: hsl(var(--at-popover));
 		border: 1px solid hsl(var(--at-border-hover));
@@ -199,9 +200,18 @@
 		height: 18px;
 	}
 
-	.close-btn:hover {
-		background: hsl(var(--at-surface-hover));
-		color: hsl(var(--at-fg));
+	@media (hover: hover) {
+		.close-btn:hover {
+			background: hsl(var(--at-surface-hover));
+			color: hsl(var(--at-fg));
+		}
+	}
+
+	@media (pointer: coarse) {
+		.close-btn {
+			width: 44px;
+			height: 44px;
+		}
 	}
 
 	.keybinds-groups {

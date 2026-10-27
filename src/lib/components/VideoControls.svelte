@@ -494,13 +494,16 @@
 		color: hsl(var(--at-fg));
 	}
 
-	.step-btn:hover:not(:disabled) {
-		background: hsl(var(--at-fg) / 0.08);
-	}
+	/* Hover looks only for a pointer that hovers: on touch they'd stick after a tap. */
+	@media (hover: hover) {
+		.step-btn:hover:not(:disabled) {
+			background: hsl(var(--at-fg) / 0.08);
+		}
 
-	.frame-btn:hover:not(:disabled) {
-		background: hsl(var(--at-fg) / 0.08);
-		color: hsl(var(--at-fg));
+		.frame-btn:hover:not(:disabled) {
+			background: hsl(var(--at-fg) / 0.08);
+			color: hsl(var(--at-fg));
+		}
 	}
 
 	.frame-btn:active:not(:disabled) {
@@ -561,8 +564,10 @@
 		height: 16px;
 	}
 
-	.play-btn:hover:not(:disabled) {
-		background: hsl(var(--at-fg) / 0.16);
+	@media (hover: hover) {
+		.play-btn:hover:not(:disabled) {
+			background: hsl(var(--at-fg) / 0.16);
+		}
 	}
 
 	.play-btn:active:not(:disabled) {
@@ -601,15 +606,16 @@
 			width: 44px;
 			height: 44px;
 		}
+		/* No hover to open it, and iOS can't set a video's volume anyway: mute only. */
+		.volume-slider {
+			display: none;
+		}
 	}
 
 	/* In a narrow control bar the groups dissolve so the host toolbar grid can place
-	   the transport and speed buttons itself. Volume goes: phones ignore it (iOS
-	   can't set it at all) and M still mutes. */
+	   the transport and speed buttons itself. Mute stays: on a phone it's the only
+	   way to silence a clip without the M key. */
 	@container control-bar (max-width: 700px) {
-		.volume-section {
-			display: none;
-		}
 		.playback-controls {
 			gap: 6px;
 		}
