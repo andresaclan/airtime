@@ -421,8 +421,7 @@
 											{#if bestJump.contact}{formatMs(bestJump.contact.realSeconds)}<span
 													class="mp-unit">ms</span
 												><small
-													>{bestJump.contact.frames} fr{#if bestRsi !== undefined}
-														· RSI {bestRsi.toFixed(2)}{/if}</small
+													>{bestJump.contact.frames} fr{#if bestRsi !== undefined}{` · RSI ${bestRsi.toFixed(2)}`}{/if}</small
 												>{:else}–<small>not marked</small>{/if}
 										</dd>
 									</div>
@@ -694,21 +693,20 @@
 	}
 
 	/* Setup toolbar: dropdown chips, with the frame precision as a quiet stat on the right. */
-	/* One row: flex lines break before items shrink, so the toolbar doesn't wrap; the
-	   selects give room back instead. */
+	/* One row when it fits. Otherwise the precision (then a select) moves to a second
+	   row, so a select never cuts off its value. */
 	.mp-toolbar {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: 6px;
 		padding: 10px 16px;
 		border-bottom: 1px solid hsl(var(--at-border));
 	}
 
-	/* Selects size to their longest option, so they can give a little room back
-	   before the current value would be cut off. */
+	/* Selects size to their current value and don't shrink below it. */
 	.mp-chip-select {
-		flex: 0 1 auto;
-		min-width: 0;
+		flex: 0 0 auto;
 		field-sizing: content;
 		appearance: none;
 		height: 28px;
@@ -773,9 +771,9 @@
 			padding: 0 28px 0 12px;
 		}
 
-		/* Beside the video (a phone held sideways) the two selects split the row. */
+		/* Beside the video (a phone held sideways) the two selects share the row. */
 		.marks-panel:not(.sheet) .mp-chip-select {
-			flex: 1 1 0;
+			flex: 1 1 auto;
 			padding: 0 24px 0 10px;
 		}
 	}
@@ -890,7 +888,7 @@
 	}
 
 	.mp-kv dd small {
-		margin-right: 8px;
+		margin-left: 6px;
 		color: hsl(var(--at-fg-muted));
 		font-size: 11px;
 		font-weight: 400;
