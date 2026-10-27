@@ -77,6 +77,8 @@
 	}: Props = $props();
 
 	let showDetails = $derived(!sheet || expanded);
+	// The panel's two tabs: the results (with Setup), and the session's details.
+	let tab: 'analysis' | 'session' = $state('analysis');
 
 	let grouped = $derived(groupJumps(marks, analysis));
 	let bestJump = $derived(
@@ -206,95 +208,90 @@
 	</div>
 {/snippet}
 
-{#snippet settings()}
-	<details class="mp-details" open={jumpType === null}>
-		<summary>
-			<span class="mp-section-title">Setup</span>
-			<span class="mp-details-value"
-				>{TIME_SCALES.find((scale) => scale.value === timeScale)?.label} · {jumpTypeLabel ??
-					'Jump type not set'}</span
-			>
-			<svg class="mp-details-chevron" viewBox="0 0 24 24" aria-hidden="true"
-				><path d="m9 6 6 6-6 6" /></svg
-			>
-		</summary>
-		<div class="mp-details-body">
-			<label class="mp-row">
-				<span>Jump type</span>
-				<select
-					class="mp-field mp-select"
-					bind:value={jumpType}
-					aria-describedby={jumpType === null ? 'mp-jump-type-hint' : undefined}
-				>
-					{#if jumpType === null}<option value={null}>Not set</option>{/if}
-					{#each jumpTypeOptions as type (type.value)}<option value={type.value}
-							>{type.label}</option
-						>{/each}
-				</select>
-			</label>
-			<label class="mp-row">
-				<span>Footage</span>
-				<select class="mp-field mp-select" bind:value={timeScale}>
-					{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
-							>{scale.label}</option
-						>{/each}
-				</select>
-			</label>
-			<p class="mp-caption">
-				{#if longestFrameMs > frameMs + 0.05}
-					Precision: ±1 frame = ±{frameMs.toFixed(1)}–{longestFrameMs.toFixed(1)} ms (variable frame rate)
-				{:else}
-					Precision: ±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
-				{/if}{#if slowMotion}
-					· real time ({slowMotion.label.toLowerCase()}){/if}
-			</p>
-			{#if jumpType === null}
-				<p id="mp-jump-type-hint" class="mp-caption warn">
-					Set the jump type to compare like with like.
-				</p>
-			{/if}
-		</div>
-	</details>
+{#snippet tabs()}
+	<div class="mp-tabs" role="tablist" aria-label="Panel">
+		<button
+			class="mp-tab"
+			role="tab"
+			id="mp-tab-analysis"
+			aria-selected={tab === 'analysis'}
+			aria-controls="mp-tabpanel"
+			onclick={() => (tab = 'analysis')}
+			>Analysis{#if completedJumps > 0}<span class="mp-tab-count">{completedJumps}</span
+				>{/if}</button
+		>
+		<button
+			class="mp-tab"
+			role="tab"
+			id="mp-tab-session"
+			aria-selected={tab === 'session'}
+			aria-controls="mp-tabpanel"
+			onclick={() => (tab = 'session')}>Session</button
+		>
+	</div>
+{/snippet}
 
-	<details class="mp-details">
-		<summary>
-			<span class="mp-section-title">Session</span>
-			<span class="mp-details-value"
-				>{title.trim() || titlePlaceholder}{notes.trim() ? ' · notes' : ''}</span
-			>
-			<svg class="mp-details-chevron" viewBox="0 0 24 24" aria-hidden="true"
-				><path d="m9 6 6 6-6 6" /></svg
-			>
-		</summary>
-		<div class="mp-details-body">
-			<label class="mp-row">
-				<span>Title</span>
-				<input
-					class="mp-field mp-title"
-					bind:value={title}
-					placeholder={titlePlaceholder}
-					spellcheck="false"
-				/>
-			</label>
-			<label class="mp-row">
-				<span>Recorded</span>
-				<input
-					class="mp-field"
-					type="datetime-local"
-					bind:value={() => toLocalInput(recordedAt), fromLocalInput}
-				/>
-			</label>
-			<label class="mp-row">
-				<span>Notes</span>
-				<textarea
-					class="mp-field mp-notes"
-					bind:value={notes}
-					placeholder="Exercise, attempt, how it felt…"
-					rows="2"
-				></textarea>
-			</label>
-		</div>
-	</details>
+{#snippet setupBar()}
+	<!-- Setup as a toolbar of dropdowns, as T3's diff panel shows its comparison. -->
+	<div class="mp-toolbar">
+		<select
+			class="mp-chip-select"
+			bind:value={jumpType}
+			aria-label="Jump type"
+			aria-describedby={jumpType === null ? 'mp-jump-type-hint' : undefined}
+		>
+			{#if jumpType === null}<option value={null}>Jump type not set</option>{/if}
+			{#each jumpTypeOptions as type (type.value)}<option value={type.value}>{type.label}</option
+				>{/each}
+		</select>
+		<select class="mp-chip-select" bind:value={timeScale} aria-label="Footage">
+			{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}>{scale.label}</option
+				>{/each}
+		</select>
+		<span
+			class="mp-precision"
+			title={longestFrameMs > frameMs + 0.05
+				? `±1 frame = ±${frameMs.toFixed(1)}–${longestFrameMs.toFixed(1)} ms (variable frame rate)`
+				: `±1 frame = ±${frameMs.toFixed(1)} ms at ${frameRate.toFixed(2)} fps${slowMotion ? `, real time (${slowMotion.label.toLowerCase()})` : ''}`}
+			>±{frameMs.toFixed(1)}{#if longestFrameMs > frameMs + 0.05}–{longestFrameMs.toFixed(1)}{/if} ms/fr</span
+		>
+	</div>
+	{#if jumpType === null}
+		<p id="mp-jump-type-hint" class="mp-caption warn mp-toolbar-hint">
+			Set the jump type to compare like with like.
+		</p>
+	{/if}
+{/snippet}
+
+{#snippet sessionFields()}
+	<div class="mp-fields">
+		<label class="mp-row">
+			<span>Title</span>
+			<input
+				class="mp-field mp-title"
+				bind:value={title}
+				placeholder={titlePlaceholder}
+				spellcheck="false"
+			/>
+		</label>
+		<label class="mp-row">
+			<span>Recorded</span>
+			<input
+				class="mp-field"
+				type="datetime-local"
+				bind:value={() => toLocalInput(recordedAt), fromLocalInput}
+			/>
+		</label>
+		<label class="mp-row">
+			<span>Notes</span>
+			<textarea
+				class="mp-field mp-notes"
+				bind:value={notes}
+				placeholder="Exercise, attempt, how it felt…"
+				rows="4"
+			></textarea>
+		</label>
+	</div>
 {/snippet}
 
 <aside
@@ -356,189 +353,189 @@
 		</h2>
 	{:else}
 		<div class="mp-head">
-			<h2 class="mp-head-title">Analysis</h2>
-			{#if completedJumps > 0}<span class="mp-head-meta"
-					>{completedJumps} jump{completedJumps === 1 ? '' : 's'}</span
-				>{/if}
+			<h2 class="sr-only">Analysis</h2>
+			{@render tabs()}
 		</div>
 	{/if}
 
 	{#if showDetails}
-		<div class="mp-body">
-			{#if bestJump?.flight}
-				<div class="mp-summary">
-					<div class="mp-summary-lead">
-						<span class="mp-label">{completedJumps > 1 ? 'Best jump' : 'Jump height'}</span>
-						<p class="mp-hero-value">
-							{bestJump.flight.heightCm?.toFixed(1)}<span class="mp-unit">cm</span><span
-								class="mp-hero-alt">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span
-							>
-						</p>
-					</div>
-					<!-- One label/value row per figure, so long labels never wrap their values. -->
-					<dl class="mp-kv">
-						{#if averageHeight !== null}
-							<div>
-								<dt>Average height</dt>
-								<dd>{averageHeight.toFixed(1)}<span class="mp-unit">cm</span></dd>
-							</div>
-							<div>
-								<dt>Average flight</dt>
-								<dd>{formatMs(averageFlight ?? 0)}<span class="mp-unit">ms</span></dd>
-							</div>
-							{#if contactMatters}
-								<div class:muted={averageContact === null}>
-									<dt>Average contact</dt>
-									<dd>
-										{#if averageContact !== null}{formatMs(averageContact)}<span class="mp-unit"
-												>ms</span
-											>{:else}–{/if}
-									</dd>
-								</div>
-							{/if}
-						{:else}
-							<div>
-								<dt>Flight time</dt>
-								<dd>
-									{formatMs(bestJump.flight.realSeconds)}<span class="mp-unit">ms</span><small
-										>{bestJump.flight.frames} fr</small
-									>
-								</dd>
-							</div>
-							{#if contactMatters || bestJump.contact}
-								<div class:muted={!bestJump.contact}>
-									<dt>Contact time</dt>
-									<dd>
-										{#if bestJump.contact}{formatMs(bestJump.contact.realSeconds)}<span
-												class="mp-unit">ms</span
-											><small
-												>{bestJump.contact.frames} fr{#if bestRsi !== undefined}
-													· RSI {bestRsi.toFixed(2)}{/if}</small
-											>{:else}–<small>not marked</small>{/if}
-									</dd>
-								</div>
-							{/if}
-						{/if}
-					</dl>
-					{#if contactMatters && !bestJump.contact}
-						<p class="mp-caption">Mark the landing before the takeoff to get contact time.</p>
-					{/if}
-				</div>
+		{#if sheet}<div class="mp-sheet-tabs">{@render tabs()}</div>{/if}
+		<div class="mp-body" id="mp-tabpanel" role="tabpanel" aria-labelledby="mp-tab-{tab}">
+			{#if tab === 'session'}
+				{@render sessionFields()}
 			{:else}
-				<div class="mp-hero is-empty">
-					<span class="mp-label">Jump height</span>
-					<span class="mp-hero-empty">Not measured yet</span>
-					<span class="mp-sub">Appears once a takeoff and its landing are marked.</span>
-				</div>
-			{/if}
-
-			<section class="mp-section" aria-labelledby="mp-jumps-heading">
-				<div class="mp-section-head">
-					<h3 id="mp-jumps-heading" class="mp-section-title">
-						Jumps{#if marks.length > 0}<span class="mp-count">{marks.length} marks</span>{/if}
-					</h3>
-					<div class="mp-section-actions">
-						{#if canUndo}<button class="mp-text-btn" onclick={onUndo} title="Undo (⌘Z)"
-								><svg viewBox="0 0 24 24" aria-hidden="true"
-									><path d="M9 7 4.5 11.5 9 16" /><path d="M5 11.5h9.5a5 5 0 0 1 0 10H12" /></svg
-								>Undo</button
-							>{/if}
-						{#if canRedo}<button class="mp-text-btn" onclick={onRedo} title="Redo (⇧⌘Z)"
-								><svg viewBox="0 0 24 24" aria-hidden="true"
-									><path d="M15 7l4.5 4.5L15 16" /><path d="M19 11.5H9.5a5 5 0 0 0 0 10H12" /></svg
-								>Redo</button
-							>{/if}
-						{#if marks.length > 0}<button
-								class="mp-text-btn mp-danger"
-								onclick={onClear}
-								title="Remove every mark (undoable)">Clear all</button
-							>{/if}
-					</div>
-				</div>
-				{#if marks.length === 0}
-					<div class="mp-empty">
-						<ol>
-							<li>
-								<span class="mp-empty-num">1</span>
-								<span
-									>Pause on the first frame where the feet leave the ground, then <span
-										class="pointer-only">press <kbd>T</kbd></span
-									><span class="touch-only">tap Takeoff</span>.</span
+				{@render setupBar()}
+				{#if bestJump?.flight}
+					<div class="mp-summary">
+						<div class="mp-summary-lead">
+							<span class="mp-label">{completedJumps > 1 ? 'Best jump' : 'Jump height'}</span>
+							<p class="mp-hero-value">
+								{bestJump.flight.heightCm?.toFixed(1)}<span class="mp-unit">cm</span><span
+									class="mp-hero-alt">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span
 								>
-							</li>
-							<li>
-								<span class="mp-empty-num">2</span>
-								<span
-									>Step to the first frame they touch down, then <span class="pointer-only"
-										>press <kbd>L</kbd></span
-									><span class="touch-only">tap Landing</span>.</span
-								>
-							</li>
-						</ol>
-						<p class="mp-empty-hint">
-							<span class="pointer-only"
-								>Step frames with <kbd>,</kbd> <kbd>.</kbd>&nbsp;·&nbsp;</span
-							>A landing before the takeoff adds contact time.
-						</p>
+							</p>
+						</div>
+						<!-- One label/value row per figure, so long labels never wrap their values. -->
+						<dl class="mp-kv">
+							{#if averageHeight !== null}
+								<div>
+									<dt>Average height</dt>
+									<dd>{averageHeight.toFixed(1)}<span class="mp-unit">cm</span></dd>
+								</div>
+								<div>
+									<dt>Average flight</dt>
+									<dd>{formatMs(averageFlight ?? 0)}<span class="mp-unit">ms</span></dd>
+								</div>
+								{#if contactMatters}
+									<div class:muted={averageContact === null}>
+										<dt>Average contact</dt>
+										<dd>
+											{#if averageContact !== null}{formatMs(averageContact)}<span class="mp-unit"
+													>ms</span
+												>{:else}–{/if}
+										</dd>
+									</div>
+								{/if}
+							{:else}
+								<div>
+									<dt>Flight time</dt>
+									<dd>
+										{formatMs(bestJump.flight.realSeconds)}<span class="mp-unit">ms</span><small
+											>{bestJump.flight.frames} fr</small
+										>
+									</dd>
+								</div>
+								{#if contactMatters || bestJump.contact}
+									<div class:muted={!bestJump.contact}>
+										<dt>Contact time</dt>
+										<dd>
+											{#if bestJump.contact}{formatMs(bestJump.contact.realSeconds)}<span
+													class="mp-unit">ms</span
+												><small
+													>{bestJump.contact.frames} fr{#if bestRsi !== undefined}
+														· RSI {bestRsi.toFixed(2)}{/if}</small
+												>{:else}–<small>not marked</small>{/if}
+										</dd>
+									</div>
+								{/if}
+							{/if}
+						</dl>
+						{#if contactMatters && !bestJump.contact}
+							<p class="mp-caption">Mark the landing before the takeoff to get contact time.</p>
+						{/if}
 					</div>
 				{:else}
-					<div class="mp-results">
-						{#each grouped.jumps as jump, index (jump.takeoff.id)}
-							<section
-								class="mp-jump"
-								class:mp-best={completedJumps >= 2 && jump === bestJump}
-								aria-label="Jump {index + 1}"
-							>
-								<h4 class="mp-jump-head">
-									<span class="mp-jump-name">Jump {index + 1}</span>
-									{#if completedJumps >= 2 && jump === bestJump}<span class="mp-badge">Best</span
-										>{/if}
-									<span class="mp-jump-stats">{jumpStats(jump)}</span>
-								</h4>
-								{#if jump.contact}
-									{#if grouped.jumps[index - 1]?.flight?.to.id === jump.contact.from.id}
-										<!-- The touchdown is the previous jump's landing; don't list it twice. -->
-										{@render interval(jump.contact)}
-									{:else}
-										{@render markRow(jump.contact.from, 'Touchdown')}
-										{@render interval(jump.contact)}
-									{/if}
-								{/if}
-								{@render markRow(jump.takeoff, 'Takeoff')}
-								{#if jump.flight}
-									{@render interval(jump.flight)}
-									{@render markRow(jump.flight.to, 'Landing')}
-								{:else}
-									<p class="mp-incomplete">Mark a landing to complete this jump.</p>
-								{/if}
-							</section>
-						{/each}
-						{#if outOfSequenceMarks.length > 0}
-							<div class="mp-warning">
-								Repeated marks have no timing interval: {outOfSequenceMarks
-									.map((mark) => (mark.type === 'landing' ? 'Landing' : 'Takeoff'))
-									.join(', ')}
-							</div>
-						{/if}
-						{#if grouped.unpairedMarks.length > 0}
-							<section class="mp-jump mp-unpaired" aria-label="Unpaired marks">
-								<h4 class="mp-jump-head"><span class="mp-jump-name">Unpaired marks</span></h4>
-								{#each grouped.unpairedMarks as mark (mark.id)}{@render markRow(
-										mark,
-										mark.type === 'landing' ? 'Landing' : 'Takeoff'
-									)}{/each}
-							</section>
-						{/if}
+					<div class="mp-hero is-empty">
+						<span class="mp-label">Jump height</span>
+						<span class="mp-hero-empty">Not measured yet</span>
+						<span class="mp-sub">Appears once a takeoff and its landing are marked.</span>
 					</div>
 				{/if}
-			</section>
-			{#if sheet}{@render settings()}{/if}
+
+				<section class="mp-section" aria-labelledby="mp-jumps-heading">
+					<div class="mp-section-head">
+						<h3 id="mp-jumps-heading" class="mp-section-title">
+							Jumps{#if marks.length > 0}<span class="mp-count">{marks.length} marks</span>{/if}
+						</h3>
+						<div class="mp-section-actions">
+							{#if canUndo}<button class="mp-text-btn" onclick={onUndo} title="Undo (⌘Z)"
+									><svg viewBox="0 0 24 24" aria-hidden="true"
+										><path d="M9 7 4.5 11.5 9 16" /><path d="M5 11.5h9.5a5 5 0 0 1 0 10H12" /></svg
+									>Undo</button
+								>{/if}
+							{#if canRedo}<button class="mp-text-btn" onclick={onRedo} title="Redo (⇧⌘Z)"
+									><svg viewBox="0 0 24 24" aria-hidden="true"
+										><path d="M15 7l4.5 4.5L15 16" /><path
+											d="M19 11.5H9.5a5 5 0 0 0 0 10H12"
+										/></svg
+									>Redo</button
+								>{/if}
+							{#if marks.length > 0}<button
+									class="mp-text-btn mp-danger"
+									onclick={onClear}
+									title="Remove every mark (undoable)">Clear all</button
+								>{/if}
+						</div>
+					</div>
+					{#if marks.length === 0}
+						<div class="mp-empty">
+							<ol>
+								<li>
+									<span class="mp-empty-num">1</span>
+									<span
+										>Pause on the first frame where the feet leave the ground, then <span
+											class="pointer-only">press <kbd>T</kbd></span
+										><span class="touch-only">tap Takeoff</span>.</span
+									>
+								</li>
+								<li>
+									<span class="mp-empty-num">2</span>
+									<span
+										>Step to the first frame they touch down, then <span class="pointer-only"
+											>press <kbd>L</kbd></span
+										><span class="touch-only">tap Landing</span>.</span
+									>
+								</li>
+							</ol>
+							<p class="mp-empty-hint">
+								<span class="pointer-only"
+									>Step frames with <kbd>,</kbd> <kbd>.</kbd>&nbsp;·&nbsp;</span
+								>A landing before the takeoff adds contact time.
+							</p>
+						</div>
+					{:else}
+						<div class="mp-results">
+							{#each grouped.jumps as jump, index (jump.takeoff.id)}
+								<section
+									class="mp-jump"
+									class:mp-best={completedJumps >= 2 && jump === bestJump}
+									aria-label="Jump {index + 1}"
+								>
+									<h4 class="mp-jump-head">
+										<span class="mp-jump-name">Jump {index + 1}</span>
+										{#if completedJumps >= 2 && jump === bestJump}<span class="mp-badge">Best</span
+											>{/if}
+										<span class="mp-jump-stats">{jumpStats(jump)}</span>
+									</h4>
+									{#if jump.contact}
+										{#if grouped.jumps[index - 1]?.flight?.to.id === jump.contact.from.id}
+											<!-- The touchdown is the previous jump's landing; don't list it twice. -->
+											{@render interval(jump.contact)}
+										{:else}
+											{@render markRow(jump.contact.from, 'Touchdown')}
+											{@render interval(jump.contact)}
+										{/if}
+									{/if}
+									{@render markRow(jump.takeoff, 'Takeoff')}
+									{#if jump.flight}
+										{@render interval(jump.flight)}
+										{@render markRow(jump.flight.to, 'Landing')}
+									{:else}
+										<p class="mp-incomplete">Mark a landing to complete this jump.</p>
+									{/if}
+								</section>
+							{/each}
+							{#if outOfSequenceMarks.length > 0}
+								<div class="mp-warning">
+									Repeated marks have no timing interval: {outOfSequenceMarks
+										.map((mark) => (mark.type === 'landing' ? 'Landing' : 'Takeoff'))
+										.join(', ')}
+								</div>
+							{/if}
+							{#if grouped.unpairedMarks.length > 0}
+								<section class="mp-jump mp-unpaired" aria-label="Unpaired marks">
+									<h4 class="mp-jump-head"><span class="mp-jump-name">Unpaired marks</span></h4>
+									{#each grouped.unpairedMarks as mark (mark.id)}{@render markRow(
+											mark,
+											mark.type === 'landing' ? 'Landing' : 'Takeoff'
+										)}{/each}
+								</section>
+							{/if}
+						</div>
+					{/if}
+				</section>
+			{/if}
 		</div>
-		{#if !sheet}
-			<!-- Setup and Session sit in their own region, so opening them never pushes the
-			     results out of view. -->
-			<div class="mp-inspector">{@render settings()}</div>
-		{/if}
 	{/if}
 </aside>
 
@@ -569,18 +566,6 @@
 		border-bottom: 1px solid hsl(var(--at-border));
 	}
 
-	.mp-head-title {
-		margin: 0;
-		color: hsl(var(--at-fg));
-		font-size: 14px;
-		font-weight: 500;
-	}
-
-	.mp-head-meta {
-		color: hsl(var(--at-fg-muted));
-		font-size: 13px;
-	}
-
 	/* Fades out at the bottom so it's clear the panel scrolls; the padding lets the
 	   last field scroll clear of the fade. */
 	.mp-body {
@@ -596,20 +581,108 @@
 		scrollbar-color: hsl(var(--at-border-hover)) transparent;
 	}
 
-	/* Setup and Session: a bounded region pinned under the results, one step
-	   lighter, that scrolls on its own when both are open. */
-	.mp-inspector {
-		flex: 0 1 auto;
-		max-height: 52%;
-		border-top: 1px solid hsl(var(--at-border));
-		background: hsl(var(--at-popover));
-		overflow-y: auto;
-		scrollbar-width: thin;
-		scrollbar-color: hsl(var(--at-border-hover)) transparent;
+	/* Tabs: T3's tab chips. The selected one is a filled chip, the rest plain text. */
+	.mp-tabs {
+		display: flex;
+		align-items: center;
+		gap: 2px;
 	}
 
-	.mp-inspector .mp-details:first-child {
-		border-top: none;
+	.mp-tab {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 28px;
+		padding: 0 10px;
+		border: 1px solid transparent;
+		border-radius: var(--at-radius);
+		background: transparent;
+		color: hsl(var(--at-fg-muted));
+		font: inherit;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+		transition:
+			background 120ms ease,
+			color 120ms ease;
+	}
+
+	.mp-tab[aria-selected='true'] {
+		border-color: hsl(var(--at-border-hover) / 0.6);
+		background: hsl(var(--at-fg) / 0.07);
+		color: hsl(var(--at-fg));
+	}
+
+	@media (hover: hover) {
+		.mp-tab:hover {
+			color: hsl(var(--at-fg));
+		}
+	}
+
+	.mp-tab-count {
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.mp-sheet-tabs {
+		padding: 8px 12px;
+		border-bottom: 1px solid hsl(var(--at-border));
+	}
+
+	/* Setup toolbar: dropdown chips, with the frame precision as a quiet stat on the right. */
+	.mp-toolbar {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 10px 16px;
+		border-bottom: 1px solid hsl(var(--at-border));
+	}
+
+	.mp-chip-select {
+		appearance: none;
+		min-width: 0;
+		height: 28px;
+		padding: 0 26px 0 10px;
+		border: 1px solid hsl(var(--at-fg) / 0.08);
+		border-radius: var(--at-radius);
+		background: hsl(var(--at-fg) / 0.035)
+			url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aa0aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E")
+			right 7px center / 13px no-repeat;
+		color: hsl(var(--at-fg));
+		font: inherit;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+		outline: none;
+	}
+
+	.mp-chip-select:hover {
+		border-color: hsl(var(--at-fg) / 0.16);
+	}
+
+	.mp-chip-select:focus-visible {
+		border-color: hsl(var(--at-accent));
+		box-shadow: 0 0 0 3px hsl(var(--at-accent) / 0.2);
+	}
+
+	.mp-precision {
+		margin-left: auto;
+		color: hsl(var(--at-fg-muted));
+		font-family: var(--at-font-mono);
+		font-size: 11px;
+		white-space: nowrap;
+	}
+
+	.mp-toolbar-hint {
+		padding: 8px 16px 0;
+	}
+
+	.mp-fields {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 16px;
 	}
 
 	/* Headline numbers */
@@ -734,68 +807,6 @@
 		color: hsl(var(--at-fg-secondary));
 		font-size: 17px;
 		font-weight: 600;
-	}
-
-	/* Setup and Session collapse to one line showing their current values. */
-	.mp-details {
-		margin: 0 16px;
-		border-top: 1px solid hsl(var(--at-border));
-	}
-
-	.mp-details summary {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		min-height: 44px;
-		cursor: pointer;
-		list-style: none;
-	}
-
-	.mp-details summary::-webkit-details-marker {
-		display: none;
-	}
-
-	.mp-details summary .mp-section-title {
-		flex: 0 0 auto;
-		margin: 0;
-	}
-
-	.mp-details-value {
-		flex: 1;
-		min-width: 0;
-		overflow: hidden;
-		color: hsl(var(--at-fg-secondary));
-		font-size: 12px;
-		text-align: right;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.mp-details-chevron {
-		width: 14px;
-		height: 14px;
-		flex: 0 0 auto;
-		fill: none;
-		stroke: hsl(var(--at-fg-muted));
-		stroke-width: 2;
-		stroke-linecap: round;
-		stroke-linejoin: round;
-		transition: transform 160ms ease;
-	}
-
-	.mp-details[open] .mp-details-chevron {
-		transform: rotate(90deg);
-	}
-
-	.mp-details summary:hover .mp-details-value {
-		color: hsl(var(--at-fg));
-	}
-
-	.mp-details-body {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-		padding: 2px 0 14px;
 	}
 
 	/* Sections */
@@ -998,23 +1009,26 @@
 	.mp-results {
 		display: flex;
 		flex-direction: column;
-		margin: 0 -8px;
 	}
 
+	/* Each jump is a bordered block with a header strip, as a file is in T3's diff. */
 	.mp-jump {
-		padding: 0 0 8px;
+		margin: 0 0 8px;
+		padding: 0 0 6px;
+		border: 1px solid hsl(var(--at-border));
+		border-radius: var(--at-radius);
+		overflow: hidden;
 	}
 
-	/* Each jump opens with a full-width header strip, as a file does in a diff. */
 	.mp-jump-head {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		min-height: 34px;
-		margin: 0 -8px 4px;
-		padding: 0 16px;
-		border-block: 1px solid hsl(var(--at-border));
-		background: hsl(var(--at-fg) / 0.025);
+		margin: 0 0 4px;
+		padding: 0 8px 0 10px;
+		border-bottom: 1px solid hsl(var(--at-border));
+		background: hsl(var(--at-fg) / 0.03);
 		font-size: 13px;
 		font-weight: 600;
 	}
@@ -1298,9 +1312,16 @@
 			margin-block: -12px -6px;
 		}
 
-		.mp-field {
+		.mp-field,
+		.mp-chip-select {
 			height: 40px;
 			font-size: 16px;
+		}
+
+		.mp-tab {
+			height: 40px;
+			padding: 0 14px;
+			font-size: 14px;
 		}
 
 		.mp-notes {
@@ -1321,10 +1342,6 @@
 
 		.mp-jump-head {
 			font-size: 15px;
-		}
-
-		.mp-details-value {
-			font-size: 13px;
 		}
 	}
 
