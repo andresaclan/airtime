@@ -364,7 +364,7 @@
 			{#if tab === 'session'}
 				{@render sessionFields()}
 			{:else}
-				{@render setupBar()}
+				{#if !sheet}{@render setupBar()}{/if}
 				{#if bestJump?.flight}
 					<div class="mp-summary">
 						<div class="mp-summary-lead">
@@ -534,6 +534,7 @@
 						</div>
 					{/if}
 				</section>
+				{#if sheet}{@render setupBar()}{/if}
 			{/if}
 		</div>
 	{/if}
@@ -626,13 +627,14 @@
 	}
 
 	.mp-sheet-tabs {
-		padding: 8px 12px;
+		padding: 4px 12px;
 		border-bottom: 1px solid hsl(var(--at-border));
 	}
 
 	/* Setup toolbar: dropdown chips, with the frame precision as a quiet stat on the right. */
 	.mp-toolbar {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: 6px;
 		padding: 10px 16px;
@@ -640,8 +642,8 @@
 	}
 
 	.mp-chip-select {
+		flex: 0 0 auto;
 		appearance: none;
-		min-width: 0;
 		height: 28px;
 		padding: 0 26px 0 10px;
 		border: 1px solid hsl(var(--at-fg) / 0.08);
@@ -672,6 +674,11 @@
 		font-family: var(--at-font-mono);
 		font-size: 11px;
 		white-space: nowrap;
+	}
+
+	.sheet .mp-toolbar {
+		border-top: 1px solid hsl(var(--at-border));
+		border-bottom: none;
 	}
 
 	.mp-toolbar-hint {
@@ -1009,26 +1016,23 @@
 	.mp-results {
 		display: flex;
 		flex-direction: column;
+		margin: 0 -8px;
 	}
 
-	/* Each jump is a bordered block with a header strip, as a file is in T3's diff. */
 	.mp-jump {
-		margin: 0 0 8px;
-		padding: 0 0 6px;
-		border: 1px solid hsl(var(--at-border));
-		border-radius: var(--at-radius);
-		overflow: hidden;
+		padding: 0 0 8px;
 	}
 
+	/* Each jump opens with a full-width header strip, as a file does in a diff. */
 	.mp-jump-head {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		min-height: 34px;
-		margin: 0 0 4px;
-		padding: 0 8px 0 10px;
-		border-bottom: 1px solid hsl(var(--at-border));
-		background: hsl(var(--at-fg) / 0.03);
+		margin: 0 -8px 4px;
+		padding: 0 16px;
+		border-block: 1px solid hsl(var(--at-border));
+		background: hsl(var(--at-fg) / 0.025);
 		font-size: 13px;
 		font-weight: 600;
 	}
@@ -1312,9 +1316,13 @@
 			margin-block: -12px -6px;
 		}
 
-		.mp-field,
-		.mp-chip-select {
+		.mp-field {
 			height: 40px;
+			font-size: 16px;
+		}
+
+		.mp-chip-select {
+			height: 44px;
 			font-size: 16px;
 		}
 
