@@ -206,6 +206,97 @@
 	</div>
 {/snippet}
 
+{#snippet settings()}
+	<details class="mp-details" open={jumpType === null}>
+		<summary>
+			<span class="mp-section-title">Setup</span>
+			<span class="mp-details-value"
+				>{TIME_SCALES.find((scale) => scale.value === timeScale)?.label} · {jumpTypeLabel ??
+					'Jump type not set'}</span
+			>
+			<svg class="mp-details-chevron" viewBox="0 0 24 24" aria-hidden="true"
+				><path d="m9 6 6 6-6 6" /></svg
+			>
+		</summary>
+		<div class="mp-details-body">
+			<label class="mp-row">
+				<span>Jump type</span>
+				<select
+					class="mp-field mp-select"
+					bind:value={jumpType}
+					aria-describedby={jumpType === null ? 'mp-jump-type-hint' : undefined}
+				>
+					{#if jumpType === null}<option value={null}>Not set</option>{/if}
+					{#each jumpTypeOptions as type (type.value)}<option value={type.value}
+							>{type.label}</option
+						>{/each}
+				</select>
+			</label>
+			<label class="mp-row">
+				<span>Footage</span>
+				<select class="mp-field mp-select" bind:value={timeScale}>
+					{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
+							>{scale.label}</option
+						>{/each}
+				</select>
+			</label>
+			<p class="mp-caption">
+				{#if longestFrameMs > frameMs + 0.05}
+					Precision: ±1 frame = ±{frameMs.toFixed(1)}–{longestFrameMs.toFixed(1)} ms (variable frame rate)
+				{:else}
+					Precision: ±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
+				{/if}{#if slowMotion}
+					· real time ({slowMotion.label.toLowerCase()}){/if}
+			</p>
+			{#if jumpType === null}
+				<p id="mp-jump-type-hint" class="mp-caption warn">
+					Set the jump type to compare like with like.
+				</p>
+			{/if}
+		</div>
+	</details>
+
+	<details class="mp-details">
+		<summary>
+			<span class="mp-section-title">Session</span>
+			<span class="mp-details-value"
+				>{title.trim() || titlePlaceholder}{notes.trim() ? ' · notes' : ''}</span
+			>
+			<svg class="mp-details-chevron" viewBox="0 0 24 24" aria-hidden="true"
+				><path d="m9 6 6 6-6 6" /></svg
+			>
+		</summary>
+		<div class="mp-details-body">
+			<label class="mp-row">
+				<span>Title</span>
+				<input
+					class="mp-field mp-title"
+					bind:value={title}
+					placeholder={titlePlaceholder}
+					spellcheck="false"
+				/>
+			</label>
+			<label class="mp-row">
+				<span>Recorded</span>
+				<input
+					class="mp-field"
+					type="datetime-local"
+					bind:value={() => toLocalInput(recordedAt), fromLocalInput}
+				/>
+			</label>
+			<label class="mp-row">
+				<span>Notes</span>
+				<textarea
+					class="mp-field mp-notes"
+					bind:value={notes}
+					placeholder="Exercise, attempt, how it felt…"
+					rows="2"
+				></textarea>
+			</label>
+		</div>
+	</details>
+{/snippet}
+
 <aside
 	class="marks-panel"
 	class:sheet
@@ -276,13 +367,16 @@
 		<div class="mp-body">
 			{#if bestJump?.flight}
 				<div class="mp-summary">
-					<span class="mp-label">{completedJumps > 1 ? 'Best jump' : 'Jump height'}</span>
-					<p class="mp-hero-value">
-						{bestJump.flight.heightCm?.toFixed(1)}<span class="mp-unit">cm</span><span
-							class="mp-hero-alt">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span
-						>
-					</p>
-					<dl class="mp-stats">
+					<div class="mp-summary-lead">
+						<span class="mp-label">{completedJumps > 1 ? 'Best jump' : 'Jump height'}</span>
+						<p class="mp-hero-value">
+							{bestJump.flight.heightCm?.toFixed(1)}<span class="mp-unit">cm</span><span
+								class="mp-hero-alt">{((bestJump.flight.heightCm ?? 0) / 2.54).toFixed(1)} in</span
+							>
+						</p>
+					</div>
+					<!-- One label/value row per figure, so long labels never wrap their values. -->
+					<dl class="mp-kv">
 						{#if averageHeight !== null}
 							<div>
 								<dt>Average height</dt>
@@ -438,97 +532,13 @@
 					</div>
 				{/if}
 			</section>
-
-			<details class="mp-details" open={jumpType === null}>
-				<summary>
-					<span class="mp-section-title">Setup</span>
-					<span class="mp-details-value"
-						>{TIME_SCALES.find((scale) => scale.value === timeScale)?.label} · {jumpTypeLabel ??
-							'Jump type not set'}</span
-					>
-					<svg class="mp-details-chevron" viewBox="0 0 24 24" aria-hidden="true"
-						><path d="m9 6 6 6-6 6" /></svg
-					>
-				</summary>
-				<div class="mp-details-body">
-					<label class="mp-stack">
-						<span>Jump type</span>
-						<select
-							class="mp-field mp-select"
-							bind:value={jumpType}
-							aria-describedby={jumpType === null ? 'mp-jump-type-hint' : undefined}
-						>
-							{#if jumpType === null}<option value={null}>Not set</option>{/if}
-							{#each jumpTypeOptions as type (type.value)}<option value={type.value}
-									>{type.label}</option
-								>{/each}
-						</select>
-					</label>
-					<label class="mp-stack">
-						<span>Footage</span>
-						<select class="mp-field mp-select" bind:value={timeScale}>
-							{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
-									>{scale.label}</option
-								>{/each}
-						</select>
-					</label>
-					<p class="mp-caption">
-						{#if longestFrameMs > frameMs + 0.05}
-							Precision: ±1 frame = ±{frameMs.toFixed(1)}–{longestFrameMs.toFixed(1)} ms (variable frame
-							rate)
-						{:else}
-							Precision: ±1 frame = ±{frameMs.toFixed(1)} ms at {frameRate.toFixed(2)} fps
-						{/if}{#if slowMotion}
-							· real time ({slowMotion.label.toLowerCase()}){/if}
-					</p>
-					{#if jumpType === null}
-						<p id="mp-jump-type-hint" class="mp-caption warn">
-							Set the jump type to compare like with like.
-						</p>
-					{/if}
-				</div>
-			</details>
-
-			<details class="mp-details">
-				<summary>
-					<span class="mp-section-title">Session</span>
-					<span class="mp-details-value"
-						>{title.trim() || titlePlaceholder}{notes.trim() ? ' · notes' : ''}</span
-					>
-					<svg class="mp-details-chevron" viewBox="0 0 24 24" aria-hidden="true"
-						><path d="m9 6 6 6-6 6" /></svg
-					>
-				</summary>
-				<div class="mp-details-body">
-					<label class="mp-stack">
-						<span>Title</span>
-						<input
-							class="mp-field mp-title"
-							bind:value={title}
-							placeholder={titlePlaceholder}
-							spellcheck="false"
-						/>
-					</label>
-					<label class="mp-stack">
-						<span>Recorded</span>
-						<input
-							class="mp-field"
-							type="datetime-local"
-							bind:value={() => toLocalInput(recordedAt), fromLocalInput}
-						/>
-					</label>
-					<label class="mp-stack">
-						<span>Notes</span>
-						<textarea
-							class="mp-field mp-notes"
-							bind:value={notes}
-							placeholder="Exercise, attempt, how it felt…"
-							rows="2"
-						></textarea>
-					</label>
-				</div>
-			</details>
+			{#if sheet}{@render settings()}{/if}
 		</div>
+		{#if !sheet}
+			<!-- Setup and Session sit in their own region, so opening them never pushes the
+			     results out of view. -->
+			<div class="mp-inspector">{@render settings()}</div>
+		{/if}
 	{/if}
 </aside>
 
@@ -586,6 +596,22 @@
 		scrollbar-color: hsl(var(--at-border-hover)) transparent;
 	}
 
+	/* Setup and Session: a bounded region pinned under the results, one step
+	   lighter, that scrolls on its own when both are open. */
+	.mp-inspector {
+		flex: 0 1 auto;
+		max-height: 52%;
+		border-top: 1px solid hsl(var(--at-border));
+		background: hsl(var(--at-popover));
+		overflow-y: auto;
+		scrollbar-width: thin;
+		scrollbar-color: hsl(var(--at-border-hover)) transparent;
+	}
+
+	.mp-inspector .mp-details:first-child {
+		border-top: none;
+	}
+
 	/* Headline numbers */
 
 	.mp-label {
@@ -612,8 +638,7 @@
 	.mp-summary {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
-		padding: 14px 16px 4px;
+		padding: 14px 16px 8px;
 	}
 
 	.sheet .mp-hero-value {
@@ -628,54 +653,58 @@
 		letter-spacing: 0;
 	}
 
-	.mp-stats {
-		display: grid;
-		grid-auto-columns: minmax(0, 1fr);
-		grid-auto-flow: column;
-		margin: 10px 0 6px;
-		padding: 10px 0;
-		border-block: 1px solid hsl(var(--at-border));
+	.mp-summary-lead {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 12px;
+		padding-bottom: 8px;
 	}
 
-	.mp-stats > div {
+	/* Figures as an inspector's property list: label left, value in the right column. */
+	.mp-kv {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
-		min-width: 0;
+		margin: 0;
+		border-top: 1px solid hsl(var(--at-border));
 	}
 
-	.mp-stats > div + div {
-		padding-left: 12px;
-		border-left: 1px solid hsl(var(--at-border));
+	.mp-kv > div {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 12px;
+		min-height: 30px;
+		padding: 7px 0 0;
 	}
 
-	.mp-stats dt {
-		color: hsl(var(--at-fg-muted));
+	.mp-kv dt {
+		color: hsl(var(--at-fg-secondary));
 		font-size: 12px;
 	}
 
-	.mp-stats dd {
+	.mp-kv dd {
+		display: flex;
+		align-items: baseline;
 		margin: 0;
 		color: hsl(var(--at-fg));
-		font-size: 16px;
+		font-size: 13px;
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
-		letter-spacing: -0.015em;
 	}
 
-	.mp-stats dd small {
-		display: block;
+	.mp-kv dd small {
+		margin-right: 8px;
 		color: hsl(var(--at-fg-muted));
 		font-size: 11px;
 		font-weight: 400;
-		letter-spacing: 0;
 	}
 
-	.mp-stats .mp-unit {
-		font-size: 12px;
+	.mp-kv .mp-unit {
+		font-size: 11px;
 	}
 
-	.mp-stats .muted dd {
+	.mp-kv .muted dd {
 		color: hsl(var(--at-fg-muted));
 	}
 
@@ -779,7 +808,7 @@
 	}
 
 	.mp-summary + .mp-section {
-		margin-top: 12px;
+		margin-top: 4px;
 	}
 
 	.mp-section-head {
@@ -827,11 +856,11 @@
 
 	.mp-field {
 		width: 100%;
-		height: 32px;
-		padding: 0 10px;
-		border: 1px solid hsl(var(--at-border-hover) / 0.8);
-		border-radius: var(--at-radius);
-		background: hsl(var(--at-surface));
+		height: 28px;
+		padding: 0 8px;
+		border: 1px solid hsl(var(--at-fg) / 0.08);
+		border-radius: var(--at-radius-sm);
+		background: hsl(var(--at-fg) / 0.035);
 		color: hsl(var(--at-fg));
 		font: inherit;
 		font-size: 13px;
@@ -842,7 +871,7 @@
 	}
 
 	.mp-field:hover {
-		border-color: hsl(var(--at-fg) / 0.22);
+		border-color: hsl(var(--at-fg) / 0.16);
 	}
 
 	.mp-field:focus {
@@ -874,13 +903,13 @@
 	}
 
 	.mp-title {
-		font-weight: 600;
+		font-weight: 500;
 	}
 
 	.mp-notes {
 		height: auto;
-		min-height: 64px;
-		padding: 8px 10px;
+		min-height: 56px;
+		padding: 6px 8px;
 		resize: vertical;
 		line-height: 1.45;
 	}
@@ -929,13 +958,23 @@
 		font-size: 12px;
 	}
 
-	.mp-stack {
-		display: flex;
-		flex-direction: column;
-		gap: 5px;
+	/* Label left, control right, as an inspector's property rows. */
+	.mp-row {
+		display: grid;
+		grid-template-columns: 72px minmax(0, 1fr);
+		align-items: center;
+		gap: 10px;
 		min-width: 0;
 		color: hsl(var(--at-fg-muted));
 		font-size: 12px;
+	}
+
+	.mp-row:has(textarea) {
+		align-items: start;
+	}
+
+	.mp-row:has(textarea) > span {
+		padding-top: 6px;
 	}
 
 	kbd {
@@ -963,20 +1002,19 @@
 	}
 
 	.mp-jump {
-		padding: 4px 0 6px;
+		padding: 0 0 8px;
 	}
 
-	.mp-jump + .mp-jump {
-		padding-top: 8px;
-		border-top: 1px solid hsl(var(--at-border));
-	}
-
+	/* Each jump opens with a full-width header strip, as a file does in a diff. */
 	.mp-jump-head {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		margin: 0;
-		padding: 6px 8px 4px;
+		min-height: 34px;
+		margin: 0 -8px 4px;
+		padding: 0 16px;
+		border-block: 1px solid hsl(var(--at-border));
+		background: hsl(var(--at-fg) / 0.025);
 		font-size: 13px;
 		font-weight: 600;
 	}
