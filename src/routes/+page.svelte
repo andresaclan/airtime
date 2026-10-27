@@ -84,7 +84,6 @@
 	let playbackRate = $state(1);
 	let volume = $state(1);
 	let isMuted = $state(false);
-	let isScrubbing = $state(false);
 	let fileInputRef: HTMLInputElement | null = $state(null);
 	let isDragging = $state(false);
 	let mediaError = $state(false);
@@ -180,8 +179,6 @@
 
 	// Zoom state
 	let zoomLevel = $state(1);
-	let videoViewerRef: { resetZoom: () => void; zoomIn: () => void; zoomOut: () => void } | null =
-		$state(null);
 	let activeVideoLoadId = $state(0);
 
 	$effect(() => {
@@ -979,7 +976,6 @@
 			<div class="viewer-column">
 				<div class="viewer-frame" class:landscape={fitLandscape}>
 					<VideoViewer
-						bind:this={videoViewerRef}
 						bind:videoElement
 						{videoSrc}
 						{videoFile}
@@ -1047,7 +1043,6 @@
 								{marks}
 								intervals={analysis.intervals}
 								activeMarkId={activeMark?.id ?? null}
-								bind:isScrubbing
 							/>
 
 							<div class="control-toolbar">

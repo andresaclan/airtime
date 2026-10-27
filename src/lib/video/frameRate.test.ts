@@ -3,7 +3,6 @@ import { describe, expect, test } from 'vitest';
 import {
 	analyzeFrameTimestamps,
 	buildFrameTimestamps,
-	detectSourceFrameRateFromFile,
 	detectSourceTimingFromFile,
 	estimatePlaybackFrameRate,
 	parseSampleTables,
@@ -413,7 +412,6 @@ describe('reading files', () => {
 	test('reads a fixture file', async () => {
 		const file = new File([fixture('ntsc-ts600.mov')], 'ntsc.MOV');
 		expect((await detectSourceTimingFromFile(file))?.fps).toBe(29.97);
-		expect(await detectSourceFrameRateFromFile(file)).toBe(29.97);
 	});
 
 	// Before: files over 512 MB weren't parsed at all, and smaller ones were read whole.
@@ -427,7 +425,7 @@ describe('reading files', () => {
 			[head.length, mdat],
 			[size - tail.length, tail]
 		]);
-		expect(await detectSourceFrameRateFromFile(blob)).toBe(120);
+		expect((await detectSourceTimingFromFile(blob))?.fps).toBe(120);
 		expect(reads.reduce((sum, read) => sum + read, 0)).toBeLessThan(64 * 1024);
 	});
 

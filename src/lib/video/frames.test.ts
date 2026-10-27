@@ -12,11 +12,10 @@ import {
 	frameStartTime,
 	lastFrameIndex,
 	markFrameStart,
-	snapToFrameStart,
 	type FrameTiming
 } from './frames';
 import { analyzeMarks, frameOf, markAtFrame, placeMark, type Mark } from './marks';
-import { formatTimecode } from './timecode';
+import { formatFrameClock } from './timecode';
 // What ffprobe reports for each fixture; see fixtures/README.md.
 import ffprobe from './fixtures/ffprobe.json';
 
@@ -128,21 +127,17 @@ describe('edge cases', () => {
 		expect(frameSeekTime(-2, 60)).toBe(0.5 / 60);
 	});
 
-	test('snapToFrameStart is idempotent', () => {
-		const once = snapToFrameStart(1.2345, 59.94);
-		expect(snapToFrameStart(once, 59.94)).toBe(once);
-	});
-
 	test('frames 1000s into a 240 fps clip still round-trip', () => {
 		const k = 240 * 1000 + 17;
 		expect(frameAt(frameStartTime(k, 240), 240)).toBe(k);
 		expect(frameAt(frameSeekTime(k, 240), 240)).toBe(k);
 	});
 
-	test('the timecode readout shows the frame on screen, not the next one', () => {
-		expect(formatTimecode((5 + 0.5) / 60, 60)).toBe('00:00:00:05');
-		expect(formatTimecode((5 + 0.9) / 60, 60)).toBe('00:00:00:05');
-		expect(formatTimecode(1, 60)).toBe('00:00:01:00');
+	test('the clock readout shows the frame on screen, not the next one', () => {
+		const readout = (time: number) => formatFrameClock(frameLabel(frameAt(time, 60), 60), 60);
+		expect(readout((5 + 0.5) / 60)).toBe('0:00.083');
+		expect(readout((5 + 0.9) / 60)).toBe('0:00.083');
+		expect(readout(1)).toBe('0:01.000');
 	});
 });
 
@@ -270,7 +265,9 @@ describe.each(FIXTURES)('%s with its timing table', (name) => {
 
 	test('the first frame is labelled 0', () => {
 		expect(frameLabel(0, timing)).toBe(0);
-		expect(formatTimecode(times[0], timing)).toMatch(/^00:00:00[:;]000?$/);
+		expect(formatFrameClock(frameLabel(frameAt(times[0], timing), timing), timing)).toBe(
+			'0:00.000'
+		);
 	});
 });
 
@@ -285,10 +282,10 @@ describe('variable frame rate: vfr-dropped.mp4 (frames 5-7 of 30 fps dropped)', 
 		expect(frameSeekTime(4, timing)).toBeCloseTo(6 / 30, 9);
 	});
 
-	test('timecodes follow real time and skip the dropped frames', () => {
+	test('clock readouts follow real time and skip the dropped frames', () => {
 		expect(frameLabel(4, timing)).toBe(4);
 		expect(frameLabel(5, timing)).toBe(8);
-		expect(formatTimecode(frameSeekTime(5, timing), timing)).toBe('00:00:00:08');
+		expect(formatFrameClock(frameLabel(5, timing), timing)).toBe('0:00.267');
 	});
 
 	test('the frame range covers the gap', () => {

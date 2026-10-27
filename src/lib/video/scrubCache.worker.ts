@@ -16,8 +16,6 @@ export type WorkerResponse =
 	| {
 			type: 'start';
 			frameCount: number;
-			width: number;
-			height: number;
 			config: VideoDecoderConfig;
 	  }
 	| { type: 'frame'; frame: number; data: ArrayBuffer }
@@ -159,8 +157,6 @@ async function build(file: Blob, maxBytes: number) {
 			post({
 				type: 'start',
 				frameCount: track.frameCount,
-				width,
-				height,
 				config: { ...metadata!.decoderConfig!, optimizeForLatency: true }
 			});
 		}
