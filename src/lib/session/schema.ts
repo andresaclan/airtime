@@ -9,17 +9,21 @@ export const SCHEMA_VERSION = 4;
  */
 export type FrameRateSource = 'container' | 'playback-estimate' | 'default';
 
-export type JumpType = 'countermovement' | 'approach' | 'squat' | 'drop' | 'rebound';
+export type JumpType = 'approach' | 'drop' | 'rebound' | 'countermovement' | 'squat';
 
-export const JUMP_TYPES: readonly { value: JumpType; label: string }[] = [
-	{ value: 'countermovement', label: 'Countermovement' },
+/**
+ * In menu order. Retired types are no longer offered, but sessions saved with one keep it,
+ * so they stay readable. `rebound` is stored under its old name.
+ */
+export const JUMP_TYPES: readonly { value: JumpType; label: string; retired?: true }[] = [
 	{ value: 'approach', label: 'Approach' },
-	{ value: 'squat', label: 'Squat' },
-	{ value: 'drop', label: 'Drop' },
-	{ value: 'rebound', label: 'Rebound' }
+	{ value: 'drop', label: 'Drop jump' },
+	{ value: 'rebound', label: 'Repeat hops' },
+	{ value: 'countermovement', label: 'Countermovement', retired: true },
+	{ value: 'squat', label: 'Squat', retired: true }
 ];
 
-export const DEFAULT_JUMP_TYPE: JumpType = 'countermovement';
+export const DEFAULT_JUMP_TYPE: JumpType = 'approach';
 
 /**
  * Contact time and RSI only mean something for these; for other types they're just numbers.

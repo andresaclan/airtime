@@ -100,13 +100,17 @@
 	let outOfSequenceMarks = $derived(
 		grouped.unpairedMarks.filter((mark) => analysis.outOfSequence.has(mark.id))
 	);
-	// Contact and RSI are only meaningful for approach, drop and rebound jumps. An unset type says nothing.
+	// Contact and RSI are only meaningful for approach jumps, drop jumps and repeat hops. An unset type says nothing.
 	let contactApplies = $derived(jumpType === null || hasMeaningfulContact(jumpType));
 	let jumpTypeLabel = $derived(JUMP_TYPES.find((type) => type.value === jumpType)?.label);
+	// A retired type only shows on a session that already has it.
+	let jumpTypeOptions = $derived(
+		JUMP_TYPES.filter((type) => !type.retired || type.value === jumpType)
+	);
 	let completedJumps = $derived(grouped.jumps.filter((jump) => jump.flight).length);
 
 	let bestRsi = $derived(bestJump && contactApplies ? rsi(bestJump) : undefined);
-	// Contact only means something for approach, drop and rebound jumps; there it gets a summary slot.
+	// Contact only means something for approach jumps, drop jumps and repeat hops; there it gets a summary slot.
 	let contactMatters = $derived(jumpType !== null && hasMeaningfulContact(jumpType));
 	function mean(values: (number | undefined)[]): number | null {
 		const present = values.filter((value) => value !== undefined);
@@ -439,14 +443,6 @@
 				</summary>
 				<div class="mp-details-body">
 					<label class="mp-stack">
-						<span>Footage</span>
-						<select class="mp-field mp-select" bind:value={timeScale}>
-							{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
-									>{scale.label}</option
-								>{/each}
-						</select>
-					</label>
-					<label class="mp-stack">
 						<span>Jump type</span>
 						<select
 							class="mp-field mp-select"
@@ -454,7 +450,16 @@
 							aria-describedby={jumpType === null ? 'mp-jump-type-hint' : undefined}
 						>
 							{#if jumpType === null}<option value={null}>Not set</option>{/if}
-							{#each JUMP_TYPES as type (type.value)}<option value={type.value}>{type.label}</option
+							{#each jumpTypeOptions as type (type.value)}<option value={type.value}
+									>{type.label}</option
+								>{/each}
+						</select>
+					</label>
+					<label class="mp-stack">
+						<span>Footage</span>
+						<select class="mp-field mp-select" bind:value={timeScale}>
+							{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
+									>{scale.label}</option
 								>{/each}
 						</select>
 					</label>

@@ -49,33 +49,34 @@ The time from a takeoff to the next landing.
 _Avoid_: Air time, hang time
 
 **Contact**:
-The time from a landing to the next takeoff, while the feet are on the ground. It only means something for approach, drop and rebound jumps.
+The time from a landing to the next takeoff, while the feet are on the ground. It only means something for approach jumps, drop jumps and repeat hops.
 _Avoid_: Ground time
 
 **Jump height**:
 How high the athlete rose, estimated from flight time on the assumption that they took off and landed in the same position.
 
 **RSI**:
-Reactive strength index: a jump's height divided by the contact before it. Only jumps with a contact have one, and it only means something for approach, drop and rebound jumps.
+Reactive strength index: a jump's height divided by the contact before it. Only jumps with a contact have one, and it only means something for approach jumps, drop jumps and repeat hops.
 
 **Jump type**:
-What kind of jump a session holds: countermovement, approach, squat, drop or rebound. A session has one jump type, so later comparisons set like against like. A session saved before jump types existed has none until the athlete sets one.
+What kind of jump a session holds: approach, drop jump or repeat hops. Sessions saved earlier may be countermovement or squat jumps, which are no longer offered. A session has one jump type, so later comparisons set like against like. A session saved before jump types existed has none until the athlete sets one.
 _Avoid_: Drill, exercise
 
-**Countermovement jump**:
-A jump that starts standing, dips down, then drives straight up. The default jump type for a new session.
-
 **Approach jump**:
-A jump taken at the end of a run-up, as in volleyball or basketball. Its contact is the plant step: the last landing before takeoff.
-
-**Squat jump**:
-A jump that starts from a held squat, with no dip beforehand.
+A jump taken at the end of a run-up, as in volleyball or basketball. Its contact is the plant step: the last landing before takeoff. The default jump type for a new session.
 
 **Drop jump**:
 A jump that starts by stepping off a box, landing, and jumping again straight away.
 
-**Rebound jump**:
-One of several jumps in a row, each aiming for as little ground contact as possible before the next.
+**Repeat hops**:
+Several jumps in a row, each aiming for as little ground contact as possible before the next. Stored as `rebound`.
+_Avoid_: Rebound jump
+
+**Countermovement jump**:
+A jump that starts standing, dips down, then drives straight up. No longer offered.
+
+**Squat jump**:
+A jump that starts from a held squat, with no dip beforehand. No longer offered.
 
 **Best jump**:
 The jump with the greatest jump height in a session.

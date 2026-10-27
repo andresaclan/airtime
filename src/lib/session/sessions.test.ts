@@ -11,7 +11,13 @@ import {
 	lastBackupAt,
 	needsBackup
 } from './backup';
-import { hasMeaningfulContact, SCHEMA_VERSION, type Session } from './schema';
+import {
+	DEFAULT_JUMP_TYPE,
+	hasMeaningfulContact,
+	JUMP_TYPES,
+	SCHEMA_VERSION,
+	type Session
+} from './schema';
 import type { Mark, MarkType } from '$lib/video/marks';
 // A real export from schema v1, frozen. Never regenerate it: it stands in for the backups
 // users already have, which every future version must still import.
@@ -292,6 +298,22 @@ describe('jump type', () => {
 				hasMeaningfulContact
 			)
 		).toEqual([false, true, false, true, true, false]);
+	});
+
+	test('the menu offers approach, drop jump and repeat hops, in that order', () => {
+		expect(JUMP_TYPES.filter((type) => !type.retired).map((type) => type.label)).toEqual([
+			'Approach',
+			'Drop jump',
+			'Repeat hops'
+		]);
+		expect(DEFAULT_JUMP_TYPE).toBe('approach');
+	});
+
+	test('sessions with a retired type still import and keep it', () => {
+		const types = parseImport(v3Text).map((session) => session.jumpType);
+		expect(types).toEqual(['countermovement', 'countermovement', 'countermovement']);
+		const squat = { ...parseImport(v3Text)[0], jumpType: 'squat' as const };
+		expect(parseImport(JSON.stringify(buildExport([squat])))[0].jumpType).toBe('squat');
 	});
 
 	test('a v3 session set to approach survives an export and import', () => {
