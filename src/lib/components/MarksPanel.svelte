@@ -685,6 +685,7 @@
 	.mp-chip-select {
 		flex: 0 1 auto;
 		min-width: 0;
+		field-sizing: content;
 		appearance: none;
 		height: 28px;
 		padding: 0 26px 0 10px;
@@ -710,9 +711,14 @@
 		box-shadow: 0 0 0 3px hsl(var(--at-accent) / 0.2);
 	}
 
+	/* The precision is a stat in its own trailing slot, like the counts in T3's diff
+	   toolbar. */
 	.mp-precision {
 		flex: 0 0 auto;
 		margin-left: auto;
+		padding: 3px 7px;
+		border-radius: 6px;
+		background: hsl(var(--at-fg) / 0.05);
 		color: hsl(var(--at-fg-muted));
 		font-family: var(--at-font-mono);
 		font-size: 11px;

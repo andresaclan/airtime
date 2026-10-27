@@ -193,9 +193,6 @@
 						{#each sessions as session (session.id)}
 							{@const height = bestHeight(session)}
 							<li class="session-row" class:current={session.id === currentSessionId}>
-								<div class="session-height" class:none={height === null}>
-									{#if height !== null}{height.toFixed(1)}<small>cm</small>{:else}—{/if}
-								</div>
 								<div class="session-info">
 									<span class="session-name">
 										<span class="session-title">{session.title}</span>
@@ -208,6 +205,9 @@
 											? ''
 											: 's'} · {session.media.fileName}
 									</span>
+								</div>
+								<div class="session-height" class:none={height === null}>
+									{#if height !== null}{height.toFixed(1)}<small>cm</small>{:else}—{/if}
 								</div>
 								<div class="session-actions">
 									{#if session.id !== currentSessionId}
@@ -556,21 +556,20 @@
 		}
 	}
 
+	/* The title leads; the session's best height is a supporting value at the right. */
 	.session-height {
-		flex: 0 0 64px;
-		color: hsl(var(--at-fg));
-		font-size: 16px;
-		font-weight: 600;
+		flex: 0 0 auto;
+		color: hsl(var(--at-fg-secondary));
+		font-family: var(--at-font-mono);
+		font-size: 12px;
+		font-weight: 500;
 		font-variant-numeric: tabular-nums;
-		letter-spacing: -0.02em;
 	}
 
 	.session-height small {
-		margin-left: 2px;
+		margin-left: 3px;
 		color: hsl(var(--at-fg-muted));
 		font-size: 11px;
-		font-weight: 500;
-		letter-spacing: 0;
 	}
 
 	.session-height.none {
