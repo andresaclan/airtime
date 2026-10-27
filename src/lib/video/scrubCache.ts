@@ -15,8 +15,6 @@ const MAX_BYTES = 160 * 1024 * 1024;
 
 export class ScrubCache {
 	frameCount = 0;
-	width = 0;
-	height = 0;
 	private frames: (ArrayBuffer | undefined)[] = [];
 	private worker: Worker;
 	private decoder: VideoDecoder | null = null;
@@ -58,8 +56,6 @@ export class ScrubCache {
 		switch (message.type) {
 			case 'start':
 				this.frameCount = message.frameCount;
-				this.width = message.width;
-				this.height = message.height;
 				this.frames = new Array(message.frameCount);
 				this.decoder = new VideoDecoder({
 					output: (image) => this.drawn(image),

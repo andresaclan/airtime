@@ -1,8 +1,5 @@
 @import 'tailwindcss';
 
-/* Dark mode variant */
-@custom-variant dark (&:where(.dark, .dark *));
-
 /* ========================================
    Design Tokens
    ======================================== */
@@ -32,7 +29,6 @@
 	--at-accent: 217 72% 53%;
 	--at-accent-hover: 217 80% 60%;
 	--at-accent-fg: 217 90% 84%;
-	--at-on-accent: 0 0% 100%;
 
 	/* Semantic Colors */
 	--at-success: 160 84% 45%;
@@ -186,13 +182,6 @@ body {
 	font:
 		600 10px/1 var(--at-font-mono),
 		monospace;
-}
-
-.btn-dot {
-	width: 6px;
-	height: 6px;
-	border-radius: 50%;
-	background: hsl(var(--at-warning));
 }
 
 /* ========================================

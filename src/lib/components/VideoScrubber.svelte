@@ -14,13 +14,9 @@
 		duration: number;
 		timing: FrameTiming;
 		videoElement: HTMLVideoElement | null;
-		isScrubbing?: boolean;
 		marks?: Mark[];
 		intervals?: Interval[];
 		activeMarkId?: string | null;
-		onScrubStart?: () => void;
-		onScrubEnd?: () => void;
-		onSeek?: (time: number) => void;
 	}
 
 	let {
@@ -28,13 +24,9 @@
 		duration,
 		timing,
 		videoElement,
-		isScrubbing = $bindable(false),
 		marks = [],
 		intervals = [],
-		activeMarkId = null,
-		onScrubStart,
-		onScrubEnd,
-		onSeek
+		activeMarkId = null
 	}: Props = $props();
 
 	let wasPlayingBeforeScrub = $state(false);
@@ -112,7 +104,6 @@
 		event.preventDefault();
 		containerRef.setPointerCapture(event.pointerId);
 
-		isScrubbing = true;
 		isDragging = true;
 		wasPlayingBeforeScrub = isWatching(videoElement);
 
@@ -127,8 +118,6 @@
 			? frameSeek(frameOf(mark.time, timing))
 			: getTimeFromPosition(event.clientX);
 		seek(videoElement, newTime, timing);
-		onScrubStart?.();
-		onSeek?.(newTime);
 	}
 
 	function handlePointerMove(event: PointerEvent) {
@@ -140,7 +129,6 @@
 
 		const newTime = getTimeFromPosition(event.clientX);
 		seek(videoElement, newTime, timing);
-		onSeek?.(newTime);
 	}
 
 	function handlePointerUp(event: PointerEvent) {
@@ -151,22 +139,18 @@
 		}
 		isDragging = false;
 		markPressX = null;
-		isScrubbing = false;
 
 		if (wasPlayingBeforeScrub && videoElement) {
 			void videoElement.play().catch(() => {
 				console.warn('Unable to resume video playback after scrubbing');
 			});
 		}
-
-		onScrubEnd?.();
 	}
 
 	function seekToFrame(frame: number) {
 		if (!videoElement || duration <= 0) return;
 		const nextTime = frameSeek(frame);
 		seek(videoElement, nextTime, timing);
-		onSeek?.(nextTime);
 	}
 
 	function handleKeyDown(event: KeyboardEvent) {
