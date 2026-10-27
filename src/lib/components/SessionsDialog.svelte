@@ -219,9 +219,7 @@
 											Open…
 										</button>
 									{/if}
-									<button class="secondary-btn small" onclick={() => downloadExport([session])}
-										>Export</button
-									>
+									<button class="text-btn" onclick={() => downloadExport([session])}>Export</button>
 									<span class="action-divider" aria-hidden="true"></span>
 									<button
 										class="icon-btn danger"
@@ -531,10 +529,10 @@
 			monospace;
 	}
 
+	/* Flat rows split by hairlines; the Current badge marks the open session. */
 	.sessions-list {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
 		margin: 0 -12px;
 		list-style: none;
 	}
@@ -544,14 +542,18 @@
 		align-items: center;
 		gap: 14px;
 		padding: 8px 8px 8px 12px;
-		border-radius: 10px;
-		transition:
-			background 120ms ease,
-			border-color 120ms ease;
+		border-radius: 8px;
+		transition: background 120ms ease;
 	}
 
-	.session-row.current {
-		background: hsl(var(--at-fg) / 0.05);
+	.session-row + .session-row {
+		box-shadow: 0 -1px 0 hsl(var(--at-border));
+	}
+
+	@media (hover: hover) {
+		.session-row:hover {
+			background: hsl(var(--at-fg) / 0.035);
+		}
 	}
 
 	.session-height {
@@ -658,12 +660,6 @@
 		font-size: 13px;
 		font-weight: 500;
 		cursor: pointer;
-	}
-
-	.secondary-btn.small {
-		height: 28px;
-		padding: 0 10px;
-		font-size: 12px;
 	}
 
 	.action-divider {

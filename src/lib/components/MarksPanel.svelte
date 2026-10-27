@@ -1022,8 +1022,10 @@
 		}
 	}
 
+	/* Selected: a quiet surface with the mark's colour as a thin edge. */
 	.mp-mark.active {
-		background: color-mix(in srgb, var(--mark-color) 10%, transparent);
+		background: hsl(var(--at-fg) / 0.05);
+		box-shadow: inset 2px 0 0 var(--mark-color);
 	}
 
 	.mp-mark.active .mp-mark-type {
@@ -1305,6 +1307,15 @@
 		margin: 0 -8px -8px;
 		border-width: 1px 0 0;
 		border-radius: 14px 14px 0 0;
+	}
+
+	/* Collapsed, the sheet rests on the bottom edge like a pulled-down sheet,
+	   instead of floating under the controls. */
+	.marks-panel.sheet.collapsed {
+		margin: auto -8px -8px;
+		border-width: 1px 0 0;
+		border-radius: 14px 14px 0 0;
+		padding-bottom: env(safe-area-inset-bottom);
 	}
 
 	.sheet .mp-summary,

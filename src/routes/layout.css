@@ -1145,23 +1145,9 @@ body {
 	}
 }
 
-@media (max-width: 640px) {
-	.app-header {
-		height: 48px;
-		gap: 10px;
-		padding: 0 10px 0 14px;
-	}
-	/* Phones: Save stays; Open video, Sessions and Shortcuts fold into the More
-	   menu, which leaves room for the file name and its save state. */
-	.header-wide,
-	.header-divider,
-	.header-analysis,
-	.header-status-detail {
-		display: none;
-	}
-	.header-more {
-		display: inline-flex;
-	}
+/* Phones, upright or sideways: the logo stands in for "Airtime /", so the file
+   name gets the room. */
+@media (max-width: 640px), (max-height: 500px) {
 	.app-header:has(.header-file) .brand-name {
 		display: none;
 	}
@@ -1188,6 +1174,25 @@ body {
 		flex: 0 0 8px;
 		width: 8px;
 		height: 8px;
+	}
+}
+
+@media (max-width: 640px) {
+	.app-header {
+		height: 48px;
+		gap: 10px;
+		padding: 0 10px 0 14px;
+	}
+	/* Phones: Save stays; Open video, Sessions and Shortcuts fold into the More
+	   menu, which leaves room for the file name and its save state. */
+	.header-wide,
+	.header-divider,
+	.header-analysis,
+	.header-status-detail {
+		display: none;
+	}
+	.header-more {
+		display: inline-flex;
 	}
 	.app-header .btn-primary,
 	.app-header .btn-secondary {

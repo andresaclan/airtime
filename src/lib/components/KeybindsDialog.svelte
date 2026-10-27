@@ -250,12 +250,7 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 16px;
-		min-height: 36px;
-		border-bottom: 1px solid hsl(var(--at-border) / 0.7);
-	}
-
-	.bind-row:last-child {
-		border-bottom: none;
+		min-height: 32px;
 	}
 
 	.bind-row dt {
