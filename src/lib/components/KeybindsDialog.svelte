@@ -247,7 +247,7 @@
 		margin: 0;
 		border: 1px solid hsl(var(--at-border));
 		border-radius: 10px;
-		background: hsl(var(--at-fg) / 0.02);
+		background: hsl(var(--at-bg) / 0.6);
 		overflow: hidden;
 	}
 

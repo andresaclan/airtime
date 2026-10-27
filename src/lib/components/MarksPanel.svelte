@@ -725,6 +725,16 @@
 		.mp-chip-select {
 			padding: 0 28px 0 12px;
 		}
+
+		/* Beside the video (a phone held sideways) the two selects share one row. */
+		.marks-panel:not(.sheet) .mp-toolbar {
+			flex-wrap: nowrap;
+		}
+
+		.marks-panel:not(.sheet) .mp-chip-select {
+			flex: 1 1 0;
+			padding: 0 24px 0 10px;
+		}
 	}
 
 	.mp-toolbar-hint {
@@ -738,9 +748,17 @@
 		padding: 4px 16px 16px;
 	}
 
+	/* Labels read as control labels and line up with the first line of their field. */
 	.mp-fields .mp-row {
 		grid-template-columns: 84px minmax(0, 1fr);
+		align-items: start;
 		padding: 10px 0;
+	}
+
+	.mp-fields .mp-row > span {
+		padding-top: 5px;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 13px;
 	}
 
 	.mp-fields .mp-row + .mp-row {
@@ -1373,6 +1391,11 @@
 		.mp-field {
 			height: 40px;
 			font-size: 16px;
+		}
+
+		.mp-fields .mp-row > span {
+			padding-top: 11px;
+			font-size: 14px;
 		}
 
 		.mp-chip-select {
