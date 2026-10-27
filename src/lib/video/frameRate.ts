@@ -473,7 +473,3 @@ export async function detectSourceTimingFromFile(file: Blob): Promise<VideoTimin
 		return null;
 	}
 }
-
-export async function detectSourceFrameRateFromFile(file: Blob): Promise<number | null> {
-	return (await detectSourceTimingFromFile(file))?.fps ?? null;
-}

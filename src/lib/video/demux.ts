@@ -29,8 +29,6 @@ export type VideoSample = {
 	size: number;
 	/** A sync sample: decoding can start here. */
 	key: boolean;
-	/** Decode time in media ticks. */
-	dts: number;
 	/** Composition (presentation) time in media ticks. */
 	cts: number;
 	/** The frame this sample shows (an index into the frame table), or -1 when it doesn't play. */
@@ -234,24 +232,14 @@ export function parseVideoTrack(bytes: ArrayBuffer): VideoTrack | null {
 		ticks.forEach((tick, frame) => frameOfTicks.set(tick, frame));
 
 		const samples: VideoSample[] = [];
-		let dts = 0;
-		let sttsRun = 0;
-		let sttsLeft = stts[0].count;
 		for (let i = 0; i < sizes.length; i += 1) {
 			samples.push({
 				offset: offsets[i],
 				size: sizes[i],
 				key: sync ? sync.has(i + 1) : true,
-				dts,
 				cts: cts[i],
 				frame: frameOfTicks.get(cts[i]) ?? -1
 			});
-			while (sttsLeft === 0 && sttsRun < stts.length - 1) {
-				sttsRun += 1;
-				sttsLeft = stts[sttsRun].count;
-			}
-			dts += stts[sttsRun].delta;
-			sttsLeft -= 1;
 		}
 		return {
 			codec: entry.codec,

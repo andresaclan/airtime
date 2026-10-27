@@ -19,12 +19,6 @@
 		videoElement: HTMLVideoElement | null;
 		playbackRate?: number;
 		onCyclePlaybackRate?: () => void;
-		onPlay?: () => void;
-		onPause?: () => void;
-		onFrameForward?: (time: number) => void;
-		onFrameBack?: (time: number) => void;
-		onVolumeChange?: (volume: number) => void;
-		onMutedChange?: (muted: boolean) => void;
 	}
 
 	let {
@@ -36,13 +30,7 @@
 		isMuted = $bindable(false),
 		videoElement,
 		playbackRate = 1,
-		onCyclePlaybackRate,
-		onPlay,
-		onPause,
-		onFrameForward,
-		onFrameBack,
-		onVolumeChange,
-		onMutedChange
+		onCyclePlaybackRate
 	}: Props = $props();
 
 	let volumeBeforeMute = $state(1);
@@ -51,12 +39,8 @@
 		if (!videoElement) return;
 		if (isPlaying) {
 			videoElement.pause();
-			onPause?.();
 		} else {
-			void videoElement
-				.play()
-				.then(() => onPlay?.())
-				.catch(() => onPause?.());
+			void videoElement.play().catch(() => {});
 		}
 	}
 
@@ -147,7 +131,6 @@
 		videoElement.pause();
 		const newTime = getSteppedTime(1);
 		seek(videoElement, newTime, timing);
-		onFrameForward?.(newTime);
 	}
 
 	function stepFrameBack() {
@@ -155,7 +138,6 @@
 		videoElement.pause();
 		const newTime = getSteppedTime(-1);
 		seek(videoElement, newTime, timing);
-		onFrameBack?.(newTime);
 	}
 
 	function toggleMute() {
@@ -170,7 +152,6 @@
 			isMuted = true;
 			videoElement.muted = true;
 		}
-		onMutedChange?.(isMuted);
 	}
 
 	function handleVolumeInput(event: Event) {
@@ -186,8 +167,6 @@
 		if (clampedVolume > 0) {
 			volumeBeforeMute = clampedVolume;
 		}
-		onVolumeChange?.(clampedVolume);
-		onMutedChange?.(nextMuted);
 	}
 
 	function handleKeyDown(event: KeyboardEvent) {
@@ -222,7 +201,6 @@
 					isMuted = false;
 					videoElement.muted = false;
 				}
-				onVolumeChange?.(newVolume);
 			}
 		} else if (event.key === 'ArrowDown' && !event.shiftKey) {
 			event.preventDefault();
@@ -234,7 +212,6 @@
 					isMuted = true;
 					videoElement.muted = true;
 				}
-				onVolumeChange?.(newVolume);
 			}
 		}
 	}

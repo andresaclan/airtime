@@ -36,13 +36,8 @@
 		isMuted: boolean;
 		zoomLevel?: number;
 		playbackRate?: number;
-		onTimeUpdate?: (time: number) => void;
 		onDurationChange?: (duration: number) => void;
-		onPlayStateChange?: (playing: boolean) => void;
 		onFrameRateDetected?: (fps: number) => void;
-		onVolumeChange?: (volume: number) => void;
-		onMutedChange?: (muted: boolean) => void;
-		onZoomChange?: (zoom: number) => void;
 		onError?: () => void;
 	}
 
@@ -61,13 +56,8 @@
 		isMuted = $bindable(false),
 		zoomLevel = $bindable(1),
 		playbackRate = 1,
-		onTimeUpdate,
 		onDurationChange,
-		onPlayStateChange,
 		onFrameRateDetected,
-		onVolumeChange,
-		onMutedChange,
-		onZoomChange,
 		onError
 	}: Props = $props();
 
@@ -76,7 +66,6 @@
 	// Zoom and pan state
 	const MIN_ZOOM = 1;
 	const MAX_ZOOM = 5;
-	const ZOOM_STEP = 0.25;
 	const WHEEL_ZOOM_SENSITIVITY = 0.001;
 	const PINCH_ZOOM_SENSITIVITY = 0.7;
 
@@ -117,7 +106,6 @@
 	function handleTimeUpdate() {
 		if (videoElement) {
 			currentTime = targetTime(videoElement);
-			onTimeUpdate?.(currentTime);
 		}
 	}
 
@@ -263,20 +251,16 @@
 	function handlePlay() {
 		enforceInAppPlayback();
 		isPlaying = true;
-		onPlayStateChange?.(true);
 	}
 
 	function handlePause() {
 		isPlaying = false;
-		onPlayStateChange?.(false);
 	}
 
 	function handleVolumeChange() {
 		if (videoElement) {
 			volume = videoElement.volume;
 			isMuted = videoElement.muted;
-			onVolumeChange?.(volume);
-			onMutedChange?.(isMuted);
 		}
 	}
 
@@ -376,23 +360,12 @@
 		const clampedPan = clampPan(panX, panY, zoomLevel);
 		panX = clampedPan.x;
 		panY = clampedPan.y;
-
-		onZoomChange?.(zoomLevel);
 	}
 
-	export function resetZoom() {
+	function resetZoom() {
 		zoomLevel = 1;
 		panX = 0;
 		panY = 0;
-		onZoomChange?.(1);
-	}
-
-	export function zoomIn() {
-		setZoom(zoomLevel + ZOOM_STEP);
-	}
-
-	export function zoomOut() {
-		setZoom(zoomLevel - ZOOM_STEP);
 	}
 
 	// Mouse wheel zoom handler

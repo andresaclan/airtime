@@ -150,11 +150,6 @@ export function clampFrame(frame: number, duration: number, timing: Timing): num
 	return Math.max(0, Math.min(lastFrameIndex(duration, timing), frame));
 }
 
-/** Snaps any time to the start of the frame it falls in. */
-export function snapToFrameStart(time: number, timing: Timing): number {
-	return frameStartTime(frameAt(time, timing), timing);
-}
-
 /**
  * The frame number a timecode shows for frame k: its place on the frame-rate grid,
  * counted from the first frame. With a table this follows real time, so it skips
