@@ -100,13 +100,13 @@
 	let outOfSequenceMarks = $derived(
 		grouped.unpairedMarks.filter((mark) => analysis.outOfSequence.has(mark.id))
 	);
-	// Contact and RSI are only meaningful for drop and rebound jumps. An unset type says nothing.
+	// Contact and RSI are only meaningful for approach, drop and rebound jumps. An unset type says nothing.
 	let contactApplies = $derived(jumpType === null || hasMeaningfulContact(jumpType));
 	let jumpTypeLabel = $derived(JUMP_TYPES.find((type) => type.value === jumpType)?.label);
 	let completedJumps = $derived(grouped.jumps.filter((jump) => jump.flight).length);
 
 	let bestRsi = $derived(bestJump && contactApplies ? rsi(bestJump) : undefined);
-	// Contact only means something for drop and rebound jumps; there it gets a summary slot.
+	// Contact only means something for approach, drop and rebound jumps; there it gets a summary slot.
 	let contactMatters = $derived(jumpType !== null && hasMeaningfulContact(jumpType));
 	function mean(values: (number | undefined)[]): number | null {
 		const present = values.filter((value) => value !== undefined);

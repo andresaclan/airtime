@@ -1,7 +1,7 @@
 /** A saved marking session for one video. The video itself is never stored. */
 import type { Mark } from '$lib/video/marks';
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /**
  * `default` means 30 fps was assumed because the frame rate couldn't be read or measured.
@@ -9,10 +9,11 @@ export const SCHEMA_VERSION = 3;
  */
 export type FrameRateSource = 'container' | 'playback-estimate' | 'default';
 
-export type JumpType = 'countermovement' | 'squat' | 'drop' | 'rebound';
+export type JumpType = 'countermovement' | 'approach' | 'squat' | 'drop' | 'rebound';
 
 export const JUMP_TYPES: readonly { value: JumpType; label: string }[] = [
 	{ value: 'countermovement', label: 'Countermovement' },
+	{ value: 'approach', label: 'Approach' },
 	{ value: 'squat', label: 'Squat' },
 	{ value: 'drop', label: 'Drop' },
 	{ value: 'rebound', label: 'Rebound' }
@@ -20,9 +21,12 @@ export const JUMP_TYPES: readonly { value: JumpType; label: string }[] = [
 
 export const DEFAULT_JUMP_TYPE: JumpType = 'countermovement';
 
-/** Contact time and RSI only mean something for these; for other types they're just numbers. */
+/**
+ * Contact time and RSI only mean something for these; for other types they're just numbers.
+ * An approach jump's contact is its plant step.
+ */
 export function hasMeaningfulContact(jumpType: JumpType | null): boolean {
-	return jumpType === 'drop' || jumpType === 'rebound';
+	return jumpType === 'approach' || jumpType === 'drop' || jumpType === 'rebound';
 }
 
 export type SessionMedia = {

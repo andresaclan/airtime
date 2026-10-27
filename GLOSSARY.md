@@ -49,21 +49,24 @@ The time from a takeoff to the next landing.
 _Avoid_: Air time, hang time
 
 **Contact**:
-The time from a landing to the next takeoff, while the feet are on the ground. It only means something for drop and rebound jumps.
+The time from a landing to the next takeoff, while the feet are on the ground. It only means something for approach, drop and rebound jumps.
 _Avoid_: Ground time
 
 **Jump height**:
 How high the athlete rose, estimated from flight time on the assumption that they took off and landed in the same position.
 
 **RSI**:
-Reactive strength index: a jump's height divided by the contact before it. Only jumps with a contact have one, and it only means something for drop and rebound jumps.
+Reactive strength index: a jump's height divided by the contact before it. Only jumps with a contact have one, and it only means something for approach, drop and rebound jumps.
 
 **Jump type**:
-What kind of jump a session holds: countermovement, squat, drop or rebound. A session has one jump type, so later comparisons set like against like. A session saved before jump types existed has none until the athlete sets one.
+What kind of jump a session holds: countermovement, approach, squat, drop or rebound. A session has one jump type, so later comparisons set like against like. A session saved before jump types existed has none until the athlete sets one.
 _Avoid_: Drill, exercise
 
 **Countermovement jump**:
 A jump that starts standing, dips down, then drives straight up. The default jump type for a new session.
+
+**Approach jump**:
+A jump taken at the end of a run-up, as in volleyball or basketball. Its contact is the plant step: the last landing before takeoff.
 
 **Squat jump**:
 A jump that starts from a held squat, with no dip beforehand.

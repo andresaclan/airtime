@@ -16,8 +16,12 @@ import type { Mark, MarkType } from '$lib/video/marks';
 // A real export from schema v1, frozen. Never regenerate it: it stands in for the backups
 // users already have, which every future version must still import.
 import exportV1 from './fixtures/export-v1.json';
+// A real export from schema v3: three approach-jump sessions saved as countermovement, since
+// v3 had no approach type. The athlete checked every mark frame by frame. Never regenerate it.
+import exportV3 from './fixtures/export-v3.json';
 
 const v1Text = JSON.stringify(exportV1);
+const v3Text = JSON.stringify(exportV3);
 
 describe('importing old exports', () => {
 	test('a v1 export imports into the current schema', () => {
@@ -69,6 +73,48 @@ describe('importing old exports', () => {
 		}
 	});
 
+	test('timings recomputed from a real v3 export match what it recorded', () => {
+		const sessions = parseImport(v3Text);
+		for (const session of sessions) expect(session.schemaVersion).toBe(SCHEMA_VERSION);
+		const recomputed = buildExport(sessions);
+		// Marks are exported to the microsecond, so a duration on an exact tie can round the
+		// other way: 51 frames at 59.94 fps is 0.85085 s, recorded 0.8508 and recomputed 0.8509.
+		const durationKeys = /Seconds$|^seconds$/;
+		const nearDurations = (value: unknown, key = ''): unknown =>
+			Array.isArray(value)
+				? value.map((item) => nearDurations(item))
+				: value && typeof value === 'object'
+					? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, nearDurations(v, k)]))
+					: typeof value === 'number' && durationKeys.test(key)
+						? expect.closeTo(value, 3)
+						: value;
+		expect(recomputed.tables).toEqual(nearDurations(exportV3.tables));
+		expect(recomputed.overview).toEqual(nearDurations(exportV3.overview));
+		expect(recomputed.sessions.map((session) => session.derived)).toEqual(
+			nearDurations(exportV3.sessions.map((session) => session.derived))
+		);
+	});
+
+	test('the checked marks give the flights, heights and RSI the athlete verified', () => {
+		const jumps = buildExport(parseImport(v3Text)).tables.jumps;
+		expect(
+			jumps.map((jump) => [jump.frameRate, jump.flightFrames, jump.contactFrames, jump.heightCm])
+		).toEqual([
+			[240, 199, 79, 84.1],
+			[60, 52, 19, 92.3],
+			[59.94, 51, 18, 88.8],
+			[59.94, 50, 18, 85.3],
+			[59.94, 51, 19, 88.8],
+			[59.94, 51, 18, 88.8],
+			[59.94, 51, 18, 88.8]
+		]);
+		// Heights come from the frames' real timestamps, not frame counts: the 240 fps flight is
+		// 3.444583 − 2.616667 = 0.827916 s, so 9.81 × 0.827916² / 8 = 84.05 cm, where 199 / 240
+		// would give 84.3.
+		expect(jumps[0].flightRealSeconds).toBe(0.8279);
+		expect(jumps[0].rsi).toBe(2.56); // 0.8405 m / 0.3283 s of plant contact
+	});
+
 	test('sessions without their own version use the file version', () => {
 		const data = structuredClone(exportV1) as Record<string, unknown>;
 		const sessions = data.sessions as Record<string, unknown>[];
@@ -118,13 +164,18 @@ describe('migrateSession', () => {
 
 	test('v2 sessions gain a null jump type and keep everything else', () => {
 		const v2 = { schemaVersion: 2, id: 'x', title: 'Set 1', marks: [] };
-		expect(migrateSession(v2)).toEqual({ ...v2, schemaVersion: 3, jumpType: null });
+		expect(migrateSession(v2)).toEqual({ ...v2, schemaVersion: SCHEMA_VERSION, jumpType: null });
 	});
 
-	test('v1 sessions pass through both real steps', () => {
+	test('v3 sessions only change version: v4 just adds the approach type', () => {
+		const v3 = { schemaVersion: 3, id: 'x', jumpType: 'squat', marks: [] };
+		expect(migrateSession(v3)).toEqual({ ...v3, schemaVersion: 4 });
+	});
+
+	test('v1 sessions pass through every real step', () => {
 		const v1 = { schemaVersion: 1, id: 'x', media: { lastModified: '2026-01-01T00:00:00.000Z' } };
 		expect(migrateSession(v1)).toMatchObject({
-			schemaVersion: 3,
+			schemaVersion: SCHEMA_VERSION,
 			recordedAt: '2026-01-01T00:00:00.000Z',
 			jumpType: null
 		});
@@ -235,10 +286,21 @@ describe('jump type', () => {
 		expect(() => parseImport(JSON.stringify(data))).toThrow(/jumpType is not recognised/);
 	});
 
-	test('only drop and rebound jumps have a meaningful contact', () => {
+	test('only approach, drop and rebound jumps have a meaningful contact', () => {
 		expect(
-			(['countermovement', 'squat', 'drop', 'rebound', null] as const).map(hasMeaningfulContact)
-		).toEqual([false, false, true, true, false]);
+			(['countermovement', 'approach', 'squat', 'drop', 'rebound', null] as const).map(
+				hasMeaningfulContact
+			)
+		).toEqual([false, true, false, true, true, false]);
+	});
+
+	test('a v3 session set to approach survives an export and import', () => {
+		const approach = parseImport(v3Text).map((session) => ({
+			...session,
+			jumpType: 'approach' as const
+		}));
+		const again = parseImport(JSON.stringify(buildExport(approach)));
+		expect(again.map((session) => session.jumpType)).toEqual(['approach', 'approach', 'approach']);
 	});
 });
 
