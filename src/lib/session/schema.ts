@@ -1,7 +1,7 @@
 /** A saved marking session for one video. The video itself is never stored. */
 import type { Mark } from '$lib/video/marks';
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /**
  * `default` means 30 fps was assumed because the frame rate couldn't be read or measured.
@@ -9,20 +9,28 @@ export const SCHEMA_VERSION = 3;
  */
 export type FrameRateSource = 'container' | 'playback-estimate' | 'default';
 
-export type JumpType = 'countermovement' | 'squat' | 'drop' | 'rebound';
+export type JumpType = 'approach' | 'drop' | 'rebound' | 'countermovement' | 'squat';
 
-export const JUMP_TYPES: readonly { value: JumpType; label: string }[] = [
-	{ value: 'countermovement', label: 'Countermovement' },
-	{ value: 'squat', label: 'Squat' },
-	{ value: 'drop', label: 'Drop' },
-	{ value: 'rebound', label: 'Rebound' }
+/**
+ * In menu order. Retired types are no longer offered, but sessions saved with one keep it,
+ * so they stay readable. `rebound` is stored under its old name.
+ */
+export const JUMP_TYPES: readonly { value: JumpType; label: string; retired?: true }[] = [
+	{ value: 'approach', label: 'Approach' },
+	{ value: 'drop', label: 'Drop jump' },
+	{ value: 'rebound', label: 'Repeat hops' },
+	{ value: 'countermovement', label: 'Countermovement', retired: true },
+	{ value: 'squat', label: 'Squat', retired: true }
 ];
 
-export const DEFAULT_JUMP_TYPE: JumpType = 'countermovement';
+export const DEFAULT_JUMP_TYPE: JumpType = 'approach';
 
-/** Contact time and RSI only mean something for these; for other types they're just numbers. */
+/**
+ * Contact time and RSI only mean something for these; for other types they're just numbers.
+ * An approach jump's contact is its plant step.
+ */
 export function hasMeaningfulContact(jumpType: JumpType | null): boolean {
-	return jumpType === 'drop' || jumpType === 'rebound';
+	return jumpType === 'approach' || jumpType === 'drop' || jumpType === 'rebound';
 }
 
 export type SessionMedia = {

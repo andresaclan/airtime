@@ -41,9 +41,11 @@ const FIELDS = {
 		'"playback-estimate" = measured during playback, "default" = 30 fps assumed by an older ' +
 		'version of Airtime because the frame rate could not be read or measured.',
 	'sessions[].jumpType':
-		'What kind of jump the session holds, one per session: "countermovement", "squat", "drop" or ' +
-		'"rebound"; null = not set (saved before jump types existed). Compare like with like: ' +
-		'contact time and rsi only mean something for "drop" and "rebound".',
+		'What kind of jump the session holds, one per session: "approach", "drop" (drop jump) or ' +
+		'"rebound" (repeat hops); "countermovement" and "squat" are no longer offered but older ' +
+		'sessions may have them; null = not set (saved before jump types existed). Compare like ' +
+		'with like: contact time and rsi only mean something for "approach" (the plant step), ' +
+		'"drop" and "rebound".',
 	'sessions[].timeScale':
 		'Real seconds per media second. 1 = real-time footage; 0.25 = 4× slow motion.',
 	'sessions[].derived.intervals[]':
@@ -57,7 +59,7 @@ const FIELDS = {
 	'sessions[].derived.jumps[]':
 		'One per takeoff: the flight after it and the contact before it, when there is one. ' +
 		'incomplete = no landing marked after the takeoff yet. rsi = heightCm / 100 / contact ' +
-		'realSeconds; only meaningful for rebound and drop jumps.',
+		'realSeconds; only meaningful for approach, drop and rebound.',
 	'sessions[].derived.unpairedMarks[]':
 		'Marks that are part of no flight or contact. reason: "out-of-sequence" = next to a mark of ' +
 		'the same type, such as two takeoffs in a row; "alone" = no mark next to it to pair with.',

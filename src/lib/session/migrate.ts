@@ -18,7 +18,9 @@ const MIGRATIONS: Record<number, (session: RawSession) => RawSession> = {
 		recordedAt: (session.media as RawSession | undefined)?.lastModified
 	}),
 	// v3 adds the jump type. Earlier sessions get none rather than a guess from their marks.
-	2: (session) => ({ ...session, jumpType: null })
+	2: (session) => ({ ...session, jumpType: null }),
+	// v4 adds the approach jump type. Nothing changes; older versions just can't read it.
+	3: (session) => session
 };
 
 export class NewerSchemaError extends Error {
