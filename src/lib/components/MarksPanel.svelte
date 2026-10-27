@@ -653,9 +653,10 @@
 	}
 
 	/* Setup toolbar: dropdown chips, with the frame precision as a quiet stat on the right. */
+	/* One row: flex lines break before items shrink, so the toolbar doesn't wrap; the
+	   selects give room back instead. */
 	.mp-toolbar {
 		display: flex;
-		flex-wrap: wrap;
 		align-items: center;
 		gap: 6px;
 		padding: 10px 16px;
@@ -725,11 +726,7 @@
 			padding: 0 28px 0 12px;
 		}
 
-		/* Beside the video (a phone held sideways) the two selects share one row. */
-		.marks-panel:not(.sheet) .mp-toolbar {
-			flex-wrap: nowrap;
-		}
-
+		/* Beside the video (a phone held sideways) the two selects split the row. */
 		.marks-panel:not(.sheet) .mp-chip-select {
 			flex: 1 1 0;
 			padding: 0 24px 0 10px;
