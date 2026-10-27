@@ -177,7 +177,11 @@
 				{:else if sessions.length === 0 && unreadableIds.length === 0}
 					<div class="sessions-empty">
 						<p class="sessions-empty-title">No saved sessions yet</p>
-						<p>Mark a video and press <kbd>⌘S</kbd> / <kbd>Ctrl S</kbd> to keep it here.</p>
+						<p>
+							Mark a video and <span class="pointer-only"
+								>press <kbd>⌘S</kbd> / <kbd>Ctrl S</kbd></span
+							><span class="touch-only">tap Save</span> to keep it here.
+						</p>
 						<p class="sessions-empty-import">
 							Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
 								>Import backup</button
@@ -413,6 +417,7 @@
 		min-height: 0;
 		padding: 16px 24px;
 		overflow-y: auto;
+		overscroll-behavior: contain;
 	}
 
 	/* Storage notes: one quiet callout under the list; the sessions stay the focus. */

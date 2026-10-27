@@ -496,7 +496,12 @@
 		}
 	}
 
+	/** Mouse events browsers synthesise after a touch arrive within this long of it. */
+	const TOUCH_CLICK_MS = 800;
+	let lastTouchEnd = -Infinity;
+
 	function handleTouchEnd(event: TouchEvent) {
+		lastTouchEnd = performance.now();
 		if (event.touches.length < 2) {
 			initialPinchDistance = 0;
 		}
@@ -522,8 +527,10 @@
 		lastTapTime = now;
 	}
 
-	// Double-click to toggle zoom on desktop
+	// Double-click to toggle zoom on desktop. A double-tap fires dblclick as well, after
+	// handleDoubleTap has already toggled; acting on it too would undo that at once.
 	function handleDoubleClick(event: MouseEvent) {
+		if (performance.now() - lastTouchEnd < TOUCH_CLICK_MS) return;
 		const rect = containerRef?.getBoundingClientRect();
 		if (!rect) return;
 
@@ -661,15 +668,12 @@
 	onmousedown={handleMouseDown}
 	ondblclick={handleDoubleClick}
 	ontouchstart={(e) => {
-		e.preventDefault();
 		handleDoubleTap(e);
 		handleTouchStart(e);
 	}}
-	ontouchmove={(e) => {
-		e.preventDefault();
-		handleTouchMove(e);
-	}}
+	ontouchmove={handleTouchMove}
 	ontouchend={handleTouchEnd}
+	ontouchcancel={handleTouchEnd}
 	role="application"
 	aria-label="Video viewer with zoom controls"
 >
@@ -790,6 +794,18 @@
 		font: inherit;
 		font-family: inherit;
 		cursor: pointer;
+	}
+
+	/* A 44px hit area around the 22px chip, inside the viewer. */
+	@media (pointer: coarse) {
+		.zoom-pill button {
+			position: relative;
+		}
+		.zoom-pill button::after {
+			content: '';
+			position: absolute;
+			inset: -11px -6px;
+		}
 	}
 
 	.zoom-pill button:hover {

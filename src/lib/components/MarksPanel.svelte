@@ -33,10 +33,12 @@
 		recordedAt: string;
 		activeMarkId: string | null;
 		canUndo: boolean;
+		canRedo?: boolean;
 		onSeek: (time: number) => void;
 		onNudge: (id: string, frames: number) => void;
 		onRemove: (id: string) => void;
 		onUndo: () => void;
+		onRedo?: () => void;
 		onClear: () => void;
 		/** Stacked under the video (narrow screens) instead of a sidebar. */
 		sheet?: boolean;
@@ -61,10 +63,12 @@
 		titlePlaceholder,
 		activeMarkId,
 		canUndo,
+		canRedo = false,
 		onSeek,
 		onNudge,
 		onRemove,
 		onUndo,
+		onRedo,
 		onClear,
 		sheet = false,
 		fill = false,
@@ -340,6 +344,11 @@
 								><svg viewBox="0 0 24 24" aria-hidden="true"
 									><path d="M9 7 4.5 11.5 9 16" /><path d="M5 11.5h9.5a5 5 0 0 1 0 10H12" /></svg
 								>Undo</button
+							>{/if}
+						{#if canRedo}<button class="mp-text-btn" onclick={onRedo} title="Redo (⇧⌘Z)"
+								><svg viewBox="0 0 24 24" aria-hidden="true"
+									><path d="M15 7l4.5 4.5L15 16" /><path d="M19 11.5H9.5a5 5 0 0 0 0 10H12" /></svg
+								>Redo</button
 							>{/if}
 						{#if marks.length > 0}<button
 								class="mp-text-btn mp-danger"

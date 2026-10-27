@@ -39,7 +39,16 @@
 
 	let wasPlayingBeforeScrub = $state(false);
 	let trackRef: HTMLDivElement | null = $state(null);
+	let containerRef: HTMLDivElement | null = $state(null);
 	let isDragging = $state(false);
+	/** Where a press that landed on a mark started; null once it moves off into a drag. */
+	let markPressX: number | null = null;
+
+	// A press this close to a mark (horizontally) goes to the mark's exact frame. Wider
+	// for a fingertip, which also covers the mark next to it, so the nearer one wins.
+	const MARK_REACH_PX = { fine: 7, coarse: 22 };
+	// How far a press on a mark moves before it scrubs instead.
+	const DRAG_THRESHOLD_PX = 6;
 
 	let progressPercent = $derived(duration > 0 ? (currentTime / duration) * 100 : 0);
 
@@ -76,11 +85,32 @@
 		return frameSeek(frameAt(percent * duration, timing));
 	}
 
+	/** The mark nearest the pointer, if the press is on the track or the flags above it. */
+	function markNear(clientX: number, clientY: number, pointerType: string): Mark | null {
+		if (!trackRef || duration <= 0) return null;
+		const rect = trackRef.getBoundingClientRect();
+		if (clientY > rect.bottom + 4) return null;
+		const reach = pointerType === 'mouse' ? MARK_REACH_PX.fine : MARK_REACH_PX.coarse;
+		let nearest: Mark | null = null;
+		let nearestDistance = reach;
+		for (const mark of marks) {
+			const distance = Math.abs(rect.left + (percentOf(mark.time) / 100) * rect.width - clientX);
+			if (distance <= nearestDistance) {
+				nearest = mark;
+				nearestDistance = distance;
+			}
+		}
+		return nearest;
+	}
+
+	// The whole band around the track takes the press, not just the thin line: the
+	// playhead knob, the flags and the space either side are what a thumb lands on.
 	function handlePointerDown(event: PointerEvent) {
-		if (!videoElement || !trackRef) return;
+		if (!videoElement || !trackRef || !containerRef) return;
+		if (event.pointerType === 'mouse' && event.button !== 0) return;
 
 		event.preventDefault();
-		trackRef.setPointerCapture(event.pointerId);
+		containerRef.setPointerCapture(event.pointerId);
 
 		isScrubbing = true;
 		isDragging = true;
@@ -90,7 +120,12 @@
 			videoElement.pause();
 		}
 
-		const newTime = getTimeFromPosition(event.clientX);
+		// On a mark: its exact frame, until the press moves off into a drag.
+		const mark = markNear(event.clientX, event.clientY, event.pointerType);
+		markPressX = mark ? event.clientX : null;
+		const newTime = mark
+			? frameSeek(frameOf(mark.time, timing))
+			: getTimeFromPosition(event.clientX);
 		seek(videoElement, newTime, timing);
 		onScrubStart?.();
 		onSeek?.(newTime);
@@ -98,6 +133,10 @@
 
 	function handlePointerMove(event: PointerEvent) {
 		if (!isDragging || !videoElement) return;
+		if (markPressX !== null) {
+			if (Math.abs(event.clientX - markPressX) < DRAG_THRESHOLD_PX) return;
+			markPressX = null;
+		}
 
 		const newTime = getTimeFromPosition(event.clientX);
 		seek(videoElement, newTime, timing);
@@ -107,8 +146,11 @@
 	function handlePointerUp(event: PointerEvent) {
 		if (!isDragging) return;
 
-		trackRef?.releasePointerCapture(event.pointerId);
+		if (containerRef?.hasPointerCapture(event.pointerId)) {
+			containerRef.releasePointerCapture(event.pointerId);
+		}
 		isDragging = false;
+		markPressX = null;
 		isScrubbing = false;
 
 		if (wasPlayingBeforeScrub && videoElement) {
@@ -152,24 +194,24 @@
 				break;
 		}
 	}
-
-	function handleMarkPointerDown(event: PointerEvent, mark: Mark) {
-		// Seek to the exact marked frame instead of the pixel under the pointer.
-		event.stopPropagation();
-		event.preventDefault();
-		seekToFrame(frameOf(mark.time, timing));
-	}
 </script>
 
-<div class="timeline-container">
+<!-- Pointer input lands on the whole band (see handlePointerDown); the track is the
+     slider for keyboards and assistive tech, and the flags are buttons for the same. -->
+<div
+	bind:this={containerRef}
+	class="timeline-container"
+	class:dragging={isDragging}
+	onpointerdown={handlePointerDown}
+	onpointermove={handlePointerMove}
+	onpointerup={handlePointerUp}
+	onpointercancel={handlePointerUp}
+	role="presentation"
+>
 	<div
 		bind:this={trackRef}
 		class="timeline-track"
 		class:active={isDragging}
-		onpointerdown={handlePointerDown}
-		onpointermove={handlePointerMove}
-		onpointerup={handlePointerUp}
-		onpointercancel={handlePointerUp}
 		onkeydown={handleKeyDown}
 		role="slider"
 		aria-label="Video timeline"
@@ -207,7 +249,7 @@
 			class="timeline-mark timeline-mark-{mark.type}"
 			class:active={mark.id === activeMarkId}
 			style="left: {percentOf(mark.time)}%;"
-			onpointerdown={(event) => handleMarkPointerDown(event, mark)}
+			onclick={() => seekToFrame(frameOf(mark.time, timing))}
 			aria-label="Go to {mark.type}"
 			title="Go to {mark.type}"
 		></button>
@@ -218,7 +260,11 @@
 	.timeline-container {
 		position: relative;
 		padding: 12px 0 18px;
+		cursor: pointer;
 		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-touch-callout: none;
 	}
 
 	.timeline-ticks {
@@ -259,7 +305,7 @@
 		transition: height 150ms ease;
 	}
 
-	.timeline-track:hover,
+	.timeline-container:hover .timeline-track,
 	.timeline-track.active {
 		height: 8px;
 	}
@@ -301,7 +347,7 @@
 		transform: translateX(-50%);
 	}
 
-	.timeline-track:hover .timeline-thumb,
+	.timeline-container:hover .timeline-thumb,
 	.timeline-track.active .timeline-thumb {
 		transform: translate(-50%, -50%) scale(1.15);
 	}
@@ -331,6 +377,8 @@
 	}
 
 	/* Marks sit above the track as small flags; the hit area is wider than the glyph. */
+	/* The band picks the nearest flag (markNear), so overlapping flags can't steal
+	   each other's taps; the buttons are there for keyboards and screen readers. */
 	.timeline-mark {
 		position: absolute;
 		top: 2px;
@@ -341,7 +389,7 @@
 		border: none;
 		background: transparent;
 		transform: translateX(-50%);
-		cursor: pointer;
+		pointer-events: none;
 	}
 
 	.timeline-mark::before {
@@ -371,7 +419,7 @@
 		transition: transform 120ms ease;
 	}
 
-	.timeline-mark:hover::after,
+	.timeline-mark:focus-visible::after,
 	.timeline-mark.active::after {
 		transform: translateX(-50%) scale(1.45);
 	}
@@ -401,19 +449,19 @@
 			top: -6px;
 		}
 
-		/* 44px hit box centred on the same spot the 14px box and glyph occupied. */
+		/* A 44px band for a thumb, and clear of the screen edge, where Safari's
+		   back swipe starts. Flags move down with the track. */
+		.timeline-container {
+			margin-inline: 8px;
+			padding: 16px 0 20px;
+		}
+
 		.timeline-mark {
-			top: -12.5px;
-			width: 44px;
-			height: 44px;
+			top: 6px;
 		}
 
-		.timeline-mark::before {
-			top: 17.5px;
-		}
-
-		.timeline-mark::after {
-			top: 14.5px;
+		.tick-label {
+			font-size: 11px;
 		}
 	}
 </style>

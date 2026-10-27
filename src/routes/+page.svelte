@@ -7,6 +7,7 @@
 	import SessionsDialog from '$lib/components/SessionsDialog.svelte';
 	import { onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
+	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 	import { resolve } from '$app/paths';
 	import { isApplePlatform } from '$lib/keybinds';
 	import { detectSourceTimingFromFile } from '$lib/video/frameRate';
@@ -95,7 +96,8 @@
 	let markFuture: Mark[][] = $state([]);
 	// Below 900px the panel stacks under the video as a sheet (keep in sync with
 	// layout.css). There panelOpen means expanded; collapsed it is a one-line summary.
-	const stacked = new MediaQuery('max-width: 900px');
+	// A phone held sideways is too short to stack: it gets the side-by-side layout.
+	const stacked = new MediaQuery('(max-width: 900px) and (min-height: 501px)');
 	let panelOpen = $state(true);
 	let keybindsOpen = $state(false);
 	let sessionsOpen = $state(false);
@@ -148,9 +150,18 @@
 	let activeMark = $derived(markAtFrame(marks, currentTime, timing));
 
 	// Width over height, once the video's metadata is in. On narrow screens a landscape
-	// video is sized to fit and the analysis sheet takes the room left underneath.
+	// video is sized to fit and the analysis sheet takes the room left underneath, as
+	// long as the controls still fit below it. A phone held sideways has no such room:
+	// there the video letterboxes in what's left, so the controls stay on screen.
 	let videoAspect: number | null = $state(null);
-	let fitLandscape = $derived(stacked.current && (videoAspect ?? 0) > 1);
+	// Header, stage padding, control bar and the collapsed sheet, roughly.
+	const STACKED_CHROME_PX = 300;
+	let fitLandscape = $derived.by(() => {
+		if (!stacked.current || !((videoAspect ?? 0) > 1)) return false;
+		const width = innerWidth.current ?? 0;
+		const height = innerHeight.current ?? 0;
+		return width / videoAspect! <= height - STACKED_CHROME_PX;
+	});
 
 	let saveShortcut = $state('⌘S');
 	// Phones fold Open video, Sessions and Shortcuts into one menu.
@@ -1114,10 +1125,12 @@
 					titlePlaceholder={defaultTitle}
 					activeMarkId={activeMark?.id ?? null}
 					canUndo={markHistory.length > 0}
+					canRedo={markFuture.length > 0}
 					onSeek={seekToMark}
 					onNudge={nudgeMark}
 					onRemove={deleteMark}
 					onUndo={undoMarks}
+					onRedo={redoMarks}
 					onClear={clearMarks}
 					sheet={stacked.current}
 					fill={fitLandscape}
