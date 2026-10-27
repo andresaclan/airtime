@@ -663,8 +663,11 @@
 		border-bottom: 1px solid hsl(var(--at-border));
 	}
 
+	/* Selects size to their longest option, so they can give a little room back
+	   before the current value would be cut off. */
 	.mp-chip-select {
-		flex: 0 0 auto;
+		flex: 0 1 auto;
+		min-width: 0;
 		appearance: none;
 		height: 28px;
 		padding: 0 26px 0 10px;
@@ -691,6 +694,7 @@
 	}
 
 	.mp-precision {
+		flex: 0 0 auto;
 		margin-left: auto;
 		color: hsl(var(--at-fg-muted));
 		font-family: var(--at-font-mono);
