@@ -1,4 +1,5 @@
 import { frameAt, frameOfPresentedTime, frameSeekTime, type FrameTiming } from './frames';
+import { seekPending, targetTime } from './seek';
 
 /**
  * Which frame is actually on screen. `currentTime` only says where the playhead
@@ -27,13 +28,16 @@ function supportsFrameCallbacks(video: HTMLVideoElement): video is FrameCallback
 	return 'requestVideoFrameCallback' in video;
 }
 
-/** The frame on screen, falling back to the playhead where the browser can't say. */
+/**
+ * The frame on screen, falling back to the playhead where the browser can't say.
+ * While a seek is landing that's its target, which the scrub preview already shows.
+ */
 export function displayedFrame(video: HTMLVideoElement, timing: FrameTiming): number {
 	const mediaTime = presented.get(video);
-	if (video.paused && !video.seeking && mediaTime != null) {
+	if (video.paused && !video.seeking && !seekPending(video) && mediaTime != null) {
 		return frameOfPresentedTime(mediaTime, timing);
 	}
-	return frameAt(video.currentTime, timing);
+	return frameAt(targetTime(video), timing);
 }
 
 /**

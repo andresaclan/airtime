@@ -7,6 +7,7 @@
 		type FrameTiming
 	} from '$lib/video/frames';
 	import { frameOf, type Interval, type Mark } from '$lib/video/marks';
+	import { isWatching, seek, targetTime } from '$lib/video/seek';
 
 	interface Props {
 		currentTime: number;
@@ -83,14 +84,14 @@
 
 		isScrubbing = true;
 		isDragging = true;
-		wasPlayingBeforeScrub = !videoElement.paused;
+		wasPlayingBeforeScrub = isWatching(videoElement);
 
 		if (wasPlayingBeforeScrub) {
 			videoElement.pause();
 		}
 
 		const newTime = getTimeFromPosition(event.clientX);
-		videoElement.currentTime = newTime;
+		seek(videoElement, newTime, timing);
 		onScrubStart?.();
 		onSeek?.(newTime);
 	}
@@ -99,7 +100,7 @@
 		if (!isDragging || !videoElement) return;
 
 		const newTime = getTimeFromPosition(event.clientX);
-		videoElement.currentTime = newTime;
+		seek(videoElement, newTime, timing);
 		onSeek?.(newTime);
 	}
 
@@ -122,14 +123,14 @@
 	function seekToFrame(frame: number) {
 		if (!videoElement || duration <= 0) return;
 		const nextTime = frameSeek(frame);
-		videoElement.currentTime = nextTime;
+		seek(videoElement, nextTime, timing);
 		onSeek?.(nextTime);
 	}
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if (duration <= 0) return;
 
-		const frame = frameAt(videoElement?.currentTime ?? currentTime, timing);
+		const frame = frameAt(videoElement ? targetTime(videoElement) : currentTime, timing);
 		const last = lastFrameIndex(duration, timing);
 		const step = Math.max(1, Math.round((last + 1) / 100));
 		switch (event.key) {

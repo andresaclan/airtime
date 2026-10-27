@@ -1,6 +1,17 @@
 <script lang="ts">
 	import { estimatePlaybackFrameRate } from '$lib/video/frameRate';
+	import { frameAt, frameOfPresentedTime, type FrameTiming } from '$lib/video/frames';
 	import { trackPresentedFrames } from '$lib/video/presentedFrame';
+	import { ScrubCache } from '$lib/video/scrubCache';
+	import {
+		clearSeeks,
+		isProbing,
+		registerSeekPreview,
+		setProbing,
+		SEEK_EVENT,
+		seekPending,
+		targetTime
+	} from '$lib/video/seek';
 
 	interface VideoElementWithFrameCallback extends HTMLVideoElement {
 		requestVideoFrameCallback(
@@ -11,6 +22,8 @@
 	interface Props {
 		videoElement?: HTMLVideoElement | null;
 		videoSrc: string | null;
+		/** The file behind `videoSrc`, for the scrub preview. */
+		videoFile?: File | null;
 		isPlaying: boolean;
 		currentTime: number;
 		duration: number;
@@ -36,6 +49,7 @@
 	let {
 		videoElement = $bindable(null),
 		videoSrc,
+		videoFile = null,
 		isPlaying = $bindable(false),
 		currentTime = $bindable(0),
 		duration = $bindable(0),
@@ -98,12 +112,146 @@
 		}
 	});
 
+	// Follows the latest seek target rather than the seek still landing, so the
+	// playhead keeps up with the pointer.
 	function handleTimeUpdate() {
 		if (videoElement) {
-			currentTime = videoElement.currentTime;
+			currentTime = targetTime(videoElement);
 			onTimeUpdate?.(currentTime);
 		}
 	}
+
+	// ---- Scrub preview: cached frames drawn over the video until its seek lands ----
+
+	let previewCanvas: HTMLCanvasElement | null = $state(null);
+	/** Frame on the preview canvas while it covers the video; null when hidden. */
+	let previewFrame: number | null = $state(null);
+	let videoBox = $state({ left: 0, top: 0, width: 0, height: 0 });
+	let scrubCache: ScrubCache | null = null;
+
+	function previewTiming(): FrameTiming | null {
+		if (!frameTimes?.length || !scrubCache || frameTimes.length !== scrubCache.frameCount) {
+			return null;
+		}
+		return { fps: frameRate, frameTimes };
+	}
+
+	/** Frame the video itself has on screen, once its seeks have landed. */
+	let videoFrame: number | null = null;
+
+	function videoShows(frame: number): boolean {
+		return !!videoElement && !seekPending(videoElement) && videoFrame === frame;
+	}
+
+	function hidePreview() {
+		previewFrame = null;
+		scrubCache?.cancel();
+	}
+
+	function showPreview(frame: number) {
+		if (!scrubCache || !previewTiming()) return;
+		scrubCache.focus(frame);
+		if (!scrubCache.has(frame) || videoShows(frame)) hidePreview();
+		else scrubCache.request(frame);
+	}
+
+	function drawPreview(frame: number, image: VideoFrame) {
+		if (!previewCanvas || !videoElement || !videoElement.paused || videoShows(frame)) return;
+		const context = previewCanvas.getContext('2d');
+		if (!context) return;
+		if (previewCanvas.width !== image.displayWidth) previewCanvas.width = image.displayWidth;
+		if (previewCanvas.height !== image.displayHeight) previewCanvas.height = image.displayHeight;
+		context.drawImage(image, 0, 0);
+		previewFrame = frame;
+	}
+
+	$effect(() => {
+		const file = videoFile;
+		if (!file || !ScrubCache.supported()) return;
+		const cache = new ScrubCache(
+			file,
+			(frame, image) => drawPreview(frame, image),
+			() => {
+				if (scrubCache === cache) scrubCache = null;
+				hidePreview();
+			}
+		);
+		scrubCache = cache;
+		return () => {
+			cache.dispose();
+			if (scrubCache === cache) scrubCache = null;
+			hidePreview();
+		};
+	});
+
+	$effect(() => {
+		const video = videoElement;
+		if (!video) return;
+		const unregister = registerSeekPreview(video, { show: showPreview });
+		const sync = () => handleTimeUpdate();
+		const emptied = () => {
+			clearSeeks(video);
+			videoFrame = null;
+			hidePreview();
+		};
+		const seeking = () => (videoFrame = null);
+		// The preview stays up until the video presents the same frame.
+		let handle = 0;
+		const onFrame = (_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
+			handle = video.requestVideoFrameCallback(onFrame);
+			const timing = previewTiming();
+			if (!timing || video.seeking) return;
+			videoFrame = frameOfPresentedTime(metadata.mediaTime, timing);
+			if (previewFrame !== null && videoShows(previewFrame)) hidePreview();
+		};
+		// A seek to the frame already on screen may present nothing new.
+		let seekedTimer: ReturnType<typeof setTimeout> | undefined;
+		const seeked = () => {
+			clearTimeout(seekedTimer);
+			seekedTimer = setTimeout(() => {
+				const timing = previewTiming();
+				if (!timing || previewFrame === null || seekPending(video)) return;
+				if (frameAt(video.currentTime, timing) === previewFrame) {
+					videoFrame = previewFrame;
+					hidePreview();
+				}
+			}, 150);
+		};
+		// The container centres the video, so its box follows from the two sizes. Computed
+		// sizes keep the fractions that offsetLeft/offsetTop round away.
+		const resize = new ResizeObserver(() => {
+			const container = video.parentElement;
+			if (!container) return;
+			const style = getComputedStyle(video);
+			const width = parseFloat(style.width);
+			const height = parseFloat(style.height);
+			videoBox = {
+				left: (container.clientWidth - width) / 2,
+				top: (container.clientHeight - height) / 2,
+				width,
+				height
+			};
+		});
+		resize.observe(video);
+		if (video.parentElement) resize.observe(video.parentElement);
+		if ('requestVideoFrameCallback' in video) handle = video.requestVideoFrameCallback(onFrame);
+		video.addEventListener(SEEK_EVENT, sync);
+		video.addEventListener('emptied', emptied);
+		video.addEventListener('seeking', seeking);
+		video.addEventListener('seeked', seeked);
+		video.addEventListener('play', hidePreview);
+		return () => {
+			unregister();
+			resize.disconnect();
+			clearTimeout(seekedTimer);
+			if (handle) video.cancelVideoFrameCallback(handle);
+			video.removeEventListener(SEEK_EVENT, sync);
+			video.removeEventListener('emptied', emptied);
+			video.removeEventListener('seeking', seeking);
+			video.removeEventListener('seeked', seeked);
+			video.removeEventListener('play', hidePreview);
+		};
+	});
 
 	function handleDurationChange() {
 		if (videoElement) {
@@ -457,9 +605,11 @@
 		if (!wasPlaying) {
 			mutedBeforeProbe ??= video.muted;
 			video.muted = true;
+			setProbing(video, true);
 			try {
 				await video.play();
 			} catch {
+				setProbing(video, false);
 				if (id !== detectionId) return;
 				endProbeMute(video);
 				applyDetectedFrameRate(null);
@@ -469,7 +619,13 @@
 
 		let rate = estimatePlaybackFrameRate(await sampleFrameTimes(video, id, 500));
 		// Only while probing: slowing down a video the athlete is watching would be jarring.
-		if (!wasPlaying && rate !== null && rate >= FAST_FRAME_RATE && id === detectionId) {
+		if (
+			!wasPlaying &&
+			isProbing(video) &&
+			rate !== null &&
+			rate >= FAST_FRAME_RATE &&
+			id === detectionId
+		) {
 			video.playbackRate = SLOW_PROBE_RATE;
 			const slowRate = estimatePlaybackFrameRate(await sampleFrameTimes(video, id, 1000));
 			video.playbackRate = playbackRate;
@@ -477,10 +633,11 @@
 		}
 
 		if (id !== detectionId) return;
-		if (!wasPlaying) {
+		if (!wasPlaying && isProbing(video)) {
 			video.pause();
 			video.currentTime = originalTime;
 		}
+		setProbing(video, false);
 		endProbeMute(video);
 		applyDetectedFrameRate(rate);
 	}
@@ -543,6 +700,15 @@
 			<track kind="captions" />
 		</video>
 
+		<canvas
+			bind:this={previewCanvas}
+			data-scrub-surface
+			class="scrub-preview"
+			class:visible={previewFrame !== null}
+			aria-hidden="true"
+			style="left: {videoBox.left}px; top: {videoBox.top}px; width: {videoBox.width}px; height: {videoBox.height}px; {transformStyle} transform-origin: center center;"
+		></canvas>
+
 		<!-- Zoom indicator -->
 		{#if zoomLevel > 1}
 			<div class="zoom-pill">
@@ -579,6 +745,17 @@
 </div>
 
 <style>
+	/* Covers the video exactly, and lets pointer events through to it. */
+	.scrub-preview {
+		position: absolute;
+		visibility: hidden;
+		pointer-events: none;
+	}
+
+	.scrub-preview.visible {
+		visibility: visible;
+	}
+
 	.zoom-pill {
 		position: absolute;
 		top: 12px;
