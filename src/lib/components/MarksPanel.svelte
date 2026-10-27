@@ -1326,10 +1326,18 @@
 			font-size: 16px;
 		}
 
+		/* Visually 40px; the hit area reaches 44 (insets count from inside the border). */
 		.mp-tab {
+			position: relative;
 			height: 40px;
 			padding: 0 14px;
 			font-size: 14px;
+		}
+
+		.mp-tab::after {
+			content: '';
+			position: absolute;
+			inset: -3px 0;
 		}
 
 		.mp-notes {
