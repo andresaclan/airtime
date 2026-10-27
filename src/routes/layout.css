@@ -711,8 +711,8 @@ body {
 	grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
 	grid-template-areas: 'time takeoff transport landing extras';
 	align-items: center;
-	min-height: 44px;
-	column-gap: 6px;
+	min-height: 48px;
+	column-gap: 2px;
 }
 
 .control-toolbar .playback-controls {
@@ -759,6 +759,45 @@ body {
 	display: contents;
 }
 
+/* Takeoff, the frame controls and Landing read as one segmented control, like the
+   grouped controls in T3's diff toolbar: one bordered track, quiet segments,
+   hairlines between the groups. */
+.transport-dock {
+	grid-column: takeoff-start / landing-end;
+	grid-row: takeoff;
+	align-self: center;
+	height: 40px;
+	margin-inline: -4px;
+	border: 1px solid hsl(var(--at-border-hover) / 0.7);
+	border-radius: 10px;
+	background: hsl(var(--at-fg) / 0.025);
+	pointer-events: none;
+}
+
+.control-toolbar .playback-controls {
+	position: relative;
+	padding-inline: 8px;
+}
+
+.control-toolbar .playback-controls::before,
+.control-toolbar .playback-controls::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	width: 1px;
+	height: 20px;
+	background: hsl(var(--at-border-hover));
+	transform: translateY(-50%);
+}
+
+.control-toolbar .playback-controls::before {
+	left: 0;
+}
+
+.control-toolbar .playback-controls::after {
+	right: 0;
+}
+
 .mark-action-takeoff {
 	grid-area: takeoff;
 	justify-self: end;
@@ -777,8 +816,8 @@ body {
 	height: 32px;
 	padding: 0 9px 0 11px;
 	border: 1px solid transparent;
-	border-radius: var(--at-radius);
-	background: hsl(var(--at-fg) / 0.06);
+	border-radius: 7px;
+	background: transparent;
 	color: hsl(var(--at-fg));
 	font: inherit;
 	font-size: 13px;
@@ -810,6 +849,7 @@ body {
 }
 
 .mark-action-dot {
+	flex: 0 0 auto;
 	width: 7px;
 	height: 7px;
 	border-radius: 50%;
@@ -845,6 +885,13 @@ body {
 	}
 	.mark-action kbd {
 		display: none;
+	}
+	.transport-dock {
+		height: 52px;
+		border-radius: 14px;
+	}
+	.control-toolbar .playback-controls {
+		padding-inline: 4px;
 	}
 }
 

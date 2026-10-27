@@ -1069,6 +1069,8 @@
 							/>
 
 							<div class="control-toolbar">
+								<!-- One segmented group behind Takeoff, the frame controls and Landing. -->
+								<span class="transport-dock" aria-hidden="true"></span>
 								<div class="time-readout">
 									<span class="time-current">{formatFrameClock(playheadLabel, timing)}</span>
 									<span class="time-separator">/</span>
