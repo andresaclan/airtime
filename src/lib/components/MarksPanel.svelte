@@ -117,7 +117,6 @@
 	);
 	// Contact and RSI are only meaningful for approach jumps, drop jumps and repeat hops. An unset type says nothing.
 	let contactApplies = $derived(jumpType === null || hasMeaningfulContact(jumpType));
-	let jumpTypeLabel = $derived(JUMP_TYPES.find((type) => type.value === jumpType)?.label);
 	// A retired type only shows on a session that already has it.
 	let jumpTypeOptions = $derived(
 		JUMP_TYPES.filter((type) => !type.retired || type.value === jumpType)
