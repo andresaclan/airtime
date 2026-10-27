@@ -204,17 +204,6 @@
 	</div>
 {/snippet}
 
-{#snippet interval(span: Interval)}
-	<div class="mp-interval mp-interval-{span.kind}" title={intervalDescription(span)}>
-		<span class="mp-interval-label"
-			>{span.kind === 'flight' ? 'Flight' : 'Contact'}<span class="mp-interval-frames"
-				>{span.frames} fr</span
-			></span
-		>
-		<span class="mp-interval-value">{formatMs(span.realSeconds)} ms</span>
-	</div>
-{/snippet}
-
 {#snippet peek()}
 	{#if bestJump?.flight}
 		<span class="mp-peek-stat mp-peek-primary">
@@ -523,33 +512,68 @@
 											class="mp-jump-toggle"
 											aria-expanded={!folded}
 											onclick={() => toggleJump(jump.takeoff.id)}
-											title={folded ? 'Show this jump’s marks' : 'Hide this jump’s marks'}
+											title={folded ? 'Show this jump’s details' : 'Hide this jump’s details'}
 											><svg class="mp-jump-chevron" viewBox="0 0 24 24" aria-hidden="true"
 												><path d="m9 6 6 6-6 6" /></svg
 											><span class="mp-jump-name">Jump {index + 1}</span></button
 										>
 										{#if completedJumps >= 2 && jump === bestJump}<span class="mp-badge">Best</span
 											>{/if}
-										<span class="mp-jump-stats"
-											>{#if jump.flight?.heightCm !== undefined}{jump.flight.heightCm.toFixed(1)} cm{/if}{#if index_ !== undefined}<span
-													class="mp-rsi-chip">RSI {index_.toFixed(2)}</span
-												>{/if}</span
-										>
 									</h4>
+									<!-- Flight time is what the athlete looks for, so it stays visible when folded. -->
+									<p
+										class="mp-flight"
+										title={jump.flight ? intervalDescription(jump.flight) : undefined}
+									>
+										<span class="mp-flight-label">Flight time</span>
+										{#if jump.flight}
+											<span class="mp-flight-value"
+												>{formatMs(jump.flight.realSeconds)}<span class="mp-flight-unit">ms</span
+												></span
+											>
+											<span class="mp-flight-frames">{jump.flight.frames} fr</span>
+										{:else}
+											<span class="mp-flight-value mp-flight-pending">—</span>
+										{/if}
+									</p>
 									{#if !folded}
-										<div class="mp-card-body">
-											{#if jump.contact}
-												{#if grouped.jumps[index - 1]?.flight?.to.id === jump.contact.from.id}
-													<!-- The touchdown is the previous jump's landing; don't list it twice. -->
-													{@render interval(jump.contact)}
-												{:else}
-													{@render markRow(jump.contact.from, 'Touchdown')}
-													{@render interval(jump.contact)}
+										{#if jump.flight?.heightCm !== undefined || jump.contact || index_ !== undefined}
+											<dl class="mp-metrics">
+												{#if jump.flight?.heightCm !== undefined}
+													<div>
+														<dt>Height</dt>
+														<dd>
+															{jump.flight.heightCm.toFixed(1)}<span class="mp-metric-unit">cm</span
+															>
+														</dd>
+													</div>
 												{/if}
+												{#if jump.contact}
+													<div title={intervalDescription(jump.contact)}>
+														<dt>Contact</dt>
+														<dd>
+															{formatMs(jump.contact.realSeconds)}<span class="mp-metric-unit"
+																>ms</span
+															>
+														</dd>
+														<dd class="mp-metric-frames">{jump.contact.frames} fr</dd>
+													</div>
+												{/if}
+												{#if index_ !== undefined}
+													<div>
+														<dt>RSI</dt>
+														<dd>{index_.toFixed(2)}</dd>
+													</div>
+												{/if}
+											</dl>
+										{/if}
+										<div class="mp-jump-marks">
+											<!-- A touchdown that is the previous jump's landing isn't listed twice. -->
+											{#if jump.contact && grouped.jumps[index - 1]?.flight?.to.id !== jump.contact.from.id}
+												{@render markRow(jump.contact.from, 'Touchdown')}
 											{/if}
 											{@render markRow(jump.takeoff, 'Takeoff')}
 											{#if jump.flight}
-												{@render interval(jump.flight)}
 												{@render markRow(jump.flight.to, 'Landing')}
 											{:else}
 												<p class="mp-incomplete">Mark a landing to complete this jump.</p>
@@ -1111,21 +1135,11 @@
 		gap: 8px;
 	}
 
-	/* Each jump is a file card, as in T3's diff: a header row you can fold, then the
-	   marks and intervals as a divided list. */
-	.mp-jump {
-		border: 1px solid hsl(var(--at-border));
-		border-radius: var(--at-radius);
-		overflow: hidden;
-	}
-
-	.mp-card-body > * + * {
+	/* Each jump is a flat section split by hairlines. Flight time leads in large
+	   numerals; height, contact and RSI sit under it; the marks come last. */
+	.mp-jump + .mp-jump {
+		padding-top: 8px;
 		border-top: 1px solid hsl(var(--at-border));
-	}
-
-	.mp-card-body .mp-mark,
-	.mp-card-body .mp-mark-main {
-		border-radius: 0;
 	}
 
 	.mp-jump-toggle {
@@ -1137,7 +1151,7 @@
 		border: none;
 		border-radius: 6px;
 		background: transparent;
-		color: hsl(var(--at-fg));
+		color: inherit;
 		font: inherit;
 		cursor: pointer;
 	}
@@ -1163,40 +1177,110 @@
 		transform: rotate(90deg);
 	}
 
-	.mp-rsi-chip {
-		margin-left: 8px;
-		padding: 2px 6px;
-		border-radius: 5px;
-		background: hsl(var(--at-fg) / 0.07);
-		color: hsl(var(--at-fg-secondary));
-		font-family: var(--at-font-mono);
-		font-size: 11px;
-		font-weight: 500;
-	}
-
 	.mp-jump-head {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		min-height: 36px;
+		min-height: 28px;
 		margin: 0;
-		padding: 0 10px 0 4px;
-		border-bottom: 1px solid hsl(var(--at-border));
-		background: hsl(var(--at-fg) / 0.03);
-		font-size: 13px;
-		font-weight: 600;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 12.5px;
+		font-weight: 500;
 	}
 
-	.mp-jump:has(.mp-jump-toggle[aria-expanded='false']) .mp-jump-head {
-		border-bottom: none;
-	}
-
-	.mp-jump-stats {
+	.mp-jump-head .mp-badge {
 		margin-left: auto;
+	}
+
+	/* The text column lines up with the mark labels (8px padding + dot + gap). */
+	.mp-flight {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		align-items: baseline;
+		margin: 0;
+		padding: 0 8px 0 26px;
+	}
+
+	.mp-flight-label {
+		grid-column: 1 / -1;
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+	}
+
+	.mp-flight-value {
 		color: hsl(var(--at-fg));
+		font-family: var(--at-font-mono);
+		font-size: 32px;
 		font-weight: 600;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
 		font-variant-numeric: tabular-nums;
-		white-space: nowrap;
+	}
+
+	.mp-flight-pending {
+		color: hsl(var(--at-fg-muted));
+		font-weight: 400;
+	}
+
+	.mp-flight-unit {
+		margin-left: 4px;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 14px;
+		font-weight: 500;
+		letter-spacing: 0;
+	}
+
+	.mp-flight-frames {
+		justify-self: end;
+		color: hsl(var(--at-fg-muted));
+		font-family: var(--at-font-mono);
+		font-size: 12px;
+	}
+
+	.mp-metrics {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 8px;
+		margin: 0;
+		padding: 10px 8px 10px 26px;
+	}
+
+	.mp-metrics dt {
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+	}
+
+	.mp-metrics dd {
+		margin: 2px 0 0;
+		color: hsl(var(--at-fg-secondary));
+		font-family: var(--at-font-mono);
+		font-size: 13px;
+		font-weight: 500;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.mp-metric-unit {
+		margin-left: 4px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+		font-weight: 400;
+	}
+
+	.mp-metrics .mp-metric-frames {
+		margin-top: 1px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+		font-weight: 400;
+	}
+
+	.mp-jump-marks {
+		margin-top: 4px;
+		padding: 4px 0 2px;
+		border-top: 1px solid hsl(var(--at-border));
+	}
+
+	.mp-jump:has(.mp-jump-toggle[aria-expanded='false']) {
+		padding-bottom: 4px;
 	}
 
 	.mp-badge {
@@ -1345,47 +1429,6 @@
 		color: hsl(var(--at-error));
 	}
 
-	/* Label on the left; the value right-aligned in the same column as the timecodes.
-	   The line runs through the mark dots (8px padding + half the dot). */
-	.mp-interval {
-		--interval-color: hsl(var(--at-takeoff) / 0.6);
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		min-height: 30px;
-		padding: 0 10px 0 26px;
-		color: hsl(var(--at-fg-muted));
-		font-size: 11px;
-		white-space: nowrap;
-	}
-
-	.mp-interval-contact {
-		--interval-color: hsl(var(--at-landing) / 0.55);
-	}
-
-	.mp-interval-label {
-		overflow: hidden;
-		color: hsl(var(--at-fg-secondary));
-		font-size: 12px;
-		text-overflow: ellipsis;
-	}
-
-	.mp-interval-frames {
-		margin-left: 6px;
-		color: hsl(var(--at-fg-muted));
-		font-size: 11px;
-	}
-
-	/* The measurement is the point of the card, so it is the strongest value. */
-	.mp-interval-value {
-		margin-left: auto;
-		color: hsl(var(--at-fg));
-		font-family: var(--at-font-mono);
-		font-size: 12px;
-		font-weight: 600;
-		font-variant-numeric: tabular-nums;
-	}
-
 	.mp-warning {
 		padding: 8px 10px;
 		border: 1px solid hsl(var(--at-warning) / 0.25);
@@ -1516,12 +1559,16 @@
 			padding-right: 10px;
 		}
 
-		.mp-interval-value {
+		.mp-jump-head {
 			font-size: 14px;
 		}
 
-		.mp-jump-head {
-			font-size: 15px;
+		.mp-flight-value {
+			font-size: 36px;
+		}
+
+		.mp-metrics dd {
+			font-size: 14px;
 		}
 	}
 
