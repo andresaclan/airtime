@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { formatFrameClock } from '$lib/video/timecode';
 	import { frameDurationRange, frameLabel, type FrameTiming } from '$lib/video/frames';
 	import {
@@ -79,6 +80,14 @@
 	let showDetails = $derived(!sheet || expanded);
 	// The panel's two tabs: the results (with Setup), and the session's details.
 	let tab: 'analysis' | 'session' = $state('analysis');
+	let chevronButton: HTMLButtonElement | null = $state(null);
+
+	// The summary button goes away as the sheet opens, so keep focus on the chevron.
+	async function openFromPeek() {
+		onToggle();
+		await tick();
+		chevronButton?.focus();
+	}
 
 	let grouped = $derived(groupJumps(marks, analysis));
 	let bestJump = $derived(
@@ -208,6 +217,39 @@
 	</div>
 {/snippet}
 
+{#snippet peek()}
+	{#if bestJump?.flight}
+		<span class="mp-peek-stat mp-peek-primary">
+			<span class="mp-peek-label">{completedJumps > 1 ? 'Best height' : 'Height'}</span>
+			<span class="mp-peek-value">{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span>
+		</span>
+		<span class="mp-peek-stat">
+			<span class="mp-peek-label">Best flight</span>
+			<span class="mp-peek-value">{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span>
+		</span>
+		{#if !contactMatters && averageHeight !== null}
+			<span class="mp-peek-stat">
+				<span class="mp-peek-label">Average</span>
+				<span class="mp-peek-value">{averageHeight.toFixed(1)}<small>cm</small></span>
+			</span>
+		{:else}
+			<span class="mp-peek-stat">
+				<span class="mp-peek-label">Contact</span>
+				<span class="mp-peek-value"
+					>{#if bestJump.contact}{formatMs(bestJump.contact.realSeconds)}<small>ms</small
+						>{:else}–{/if}</span
+				>
+			</span>
+		{/if}
+	{:else}
+		<span class="mp-peek-hint"
+			>{marks.length > 0
+				? 'Mark a landing to measure the jump'
+				: 'Mark takeoff and landing to measure a jump'}</span
+		>
+	{/if}
+{/snippet}
+
 {#snippet tabs()}
 	<div class="mp-tabs" role="tablist" aria-label="Panel">
 		<button
@@ -302,45 +344,25 @@
 	aria-label="Jump analysis"
 >
 	{#if sheet}
-		<!-- One button for both states, so focus stays put when the sheet expands or collapses. -->
-		<h2 class="mp-sheet-heading">
-			<button class="mp-sheet-toggle" onclick={onToggle} aria-expanded={expanded}>
-				<!-- The summary stays in the header, open or closed, so the body starts at the jumps. -->
-				<span class="sr-only">Analysis:</span>
-				{#if bestJump?.flight}
-					<span class="mp-peek-stat mp-peek-primary">
-						<span class="mp-peek-label">{completedJumps > 1 ? 'Best height' : 'Height'}</span>
-						<span class="mp-peek-value"
-							>{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span
-						>
-					</span>
-					<span class="mp-peek-stat">
-						<span class="mp-peek-label">Best flight</span>
-						<span class="mp-peek-value"
-							>{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span
-						>
-					</span>
-					{#if !contactMatters && averageHeight !== null}
-						<span class="mp-peek-stat">
-							<span class="mp-peek-label">Average</span>
-							<span class="mp-peek-value">{averageHeight.toFixed(1)}<small>cm</small></span>
-						</span>
-					{:else}
-						<span class="mp-peek-stat">
-							<span class="mp-peek-label">Contact</span>
-							<span class="mp-peek-value"
-								>{#if bestJump.contact}{formatMs(bestJump.contact.realSeconds)}<small>ms</small
-									>{:else}–{/if}</span
-							>
-						</span>
-					{/if}
-				{:else}
-					<span class="mp-peek-hint"
-						>{marks.length > 0
-							? 'Mark a landing to measure the jump'
-							: 'Mark takeoff and landing to measure a jump'}</span
-					>
-				{/if}
+		<!-- Expanded, the sheet's header is the tab strip with the summary under it;
+		     collapsed, it is the summary, which opens the sheet. The chevron toggles in
+		     both states, so focus can stay on it. -->
+		<h2 class="sr-only">Analysis</h2>
+		<div class="mp-sheet-head">
+			{#if showDetails}
+				{@render tabs()}
+			{:else}
+				<button class="mp-peek mp-peek-button" onclick={openFromPeek} aria-expanded="false"
+					>{@render peek()}</button
+				>
+			{/if}
+			<button
+				class="mp-sheet-chevron-btn"
+				bind:this={chevronButton}
+				onclick={onToggle}
+				aria-expanded={expanded}
+				aria-label={expanded ? 'Collapse analysis' : 'Expand analysis'}
+			>
 				<svg
 					class="mp-sheet-chevron"
 					viewBox="0 0 24 24"
@@ -350,7 +372,8 @@
 					aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg
 				>
 			</button>
-		</h2>
+		</div>
+		{#if showDetails && tab === 'analysis'}<div class="mp-peek">{@render peek()}</div>{/if}
 	{:else}
 		<div class="mp-head">
 			<h2 class="sr-only">Analysis</h2>
@@ -359,7 +382,6 @@
 	{/if}
 
 	{#if showDetails}
-		{#if sheet}<div class="mp-sheet-tabs">{@render tabs()}</div>{/if}
 		<div class="mp-body" id="mp-tabpanel" role="tabpanel" aria-labelledby="mp-tab-{tab}">
 			{#if tab === 'session'}
 				{@render sessionFields()}
@@ -420,6 +442,11 @@
 								{/if}
 							{/if}
 						</dl>
+						<p class="mp-caption mp-precision-caption">
+							±{frameMs.toFixed(1)}{#if longestFrameMs > frameMs + 0.05}–{longestFrameMs.toFixed(
+									1
+								)}{/if} ms per frame
+						</p>
 						{#if contactMatters && !bestJump.contact}
 							<p class="mp-caption">Mark the landing before the takeoff to get contact time.</p>
 						{/if}
@@ -626,11 +653,6 @@
 		font-variant-numeric: tabular-nums;
 	}
 
-	.mp-sheet-tabs {
-		padding: 4px 12px;
-		border-bottom: 1px solid hsl(var(--at-border));
-	}
-
 	/* Setup toolbar: dropdown chips, with the frame precision as a quiet stat on the right. */
 	.mp-toolbar {
 		display: flex;
@@ -681,15 +703,44 @@
 		border-bottom: none;
 	}
 
+	/* The precision shows in the toolbar; on touch side panels the toolbar has no
+	   room, so it moves under the summary. */
+	.mp-precision-caption {
+		display: none;
+	}
+
+	@media (pointer: coarse) {
+		.marks-panel:not(.sheet) .mp-precision {
+			display: none;
+		}
+
+		.marks-panel:not(.sheet) .mp-precision-caption {
+			display: block;
+		}
+
+		.mp-chip-select {
+			padding: 0 28px 0 12px;
+		}
+	}
+
 	.mp-toolbar-hint {
 		padding: 8px 16px 0;
 	}
 
+	/* Session fields as settings rows: a shared label column, split by hairlines. */
 	.mp-fields {
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
-		padding: 16px;
+		padding: 4px 16px 16px;
+	}
+
+	.mp-fields .mp-row {
+		grid-template-columns: 84px minmax(0, 1fr);
+		padding: 10px 0;
+	}
+
+	.mp-fields .mp-row + .mp-row {
+		border-top: 1px solid hsl(var(--at-border));
 	}
 
 	/* Headline numbers */
@@ -1023,7 +1074,7 @@
 		padding: 0 0 8px;
 	}
 
-	/* Each jump opens with a full-width header strip, as a file does in a diff. */
+	/* Each jump opens with a full-width header row under a hairline, as a file does in a diff. */
 	.mp-jump-head {
 		display: flex;
 		align-items: center;
@@ -1031,8 +1082,7 @@
 		min-height: 34px;
 		margin: 0 -8px 4px;
 		padding: 0 16px;
-		border-block: 1px solid hsl(var(--at-border));
-		background: hsl(var(--at-fg) / 0.025);
+		border-top: 1px solid hsl(var(--at-border));
 		font-size: 13px;
 		font-weight: 600;
 	}
@@ -1407,13 +1457,17 @@
 		background: hsl(var(--at-bg-elevated));
 	}
 
-	.mp-sheet-heading {
-		margin: 0;
-		font: inherit;
+	/* A grab handle: the header is the top of a sheet you can pull open. */
+	.mp-sheet-head {
+		position: relative;
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		min-height: 60px;
+		padding: 14px 2px 4px 12px;
 	}
 
-	/* A grab handle: the summary row is the top of a sheet you can pull open. */
-	.mp-sheet-toggle::before {
+	.mp-sheet-head::before {
 		content: '';
 		position: absolute;
 		top: 6px;
@@ -1425,17 +1479,29 @@
 		transform: translateX(-50%);
 	}
 
-	.mp-sheet-toggle {
-		position: relative;
+	.mp-sheet-head .mp-tabs {
+		flex: 1;
+	}
+
+	.mp-peek {
 		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr)) 44px;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 		row-gap: 2px;
-		gap: 8px;
-		width: 100%;
-		min-height: 64px;
-		padding: 16px 2px 8px 16px;
+		column-gap: 8px;
+		padding: 4px 16px 12px;
+		border-bottom: 1px solid hsl(var(--at-border));
+	}
+
+	.sheet:not(.collapsed) .mp-sheet-head:not(:has(+ .mp-peek)) {
+		border-bottom: 1px solid hsl(var(--at-border));
+	}
+
+	.mp-peek-button {
+		flex: 1;
+		min-height: 44px;
+		padding: 0 0 0 4px;
 		border: none;
-		border-radius: var(--at-radius-lg);
+		border-radius: var(--at-radius);
 		background: transparent;
 		color: inherit;
 		font: inherit;
@@ -1444,30 +1510,30 @@
 		touch-action: manipulation;
 	}
 
-	.sheet:not(.collapsed) .mp-sheet-toggle {
-		min-height: 64px;
-		border-bottom: 1px solid hsl(var(--at-border));
-		border-radius: var(--at-radius-lg) var(--at-radius-lg) 0 0;
-	}
-
 	.mp-peek-hint {
 		grid-column: 1 / 4;
 		grid-row: 1 / 3;
-	}
-
-	.mp-peek-hint {
+		align-self: center;
 		color: hsl(var(--at-fg-secondary));
 		font-size: 13px;
 	}
 
+	.mp-sheet-chevron-btn {
+		display: grid;
+		flex: 0 0 44px;
+		place-items: center;
+		height: 44px;
+		border: none;
+		border-radius: var(--at-radius);
+		background: transparent;
+		color: hsl(var(--at-fg-secondary));
+		cursor: pointer;
+		touch-action: manipulation;
+	}
+
 	.mp-sheet-chevron {
-		grid-column: 4;
-		grid-row: 1 / 3;
-		align-self: center;
-		justify-self: center;
 		width: 18px;
 		height: 18px;
-		color: hsl(var(--at-fg-secondary));
 		transition: transform 160ms ease;
 	}
 
@@ -1520,7 +1586,8 @@
 	}
 
 	@media (hover: hover) {
-		.mp-sheet-toggle:hover {
+		.mp-peek-button:hover,
+		.mp-sheet-chevron-btn:hover {
 			background: hsl(var(--at-surface));
 		}
 	}

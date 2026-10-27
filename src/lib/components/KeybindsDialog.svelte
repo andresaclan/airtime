@@ -217,7 +217,7 @@
 	.keybinds-groups {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-		gap: 24px 36px;
+		gap: 24px;
 		padding: 20px 24px 0;
 	}
 
@@ -234,15 +234,21 @@
 	}
 
 	.group-title {
-		margin-bottom: 6px;
+		margin-bottom: 8px;
 		color: hsl(var(--at-fg-muted));
 		font-size: 12px;
 		font-weight: 500;
 	}
 
+	/* Each group is a bordered list of rows, as in T3's keybindings settings. */
 	.bind-list {
 		display: flex;
 		flex-direction: column;
+		margin: 0;
+		border: 1px solid hsl(var(--at-border));
+		border-radius: 10px;
+		background: hsl(var(--at-fg) / 0.02);
+		overflow: hidden;
 	}
 
 	.bind-row {
@@ -250,7 +256,12 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 16px;
-		min-height: 32px;
+		min-height: 36px;
+		padding: 0 10px 0 12px;
+	}
+
+	.bind-row + .bind-row {
+		border-top: 1px solid hsl(var(--at-border));
 	}
 
 	.bind-row dt {
@@ -276,9 +287,9 @@
 		min-width: 22px;
 		height: 22px;
 		padding: 0 6px;
-		border: 1px solid hsl(var(--at-border-hover));
+		border: 1px solid hsl(var(--at-fg) / 0.06);
 		border-radius: 5px;
-		background: hsl(var(--at-surface));
+		background: hsl(var(--at-fg) / 0.08);
 		color: hsl(var(--at-fg));
 		font:
 			600 11px/1 var(--at-font-mono),
