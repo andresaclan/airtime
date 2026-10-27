@@ -1016,24 +1016,6 @@
 								The file may be unsupported or damaged. Choose another video to continue.
 							</p>
 						</div>
-					{:else}
-						<div class="viewer-badge">
-							<span class="viewer-badge-dot" class:uncertain={!sourceFrameRate}
-							></span>{#if sourceFrameRate && variableFrameRate}
-								<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps · variable</span>
-							{:else if sourceFrameRate}
-								{sourceFrameRate} fps
-							{:else if playbackFrameRate}
-								<span title="Couldn't read the frame rate from the file; estimated from playback">
-									~{playbackFrameRate} fps · estimated
-								</span>
-							{:else if frameRateFailed}
-								<span title={FRAME_RATE_FAILED}>Frame rate unknown</span>
-							{:else}
-								Detecting fps…
-							{/if}{#if playbackRate !== 1}<span class="viewer-badge-rate">{playbackRate}×</span
-								>{/if}
-						</div>
 					{/if}
 
 					<!-- Drag overlay -->
@@ -1069,11 +1051,33 @@
 							/>
 
 							<div class="control-toolbar">
+								<!-- One segmented group behind Takeoff, the frame controls and Landing. -->
+								<span class="transport-dock" aria-hidden="true"></span>
+								<!-- The context strip under the controls: where, how fast, how loud. -->
+								<span class="context-strip" aria-hidden="true"></span>
 								<div class="time-readout">
 									<span class="time-current">{formatFrameClock(playheadLabel, timing)}</span>
 									<span class="time-separator">/</span>
 									<span class="time-duration">{formatDuration()}</span>
 									<span class="time-frame">frame {playheadLabel + 1}</span>
+									{#if !mediaError}<span class="time-fps"
+											><span class="fps-dot" class:uncertain={!sourceFrameRate}
+											></span>{#if sourceFrameRate && variableFrameRate}
+												<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps · variable</span>
+											{:else if sourceFrameRate}
+												{sourceFrameRate} fps
+											{:else if playbackFrameRate}
+												<span
+													title="Couldn't read the frame rate from the file; estimated from playback"
+												>
+													~{playbackFrameRate} fps · estimated
+												</span>
+											{:else if frameRateFailed}
+												<span title={FRAME_RATE_FAILED}>Frame rate unknown</span>
+											{:else}
+												Detecting fps…
+											{/if}</span
+										>{/if}
 								</div>
 
 								<VideoControls

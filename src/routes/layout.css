@@ -500,7 +500,7 @@ body {
 /* Also phones held sideways: too short to stack the panel under the video. */
 @media (min-width: 901px), (max-height: 500px) {
 	.viewer-stage.has-video {
-		--bar-h: 92px;
+		--bar-h: 132px;
 		--frame-h: 100%;
 		gap: 0;
 		padding: 0;
@@ -582,45 +582,28 @@ body {
 	}
 }
 
-.viewer-badge {
-	position: absolute;
-	top: 12px;
-	right: 12px;
+/* The frame rate sits in the context strip, after the frame number. */
+.time-fps {
 	display: inline-flex;
 	align-items: center;
-	gap: 8px;
-	height: 28px;
-	padding: 0 10px;
-	border: 1px solid hsl(var(--at-fg) / 0.08);
-	border-radius: 999px;
-	background: hsl(var(--at-stage) / 0.72);
-	color: hsl(var(--at-fg-secondary));
-	font-family: var(--at-font-mono);
+	gap: 6px;
+	margin-left: 6px;
+	padding-left: 8px;
+	border-left: 1px solid hsl(var(--at-border-hover));
+	color: hsl(var(--at-fg-muted));
 	font-size: 11px;
-	font-weight: 500;
-	font-variant-numeric: tabular-nums;
-	backdrop-filter: blur(10px);
-	pointer-events: none;
 }
 
-.viewer-badge-dot {
+.fps-dot {
 	width: 6px;
 	height: 6px;
 	flex: 0 0 auto;
 	border-radius: 50%;
 	background: hsl(var(--at-success));
-	box-shadow: 0 0 0 3px hsl(var(--at-success) / 0.18);
 }
 
-.viewer-badge-dot.uncertain {
+.fps-dot.uncertain {
 	background: hsl(var(--at-warning));
-	box-shadow: 0 0 0 3px hsl(var(--at-warning) / 0.18);
-}
-
-.viewer-badge-rate {
-	padding-left: 8px;
-	border-left: 1px solid hsl(var(--at-fg) / 0.14);
-	color: hsl(var(--at-fg));
 }
 
 .viewer-overlay {
@@ -693,8 +676,24 @@ body {
 	background: hsl(var(--at-bg));
 }
 
+/* One grid for the whole bar: the scrubber, the marking and playback dock, then a
+   context strip (time, frame, frame rate; speed and sound), as T3's composer has
+   a strip of context attached under it. The toolbar and the VideoControls groups
+   dissolve into it. */
 .control-bar-inner {
-	padding: 2px 14px 10px;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
+	grid-template-areas:
+		'scrub scrub scrub scrub scrub'
+		'. takeoff transport landing .'
+		'time time time extras extras';
+	align-items: center;
+	column-gap: 2px;
+	padding: 2px 14px 0;
+}
+
+.control-bar-inner > .timeline-container {
+	grid-area: scrub;
 }
 
 /* Pinches anywhere over the video and its controls zoom the video (VideoViewer),
@@ -707,12 +706,23 @@ body {
 }
 
 .control-toolbar {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
-	grid-template-areas: 'time takeoff transport landing extras';
-	align-items: center;
-	min-height: 44px;
-	column-gap: 6px;
+	display: contents;
+}
+
+.context-strip {
+	grid-row: time;
+	grid-column: time-start / extras-end;
+	align-self: stretch;
+	min-height: 36px;
+	margin: 8px -14px 0;
+	border-top: 1px solid hsl(var(--at-border));
+	background: hsl(var(--at-stage));
+	pointer-events: none;
+}
+
+.time-readout,
+.control-toolbar .playback-extras {
+	margin-top: 8px;
 }
 
 .control-toolbar .playback-controls {
@@ -726,6 +736,7 @@ body {
 
 .time-readout {
 	grid-area: time;
+	z-index: 0;
 	display: flex;
 	align-items: baseline;
 	gap: 6px;
@@ -759,6 +770,45 @@ body {
 	display: contents;
 }
 
+/* Takeoff, the frame controls and Landing read as one segmented control, like the
+   grouped controls in T3's diff toolbar: one bordered track, quiet segments,
+   hairlines between the groups. */
+.transport-dock {
+	grid-column: takeoff-start / landing-end;
+	grid-row: takeoff;
+	align-self: center;
+	height: 40px;
+	margin-inline: -4px;
+	border: 1px solid hsl(var(--at-border-hover) / 0.7);
+	border-radius: 10px;
+	background: hsl(var(--at-fg) / 0.025);
+	pointer-events: none;
+}
+
+.control-toolbar .playback-controls {
+	position: relative;
+	padding-inline: 8px;
+}
+
+.control-toolbar .playback-controls::before,
+.control-toolbar .playback-controls::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	width: 1px;
+	height: 20px;
+	background: hsl(var(--at-border-hover));
+	transform: translateY(-50%);
+}
+
+.control-toolbar .playback-controls::before {
+	left: 0;
+}
+
+.control-toolbar .playback-controls::after {
+	right: 0;
+}
+
 .mark-action-takeoff {
 	grid-area: takeoff;
 	justify-self: end;
@@ -777,8 +827,8 @@ body {
 	height: 32px;
 	padding: 0 9px 0 11px;
 	border: 1px solid transparent;
-	border-radius: var(--at-radius);
-	background: hsl(var(--at-fg) / 0.06);
+	border-radius: 7px;
+	background: transparent;
 	color: hsl(var(--at-fg));
 	font: inherit;
 	font-size: 13px;
@@ -810,6 +860,7 @@ body {
 }
 
 .mark-action-dot {
+	flex: 0 0 auto;
 	width: 7px;
 	height: 7px;
 	border-radius: 50%;
@@ -823,15 +874,15 @@ body {
 		monospace;
 }
 
-/* Narrow bar: time and speed on one row, then marking and stepping on a thumb row
-   with Takeoff and Landing either side of the frame steppers. One grid spans this
-   toolbar and the VideoControls buttons, which dissolve their groups at this width. */
+/* Narrow bar: a thumb row of marking and stepping, Takeoff and Landing either side
+   of the frame steppers, then the context strip. */
 @container control-bar (max-width: 700px) {
-	.control-toolbar {
+	.control-bar-inner {
 		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 		grid-template-areas:
-			'time time extras'
-			'takeoff transport landing';
+			'scrub scrub scrub'
+			'takeoff transport landing'
+			'time time extras';
 		column-gap: 8px;
 		row-gap: 4px;
 	}
@@ -846,10 +897,17 @@ body {
 	.mark-action kbd {
 		display: none;
 	}
+	.transport-dock {
+		height: 52px;
+		border-radius: 14px;
+	}
+	.control-toolbar .playback-controls {
+		padding-inline: 4px;
+	}
 }
 
 /* Short of room, the duration gives way; the frame number is what stepping needs. */
-@container control-bar (max-width: 1060px) {
+@container control-bar (max-width: 520px) {
 	.time-separator,
 	.time-duration {
 		display: none;
@@ -1145,23 +1203,9 @@ body {
 	}
 }
 
-@media (max-width: 640px) {
-	.app-header {
-		height: 48px;
-		gap: 10px;
-		padding: 0 10px 0 14px;
-	}
-	/* Phones: Save stays; Open video, Sessions and Shortcuts fold into the More
-	   menu, which leaves room for the file name and its save state. */
-	.header-wide,
-	.header-divider,
-	.header-analysis,
-	.header-status-detail {
-		display: none;
-	}
-	.header-more {
-		display: inline-flex;
-	}
+/* Phones, upright or sideways: the logo stands in for "Airtime /", so the file
+   name gets the room. */
+@media (max-width: 640px), (max-height: 500px) {
 	.app-header:has(.header-file) .brand-name {
 		display: none;
 	}
@@ -1188,6 +1232,25 @@ body {
 		flex: 0 0 8px;
 		width: 8px;
 		height: 8px;
+	}
+}
+
+@media (max-width: 640px) {
+	.app-header {
+		height: 48px;
+		gap: 10px;
+		padding: 0 10px 0 14px;
+	}
+	/* Phones: Save stays; Open video, Sessions and Shortcuts fold into the More
+	   menu, which leaves room for the file name and its save state. */
+	.header-wide,
+	.header-divider,
+	.header-analysis,
+	.header-status-detail {
+		display: none;
+	}
+	.header-more {
+		display: inline-flex;
 	}
 	.app-header .btn-primary,
 	.app-header .btn-secondary {
@@ -1218,13 +1281,6 @@ body {
 	}
 	.viewer-frame {
 		border-radius: 10px;
-	}
-	.viewer-badge {
-		top: 8px;
-		right: 8px;
-		height: 24px;
-		padding: 0 8px;
-		font-size: 10px;
 	}
 	.control-bar-inner {
 		padding: 0 10px 8px;
@@ -1316,19 +1372,15 @@ body {
 		z-index: 1;
 		height: 44px;
 	}
-	.viewer-badge {
-		font-size: 11px;
-	}
 }
 
-/* A narrow bar on a touchscreen: room between the rows for the 44px hit areas
-   (mute, the speed chip) that reach past their 28px row, so none overlaps the
-   timeline band above or the mark buttons below. */
+/* A touchscreen: room between the rows for the 44px hit areas (mute, the speed
+   chip) that reach past their 28px row, so none overlaps the dock above. */
 @media (pointer: coarse) {
-	@container control-bar (max-width: 700px) {
-		.control-toolbar {
-			margin-top: 8px;
-			row-gap: 9px;
-		}
+	.control-bar-inner {
+		row-gap: 6px;
+	}
+	.context-strip {
+		min-height: 48px;
 	}
 }

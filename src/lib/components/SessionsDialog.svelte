@@ -193,9 +193,6 @@
 						{#each sessions as session (session.id)}
 							{@const height = bestHeight(session)}
 							<li class="session-row" class:current={session.id === currentSessionId}>
-								<div class="session-height" class:none={height === null}>
-									{#if height !== null}{height.toFixed(1)}<small>cm</small>{:else}—{/if}
-								</div>
 								<div class="session-info">
 									<span class="session-name">
 										<span class="session-title">{session.title}</span>
@@ -209,6 +206,9 @@
 											: 's'} · {session.media.fileName}
 									</span>
 								</div>
+								<div class="session-height" class:none={height === null}>
+									{#if height !== null}{height.toFixed(1)}<small>cm</small>{:else}—{/if}
+								</div>
 								<div class="session-actions">
 									{#if session.id !== currentSessionId}
 										<button
@@ -219,9 +219,7 @@
 											Open…
 										</button>
 									{/if}
-									<button class="secondary-btn small" onclick={() => downloadExport([session])}
-										>Export</button
-									>
+									<button class="text-btn" onclick={() => downloadExport([session])}>Export</button>
 									<span class="action-divider" aria-hidden="true"></span>
 									<button
 										class="icon-btn danger"
@@ -531,10 +529,10 @@
 			monospace;
 	}
 
+	/* Flat rows split by hairlines; the Current badge marks the open session. */
 	.sessions-list {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
 		margin: 0 -12px;
 		list-style: none;
 	}
@@ -544,31 +542,34 @@
 		align-items: center;
 		gap: 14px;
 		padding: 8px 8px 8px 12px;
-		border-radius: 10px;
-		transition:
-			background 120ms ease,
-			border-color 120ms ease;
+		border-radius: 8px;
+		transition: background 120ms ease;
 	}
 
-	.session-row.current {
-		background: hsl(var(--at-fg) / 0.05);
+	.session-row + .session-row {
+		box-shadow: 0 -1px 0 hsl(var(--at-border));
 	}
 
+	@media (hover: hover) {
+		.session-row:hover {
+			background: hsl(var(--at-fg) / 0.035);
+		}
+	}
+
+	/* The title leads; the session's best height is a supporting value at the right. */
 	.session-height {
-		flex: 0 0 64px;
-		color: hsl(var(--at-fg));
-		font-size: 16px;
-		font-weight: 600;
+		flex: 0 0 auto;
+		color: hsl(var(--at-fg-secondary));
+		font-family: var(--at-font-mono);
+		font-size: 12px;
+		font-weight: 500;
 		font-variant-numeric: tabular-nums;
-		letter-spacing: -0.02em;
 	}
 
 	.session-height small {
-		margin-left: 2px;
+		margin-left: 3px;
 		color: hsl(var(--at-fg-muted));
 		font-size: 11px;
-		font-weight: 500;
-		letter-spacing: 0;
 	}
 
 	.session-height.none {
@@ -658,12 +659,6 @@
 		font-size: 13px;
 		font-weight: 500;
 		cursor: pointer;
-	}
-
-	.secondary-btn.small {
-		height: 28px;
-		padding: 0 10px;
-		font-size: 12px;
 	}
 
 	.action-divider {
