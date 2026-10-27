@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { formatFrameClock } from '$lib/video/timecode';
 	import { frameDurationRange, frameLabel, type FrameTiming } from '$lib/video/frames';
 	import {
@@ -8,7 +9,6 @@
 		rsi,
 		type Analysis,
 		type Interval,
-		type Jump,
 		type Mark
 	} from '$lib/video/marks';
 	import {
@@ -81,6 +81,13 @@
 	// The panel's two tabs: the results (with Setup), and the session's details.
 	let tab: 'analysis' | 'session' = $state('analysis');
 	let chevronButton: HTMLButtonElement | null = $state(null);
+	// Jumps folded to their header row, by takeoff id. All open by default.
+	const foldedJumps = new SvelteSet<string>();
+
+	function toggleJump(id: string) {
+		if (foldedJumps.has(id)) foldedJumps.delete(id);
+		else foldedJumps.add(id);
+	}
 
 	// The summary button goes away as the sheet opens, so keep focus on the chevron.
 	async function openFromPeek() {
@@ -136,14 +143,6 @@
 	);
 	let averageFlight = $derived(mean(grouped.jumps.map((jump) => jump.flight?.realSeconds)));
 	let averageContact = $derived(mean(grouped.jumps.map((jump) => jump.contact?.realSeconds)));
-
-	function jumpStats(jump: Jump): string {
-		if (jump.flight?.heightCm === undefined) return '';
-		const parts = [`${jump.flight.heightCm.toFixed(1)} cm`];
-		const index = contactApplies ? rsi(jump) : undefined;
-		if (index !== undefined) parts.push(`RSI ${index.toFixed(2)}`);
-		return parts.join(' · ');
-	}
 
 	// datetime-local works in local time without a zone, so convert to and from ISO.
 	function toLocalInput(iso: string): string {
@@ -512,32 +511,50 @@
 					{:else}
 						<div class="mp-results">
 							{#each grouped.jumps as jump, index (jump.takeoff.id)}
+								{@const folded = foldedJumps.has(jump.takeoff.id)}
+								{@const index_ = contactApplies ? rsi(jump) : undefined}
 								<section
 									class="mp-jump"
 									class:mp-best={completedJumps >= 2 && jump === bestJump}
 									aria-label="Jump {index + 1}"
 								>
 									<h4 class="mp-jump-head">
-										<span class="mp-jump-name">Jump {index + 1}</span>
+										<button
+											class="mp-jump-toggle"
+											aria-expanded={!folded}
+											onclick={() => toggleJump(jump.takeoff.id)}
+											title={folded ? 'Show this jump’s marks' : 'Hide this jump’s marks'}
+											><svg class="mp-jump-chevron" viewBox="0 0 24 24" aria-hidden="true"
+												><path d="m9 6 6 6-6 6" /></svg
+											><span class="mp-jump-name">Jump {index + 1}</span></button
+										>
 										{#if completedJumps >= 2 && jump === bestJump}<span class="mp-badge">Best</span
 											>{/if}
-										<span class="mp-jump-stats">{jumpStats(jump)}</span>
+										<span class="mp-jump-stats"
+											>{#if jump.flight?.heightCm !== undefined}{jump.flight.heightCm.toFixed(1)} cm{/if}{#if index_ !== undefined}<span
+													class="mp-rsi-chip">RSI {index_.toFixed(2)}</span
+												>{/if}</span
+										>
 									</h4>
-									{#if jump.contact}
-										{#if grouped.jumps[index - 1]?.flight?.to.id === jump.contact.from.id}
-											<!-- The touchdown is the previous jump's landing; don't list it twice. -->
-											{@render interval(jump.contact)}
-										{:else}
-											{@render markRow(jump.contact.from, 'Touchdown')}
-											{@render interval(jump.contact)}
-										{/if}
-									{/if}
-									{@render markRow(jump.takeoff, 'Takeoff')}
-									{#if jump.flight}
-										{@render interval(jump.flight)}
-										{@render markRow(jump.flight.to, 'Landing')}
-									{:else}
-										<p class="mp-incomplete">Mark a landing to complete this jump.</p>
+									{#if !folded}
+										<div class="mp-card-body">
+											{#if jump.contact}
+												{#if grouped.jumps[index - 1]?.flight?.to.id === jump.contact.from.id}
+													<!-- The touchdown is the previous jump's landing; don't list it twice. -->
+													{@render interval(jump.contact)}
+												{:else}
+													{@render markRow(jump.contact.from, 'Touchdown')}
+													{@render interval(jump.contact)}
+												{/if}
+											{/if}
+											{@render markRow(jump.takeoff, 'Takeoff')}
+											{#if jump.flight}
+												{@render interval(jump.flight)}
+												{@render markRow(jump.flight.to, 'Landing')}
+											{:else}
+												<p class="mp-incomplete">Mark a landing to complete this jump.</p>
+											{/if}
+										</div>
 									{/if}
 								</section>
 							{/each}
@@ -1085,24 +1102,87 @@
 	.mp-results {
 		display: flex;
 		flex-direction: column;
-		margin: 0 -8px;
+		gap: 8px;
 	}
 
+	/* Each jump is a file card, as in T3's diff: a header row you can fold, then the
+	   marks and intervals as a divided list. */
 	.mp-jump {
-		padding: 0 0 8px;
+		border: 1px solid hsl(var(--at-border));
+		border-radius: var(--at-radius);
+		overflow: hidden;
 	}
 
-	/* Each jump opens with a full-width header row under a hairline, as a file does in a diff. */
+	.mp-card-body > * + * {
+		border-top: 1px solid hsl(var(--at-border));
+	}
+
+	.mp-card-body .mp-mark,
+	.mp-card-body .mp-mark-main {
+		border-radius: 0;
+	}
+
+	.mp-jump-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 28px;
+		padding: 0 6px 0 4px;
+		border: none;
+		border-radius: 6px;
+		background: transparent;
+		color: hsl(var(--at-fg));
+		font: inherit;
+		cursor: pointer;
+	}
+
+	@media (hover: hover) {
+		.mp-jump-toggle:hover {
+			background: hsl(var(--at-fg) / 0.06);
+		}
+	}
+
+	.mp-jump-chevron {
+		width: 14px;
+		height: 14px;
+		fill: none;
+		stroke: hsl(var(--at-fg-muted));
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		transition: transform 160ms ease;
+	}
+
+	.mp-jump-toggle[aria-expanded='true'] .mp-jump-chevron {
+		transform: rotate(90deg);
+	}
+
+	.mp-rsi-chip {
+		margin-left: 8px;
+		padding: 2px 6px;
+		border-radius: 5px;
+		background: hsl(var(--at-fg) / 0.07);
+		color: hsl(var(--at-fg-secondary));
+		font-family: var(--at-font-mono);
+		font-size: 11px;
+		font-weight: 500;
+	}
+
 	.mp-jump-head {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		min-height: 34px;
-		margin: 0 -8px 4px;
-		padding: 0 16px;
-		border-top: 1px solid hsl(var(--at-border));
+		min-height: 36px;
+		margin: 0;
+		padding: 0 10px 0 4px;
+		border-bottom: 1px solid hsl(var(--at-border));
+		background: hsl(var(--at-fg) / 0.03);
 		font-size: 13px;
 		font-weight: 600;
+	}
+
+	.mp-jump:has(.mp-jump-toggle[aria-expanded='false']) .mp-jump-head {
+		border-bottom: none;
 	}
 
 	.mp-jump-stats {
@@ -1266,9 +1346,8 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		margin-left: 11px;
-		padding: 3px 8px 3px 13px;
-		border-left: 2px dashed var(--interval-color);
+		min-height: 30px;
+		padding: 0 10px 0 26px;
 		color: hsl(var(--at-fg-muted));
 		font-size: 11px;
 		white-space: nowrap;
@@ -1295,7 +1374,8 @@
 	.mp-interval-value {
 		margin-left: auto;
 		color: hsl(var(--at-fg));
-		font-size: 13px;
+		font-family: var(--at-font-mono);
+		font-size: 12px;
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 	}
@@ -1423,6 +1503,11 @@
 
 		.mp-mark-main {
 			height: 44px;
+		}
+
+		.mp-jump-toggle {
+			height: 44px;
+			padding-right: 10px;
 		}
 
 		.mp-interval-value {
