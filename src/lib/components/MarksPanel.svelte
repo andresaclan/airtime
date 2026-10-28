@@ -478,22 +478,31 @@
 								<li>
 									<span class="mp-empty-num">1</span>
 									<span
-										><strong>{plantName}:</strong> first frame the foot touches down. Mark it with
-										Landing<span class="pointer-only">&nbsp;(<kbd>L</kbd>)</span>.</span
+										><strong>{plantName}:</strong> first frame the foot touches down.
+										<span class="mp-nowrap"
+											>Mark it with Landing<span class="pointer-only">&nbsp;(<kbd>L</kbd>)</span
+											>.</span
+										></span
 									>
 								</li>
 								<li>
 									<span class="mp-empty-num">2</span>
 									<span
-										><strong>Takeoff:</strong> first frame both feet are off the ground. Mark it
-										with Takeoff<span class="pointer-only">&nbsp;(<kbd>T</kbd>)</span>.</span
+										><strong>Takeoff:</strong> first frame both feet are off the ground.
+										<span class="mp-nowrap"
+											>Mark it with Takeoff<span class="pointer-only">&nbsp;(<kbd>T</kbd>)</span
+											>.</span
+										></span
 									>
 								</li>
 								<li>
 									<span class="mp-empty-num">3</span>
 									<span
-										><strong>Landing:</strong> first frame the feet touch back down. Mark it with
-										Landing<span class="pointer-only">&nbsp;(<kbd>L</kbd>)</span>.</span
+										><strong>Landing:</strong> first frame the feet touch back down.
+										<span class="mp-nowrap"
+											>Mark it with Landing<span class="pointer-only">&nbsp;(<kbd>L</kbd>)</span
+											>.</span
+										></span
 									>
 								</li>
 							</ol>
@@ -1104,6 +1113,11 @@
 		font-family: var(--at-font-mono);
 		font-size: 11px;
 		font-weight: 600;
+	}
+
+	/* "Mark it with Landing" stays on one line rather than stranding "Mark". */
+	.mp-nowrap {
+		white-space: nowrap;
 	}
 
 	.mp-empty-hint {

@@ -129,7 +129,7 @@
 		flex: 0 0 auto;
 		flex-direction: column;
 		gap: 6px;
-		padding: 10px 14px;
+		padding: 9px 14px;
 		border-top: 1px solid hsl(var(--at-border));
 		background: hsl(var(--at-bg-elevated));
 		color: hsl(var(--at-fg-secondary));
@@ -374,7 +374,7 @@
 	@media (max-width: 480px) {
 		.marking-guide {
 			gap: 4px;
-			padding: 8px 10px 10px;
+			padding: 7px 10px 9px;
 			font-size: 13px;
 			line-height: 20px;
 		}
