@@ -113,11 +113,6 @@
 	let slowMotion = $derived(
 		TIME_SCALES.find((scale) => scale.value === timeScale && scale.value !== 1)
 	);
-	// A landing followed by the next attempt's touchdown is normal; only warn about
-	// repeated marks that no jump could use.
-	let outOfSequenceMarks = $derived(
-		grouped.unpairedMarks.filter((mark) => analysis.outOfSequence.has(mark.id))
-	);
 	let completedJumps = $derived(grouped.jumps.filter((jump) => jump.flight).length);
 
 	let bestRsi = $derived(bestJump ? rsi(bestJump) : undefined);
@@ -130,6 +125,11 @@
 	// among the unpaired marks.
 	let pendingPlant = $derived(nextStep === 'takeoff' ? marks.at(-1) : undefined);
 	let unpairedMarks = $derived(grouped.unpairedMarks.filter((mark) => mark !== pendingPlant));
+	// A landing followed by the next jump's plant step is normal; only warn about
+	// repeated marks that no jump could use.
+	let outOfSequenceMarks = $derived(
+		unpairedMarks.filter((mark) => analysis.outOfSequence.has(mark.id))
+	);
 	function mean(values: (number | undefined)[]): number | null {
 		const present = values.filter((value) => value !== undefined);
 		return present.length ? present.reduce((sum, value) => sum + value, 0) / present.length : null;
