@@ -66,10 +66,12 @@
 						class:complete={index < stepIndex}
 						aria-current={index === stepIndex ? 'step' : undefined}
 					>
-						<span class="guide-step-num" aria-hidden="true"
-							>{#if index < stepIndex}<svg viewBox="0 0 24 24"><path d="m6 12.5 4 4 8-9" /></svg
-								>{:else}{index + 1}{/if}</span
-						>{label(name)}
+						<span class="guide-chip"
+							><span class="guide-step-num" aria-hidden="true"
+								>{#if index < stepIndex}<svg viewBox="0 0 24 24"><path d="m6 12.5 4 4 8-9" /></svg
+									>{:else}{index + 1}{/if}</span
+							>{label(name)}</span
+						>
 					</li>
 				{/each}
 			</ol>
@@ -160,6 +162,12 @@
 		--mark-color: hsl(var(--at-landing));
 		display: inline-flex;
 		align-items: center;
+	}
+
+	/* The chip itself, so the chevron before it stays outside its outline. */
+	.guide-chip {
+		display: inline-flex;
+		align-items: center;
 		gap: 6px;
 		height: 24px;
 		padding: 0 9px 0 4px;
@@ -180,7 +188,7 @@
 		content: '';
 		width: 5px;
 		height: 5px;
-		margin: 0 8px 0 -4px;
+		margin: 0 7px 0 3px;
 		border-top: 1.5px solid hsl(var(--at-fg-muted) / 0.6);
 		border-right: 1.5px solid hsl(var(--at-fg-muted) / 0.6);
 		transform: rotate(45deg);
@@ -209,7 +217,7 @@
 		stroke-linejoin: round;
 	}
 
-	.guide-step.current {
+	.guide-step.current .guide-chip {
 		border-color: color-mix(in srgb, var(--mark-color) 45%, transparent);
 		background: color-mix(in srgb, var(--mark-color) 10%, transparent);
 		color: hsl(var(--at-fg));
@@ -220,7 +228,7 @@
 		color: hsl(var(--at-bg));
 	}
 
-	.guide-step.complete {
+	.guide-step.complete .guide-chip {
 		color: hsl(var(--at-fg-secondary));
 	}
 
@@ -349,7 +357,7 @@
 			padding: 8px 10px;
 		}
 
-		.guide-step:not(.current) {
+		.guide-step:not(.current) .guide-chip {
 			padding-right: 2px;
 			font-size: 0;
 		}

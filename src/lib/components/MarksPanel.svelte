@@ -126,6 +126,10 @@
 	// The touchdown that starts a jump's contact: an approach jump's plant step.
 	let plantName = $derived(plantLabel(jumpType));
 	let nextStep = $derived(guideStep(marks));
+	// A plant step waiting for its takeoff starts the next jump rather than sitting
+	// among the unpaired marks.
+	let pendingPlant = $derived(nextStep === 'takeoff' ? marks.at(-1) : undefined);
+	let unpairedMarks = $derived(grouped.unpairedMarks.filter((mark) => mark !== pendingPlant));
 	function mean(values: (number | undefined)[]): number | null {
 		const present = values.filter((value) => value !== undefined);
 		return present.length ? present.reduce((sum, value) => sum + value, 0) / present.length : null;
@@ -444,7 +448,9 @@
 				<section class="mp-section" aria-labelledby="mp-jumps-heading">
 					<div class="mp-section-head">
 						<h3 id="mp-jumps-heading" class="mp-section-title">
-							Jumps{#if marks.length > 0}<span class="mp-count">{marks.length} marks</span>{/if}
+							Jumps{#if marks.length > 0}<span class="mp-count"
+									>{marks.length} mark{marks.length === 1 ? '' : 's'}</span
+								>{/if}
 						</h3>
 						<div class="mp-section-actions">
 							{#if canUndo}<button class="mp-text-btn" onclick={onUndo} title="Undo (⌘Z)"
@@ -589,13 +595,24 @@
 										.join(', ')}
 								</div>
 							{/if}
-							{#if grouped.unpairedMarks.length > 0}
+							{#if unpairedMarks.length > 0}
 								<section class="mp-jump mp-unpaired" aria-label="Unpaired marks">
 									<h4 class="mp-jump-head"><span class="mp-jump-name">Unpaired marks</span></h4>
-									{#each grouped.unpairedMarks as mark (mark.id)}{@render markRow(
+									{#each unpairedMarks as mark (mark.id)}{@render markRow(
 											mark,
 											mark.type === 'landing' ? 'Landing' : 'Takeoff'
 										)}{/each}
+								</section>
+							{/if}
+							{#if pendingPlant}
+								<section class="mp-jump" aria-label="Jump {grouped.jumps.length + 1}">
+									<h4 class="mp-jump-head">
+										<span class="mp-jump-name">Jump {grouped.jumps.length + 1}</span>
+									</h4>
+									<div class="mp-jump-marks">
+										{@render markRow(pendingPlant, plantName)}
+										<p class="mp-incomplete">Mark the takeoff to continue this jump.</p>
+									</div>
 								</section>
 							{/if}
 						</div>
