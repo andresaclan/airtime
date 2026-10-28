@@ -42,12 +42,16 @@ The development server starts at `http://localhost:5173`.
 
 ## Basic workflow
 
+Airtime is built around an approach jump: three marks give contact time, flight time, jump height and RSI. A marking guide under the video shows which step you're on and lights up the button that marks it.
+
 1. Open a local video with **Open video**, or drag it onto the app.
-2. Play (press `R` to slow down) until you're near the jump, then pause.
-3. Step with `,` and `.` to the first frame the feet leave the ground and press `T`.
-4. Step to the first frame they touch down and press `L`. The analysis panel shows the jump.
-5. For contact time, also mark the landing that comes before the takeoff.
+2. Play (press `R` to slow down) until you're near your last step before the jump, then pause.
+3. **Plant step:** step with `,` and `.` to the first frame your plant foot touches the ground and press **Landing** (`L`).
+4. **Takeoff:** step forward to the first frame both feet are off the ground and press **Takeoff** (`T`).
+5. **Landing:** step forward to the first frame your feet touch back down and press **Landing** (`L`). The analysis panel shows the jump.
 6. Press `⌘S` / `Ctrl+S` to save. Open the same file later to pick up where you left off.
+
+Hide the guide with **Hide**; bring it back from the keyboard shortcuts dialog (`?`).
 
 ## Keyboard shortcuts
 

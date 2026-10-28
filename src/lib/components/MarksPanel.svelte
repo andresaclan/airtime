@@ -12,6 +12,7 @@
 		type Mark
 	} from '$lib/video/marks';
 	import { JUMP_TYPES, TIME_SCALES, type JumpType } from '$lib/session/schema';
+	import { guideStep, plantLabel } from '$lib/video/guide';
 
 	interface Props {
 		marks: Mark[];
@@ -122,6 +123,9 @@
 	let bestRsi = $derived(bestJump ? rsi(bestJump) : undefined);
 	// Once the jump type is set, contact gets a summary slot.
 	let contactMatters = $derived(jumpType !== null);
+	// The touchdown that starts a jump's contact: an approach jump's plant step.
+	let plantName = $derived(plantLabel(jumpType));
+	let nextStep = $derived(guideStep(marks));
 	function mean(values: (number | undefined)[]): number | null {
 		const present = values.filter((value) => value !== undefined);
 		return present.length ? present.reduce((sum, value) => sum + value, 0) / present.length : null;
@@ -219,9 +223,11 @@
 		{/if}
 	{:else}
 		<span class="mp-peek-hint"
-			>{marks.length > 0
-				? 'Mark a landing to measure the jump'
-				: 'Mark takeoff and landing to measure a jump'}</span
+			>{nextStep === 'takeoff'
+				? 'Next: mark the takeoff'
+				: nextStep === 'landing'
+					? 'Next: mark the landing'
+					: `Mark the ${plantName.toLowerCase()}, takeoff and landing`}</span
 		>
 	{/if}
 {/snippet}
@@ -422,7 +428,9 @@
 								)}{/if} ms per frame
 						</p>
 						{#if contactMatters && !bestJump.contact}
-							<p class="mp-caption">Mark the landing before the takeoff to get contact time.</p>
+							<p class="mp-caption">
+								Mark the {plantName.toLowerCase()} with Landing to get contact time.
+							</p>
 						{/if}
 					</div>
 				{:else}
@@ -464,24 +472,29 @@
 								<li>
 									<span class="mp-empty-num">1</span>
 									<span
-										>Pause on the first frame where the feet leave the ground, then <span
-											class="pointer-only">press <kbd>T</kbd></span
-										><span class="touch-only">tap Takeoff</span>.</span
+										><strong>{plantName}:</strong> first frame the foot touches down. Mark it with
+										Landing<span class="pointer-only">&nbsp;(<kbd>L</kbd>)</span>.</span
 									>
 								</li>
 								<li>
 									<span class="mp-empty-num">2</span>
 									<span
-										>Step to the first frame they touch down, then <span class="pointer-only"
-											>press <kbd>L</kbd></span
-										><span class="touch-only">tap Landing</span>.</span
+										><strong>Takeoff:</strong> first frame both feet are off the ground. Mark it
+										with Takeoff<span class="pointer-only">&nbsp;(<kbd>T</kbd>)</span>.</span
+									>
+								</li>
+								<li>
+									<span class="mp-empty-num">3</span>
+									<span
+										><strong>Landing:</strong> first frame the feet touch back down. Mark it with
+										Landing<span class="pointer-only">&nbsp;(<kbd>L</kbd>)</span>.</span
 									>
 								</li>
 							</ol>
 							<p class="mp-empty-hint">
 								<span class="pointer-only"
 									>Step frames with <kbd>,</kbd> <kbd>.</kbd>&nbsp;·&nbsp;</span
-								>A landing before the takeoff adds contact time.
+								>Each jump appears here as you mark it.
 							</p>
 						</div>
 					{:else}
@@ -557,7 +570,7 @@
 										<div class="mp-jump-marks">
 											<!-- A touchdown that is the previous jump's landing isn't listed twice. -->
 											{#if jump.contact && grouped.jumps[index - 1]?.flight?.to.id !== jump.contact.from.id}
-												{@render markRow(jump.contact.from, 'Touchdown')}
+												{@render markRow(jump.contact.from, plantName)}
 											{/if}
 											{@render markRow(jump.takeoff, 'Takeoff')}
 											{#if jump.flight}
@@ -1054,6 +1067,11 @@
 	.mp-empty li {
 		display: flex;
 		gap: 10px;
+	}
+
+	.mp-empty strong {
+		color: hsl(var(--at-fg));
+		font-weight: 500;
 	}
 
 	.mp-empty-num {

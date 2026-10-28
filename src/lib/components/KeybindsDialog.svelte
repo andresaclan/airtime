@@ -5,9 +5,12 @@
 	interface Props {
 		isOpen: boolean;
 		onClose: () => void;
+		/** The marking guide was hidden; it can be brought back from here. */
+		guideHidden?: boolean;
+		onShowGuide?: () => void;
 	}
 
-	let { isOpen, onClose }: Props = $props();
+	let { isOpen, onClose, guideHidden = false, onShowGuide }: Props = $props();
 
 	let card: HTMLElement | null = $state(null);
 
@@ -23,7 +26,10 @@
 				onClose();
 				return;
 			}
-			if (event.key !== 'Tab') {
+			// Tab moves focus, and Enter or Space still press the focused button.
+			const pressesButton =
+				(event.key === 'Enter' || event.key === ' ') && event.target instanceof HTMLButtonElement;
+			if (event.key !== 'Tab' && !pressesButton) {
 				event.preventDefault();
 			}
 			trapTab(event, card);
@@ -113,6 +119,12 @@
 					</div>
 				{/each}
 			</div>
+			{#if guideHidden && onShowGuide}
+				<div class="guide-footer">
+					<span>The marking guide walks you through a jump, step by step.</span>
+					<button class="guide-show" onclick={onShowGuide}>Show marking guide</button>
+				</div>
+			{/if}
 		</div>
 	</div>
 {/if}
@@ -295,6 +307,45 @@
 			600 11px/1 var(--at-font-mono),
 			monospace;
 		white-space: nowrap;
+	}
+
+	.guide-footer {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px 16px;
+		margin: 24px 24px 0;
+		padding: 12px 12px 12px 14px;
+		border: 1px solid hsl(var(--at-border));
+		border-radius: 10px;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 13px;
+	}
+
+	.guide-show {
+		height: 30px;
+		padding: 0 12px;
+		border: 1px solid hsl(var(--at-border-hover));
+		border-radius: 8px;
+		background: hsl(var(--at-surface));
+		color: hsl(var(--at-fg));
+		font: inherit;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+	}
+
+	@media (hover: hover) {
+		.guide-show:hover {
+			background: hsl(var(--at-surface-hover));
+		}
+	}
+
+	@media (pointer: coarse) {
+		.guide-show {
+			height: 44px;
+		}
 	}
 
 	@media (prefers-reduced-motion: reduce) {
