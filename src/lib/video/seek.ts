@@ -14,7 +14,7 @@ import { frameAt, type FrameTiming } from './frames';
  */
 
 /** Shows a frame immediately, before the video's own seek lands. */
-export type SeekPreview = { show(frame: number): void };
+export type SeekPreview = { show(frame: number): void; hide(): void };
 
 /** Dispatched on the video whenever `seek` changes the target, so the playhead can follow it. */
 export const SEEK_EVENT = 'airtime:seek';
@@ -66,12 +66,22 @@ export function isWatching(video: HTMLVideoElement): boolean {
 	return !video.paused && !probing.has(video);
 }
 
-/** Seeks to `time` (a frame middle; see frames.ts), showing the frame at once where a preview can. */
-export function seek(video: HTMLVideoElement, time: number, timing: FrameTiming) {
+/**
+ * Seeks to `time` (a frame middle; see frames.ts), showing the frame at once where a
+ * preview can. Frame steps pass `preview: false`: a step's seek lands fast enough on
+ * its own, and cached frames look different enough from the video to flicker.
+ */
+export function seek(
+	video: HTMLVideoElement,
+	time: number,
+	timing: FrameTiming,
+	{ preview = true } = {}
+) {
 	// Seeking while the frame rate is measured (just after a video opens) ends the
 	// probe's playback, and the probe then leaves the playhead where the seek put it.
 	if (probing.delete(video)) video.pause();
-	previews.get(video)?.show(frameAt(time, timing));
+	if (preview) previews.get(video)?.show(frameAt(time, timing));
+	else previews.get(video)?.hide();
 	if (video.seeking && inFlight.has(video)) pending.set(video, time);
 	else {
 		pending.delete(video);

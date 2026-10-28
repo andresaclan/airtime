@@ -133,8 +133,9 @@
 
 	// Cached frames go through a canvas, which renders colour differently from the
 	// video (Chrome draws BT.709 mid-tones darker). Swapping between the two on every
-	// frame of a held step or a drag looks like flicker, so while seeks keep coming
-	// the preview stays up, and only hands back to the video once they stop.
+	// frame of a drag looks like flicker, so while seeks keep coming the preview stays
+	// up, and only hands back to the video once they stop. Frame steps skip the
+	// preview altogether (see seek.ts).
 	const RUN_GAP_MS = 200;
 	let lastSeekAt = -Infinity;
 	/** True when the latest seek came within RUN_GAP_MS of the one before. */
@@ -202,7 +203,7 @@
 	$effect(() => {
 		const video = videoElement;
 		if (!video) return;
-		const unregister = registerSeekPreview(video, { show: showPreview });
+		const unregister = registerSeekPreview(video, { show: showPreview, hide: hidePreview });
 		const sync = () => handleTimeUpdate();
 		const emptied = () => {
 			clearSeeks(video);
