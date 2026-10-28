@@ -6,6 +6,12 @@ import { SCHEMA_VERSION } from './schema';
 
 type RawSession = Record<string, unknown>;
 
+const V4_JUMP_TYPES = new Map<unknown, string>([
+	['approach', 'approach'],
+	['drop', 'drop-jump'],
+	['rebound', 'repeat-hops']
+]);
+
 /**
  * `MIGRATIONS[n]` turns a version-n session into a version-(n + 1) session. When the
  * schema changes, bump SCHEMA_VERSION and add one step here. Never edit a released step:
@@ -20,7 +26,10 @@ const MIGRATIONS: Record<number, (session: RawSession) => RawSession> = {
 	// v3 adds the jump type. Earlier sessions get none rather than a guess from their marks.
 	2: (session) => ({ ...session, jumpType: null }),
 	// v4 adds the approach jump type. Nothing changes; older versions just can't read it.
-	3: (session) => session
+	3: (session) => session,
+	// v5 stores jump types under their menu names. Countermovement and squat are no longer
+	// offered, so those sessions go back to unset rather than being guessed at.
+	4: (session) => ({ ...session, jumpType: V4_JUMP_TYPES.get(session.jumpType) ?? null })
 };
 
 export class NewerSchemaError extends Error {

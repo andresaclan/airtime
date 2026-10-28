@@ -4,7 +4,7 @@
  * Sessions are grouped by jump type so a chart only sets like against like.
  */
 import { analyzeMarks, groupJumps, sortMarks, type Interval } from '$lib/video/marks';
-import { hasMeaningfulContact, JUMP_TYPES, type JumpType, type Session } from './schema';
+import { JUMP_TYPES, type JumpType, type Session } from './schema';
 
 export type TrendJump = {
 	flightMs: number;
@@ -25,7 +25,7 @@ export type TrendPoint = {
 export type TrendGroup = {
 	jumpType: JumpType | null;
 	label: string;
-	/** Contact time only means something for some jump types. An unset type says nothing. */
+	/** Whether any jump in the group has a contact marked. */
 	showContact: boolean;
 	/** Oldest first. */
 	points: TrendPoint[];
@@ -76,9 +76,7 @@ export function trendGroups(sessions: Session[]): TrendGroup[] {
 			{
 				jumpType,
 				label: JUMP_TYPES.find((type) => type.value === jumpType)?.label ?? 'No jump type',
-				showContact:
-					(jumpType === null || hasMeaningfulContact(jumpType)) &&
-					points.some((point) => point.jumps.some((jump) => jump.contactMs !== null)),
+				showContact: points.some((point) => point.jumps.some((jump) => jump.contactMs !== null)),
 				points
 			}
 		];

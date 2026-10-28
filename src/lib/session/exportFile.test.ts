@@ -26,7 +26,7 @@ function session(id: string, overrides: Partial<Session>): Session {
 		id,
 		title: id,
 		notes: '',
-		jumpType: 'rebound',
+		jumpType: 'repeat-hops',
 		createdAt: '2026-10-01T10:00:00.000Z',
 		updatedAt: '2026-10-01T10:00:00.000Z',
 		recordedAt: '2026-10-01T09:00:00.000Z',
@@ -68,7 +68,7 @@ const sessions: Session[] = [
 	// A 4× slow-motion drop jump at 240 fps with a lone landing at the end.
 	session('slow-drop', {
 		recordedAt: '2026-10-02T09:00:00.000Z',
-		jumpType: 'drop',
+		jumpType: 'drop-jump',
 		frameRate: { value: 240, source: 'playback-estimate' },
 		timeScale: 0.25,
 		marks: marksAt(240, ['L0', 240], ['T1', 432], ['L1', 912], ['L9', 2000])
