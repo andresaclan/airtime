@@ -1095,12 +1095,13 @@
 		display: grid;
 		flex: 0 0 auto;
 		place-items: center;
-		width: 20px;
-		height: 20px;
-		margin-top: 1px;
+		width: 18px;
+		height: 18px;
+		margin-top: 2px;
 		border-radius: 50%;
 		background: hsl(var(--at-fg) / 0.08);
-		color: hsl(var(--at-fg));
+		color: hsl(var(--at-fg-secondary));
+		font-family: var(--at-font-mono);
 		font-size: 11px;
 		font-weight: 600;
 	}

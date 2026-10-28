@@ -128,13 +128,14 @@
 		display: flex;
 		flex: 0 0 auto;
 		flex-direction: column;
-		gap: 6px;
-		padding: 10px 14px 10px;
+		gap: 8px;
+		padding: 10px 14px 12px;
 		border-top: 1px solid hsl(var(--at-border));
 		background: hsl(var(--at-bg-elevated));
 		color: hsl(var(--at-fg-secondary));
-		font-size: 13px;
-		line-height: 1.45;
+		font-size: 14px;
+		line-height: 24px;
+		font-variant-numeric: tabular-nums;
 	}
 
 	.marking-guide.failed {
@@ -146,6 +147,7 @@
 		align-items: center;
 		gap: 10px;
 		min-width: 0;
+		line-height: 1;
 	}
 
 	.guide-steps {
@@ -188,7 +190,7 @@
 		content: '';
 		width: 5px;
 		height: 5px;
-		margin: 0 7px 0 3px;
+		margin: 0 8px 0 6px;
 		border-top: 1.5px solid hsl(var(--at-fg-muted) / 0.6);
 		border-right: 1.5px solid hsl(var(--at-fg-muted) / 0.6);
 		transform: rotate(45deg);
@@ -278,8 +280,10 @@
 
 	.guide-detail {
 		display: block;
+		margin-top: 2px;
 		color: hsl(var(--at-fg-muted));
 		font-size: 12px;
+		line-height: 20px;
 	}
 
 	/* The button to press, drawn as it looks in the dock below. */
@@ -288,9 +292,14 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		padding: 0 6px 0 8px;
+		height: 22px;
+		margin: 0 1px;
+		padding: 0 4px 0 8px;
 		border: 1px solid color-mix(in srgb, var(--mark-color) 45%, transparent);
 		border-radius: 6px;
+		font-size: 13px;
+		line-height: 1;
+		vertical-align: 1px;
 		background: color-mix(in srgb, var(--mark-color) 10%, transparent);
 		color: hsl(var(--at-fg));
 		font-weight: 500;
@@ -302,6 +311,7 @@
 	}
 
 	.guide-dot {
+		flex: 0 0 auto;
 		width: 7px;
 		height: 7px;
 		border-radius: 50%;
@@ -314,6 +324,7 @@
 		min-width: 18px;
 		height: 18px;
 		padding: 0 4px;
+		vertical-align: 1px;
 		border: 1px solid hsl(var(--at-border-hover));
 		border-radius: 4px;
 		background: hsl(var(--at-surface));
@@ -324,6 +335,9 @@
 	}
 
 	.guide-button kbd {
+		min-width: 16px;
+		height: 16px;
+		vertical-align: 0;
 		border: none;
 		background: none;
 		color: hsl(var(--at-fg-muted));
@@ -354,7 +368,14 @@
 	/* Phones: the step chips shed their labels except the current one. */
 	@media (max-width: 480px) {
 		.marking-guide {
-			padding: 8px 10px;
+			gap: 6px;
+			padding: 8px 10px 10px;
+			font-size: 13px;
+			line-height: 22px;
+		}
+
+		.guide-detail {
+			margin-top: 0;
 		}
 
 		.guide-step:not(.current) .guide-chip {

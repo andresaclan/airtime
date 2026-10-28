@@ -1144,12 +1144,14 @@ body {
 	--mark-color: hsl(var(--at-landing));
 	display: inline-flex;
 	justify-self: end;
-	font-size: 12px;
 	align-items: center;
-	gap: 5px;
-	padding: 0 6px;
+	gap: 6px;
+	height: 22px;
+	padding: 0 8px;
 	border: 1px solid color-mix(in srgb, var(--mark-color) 45%, transparent);
-	border-radius: 5px;
+	border-radius: 6px;
+	font-size: 12px;
+	line-height: 1;
 	background: color-mix(in srgb, var(--mark-color) 10%, transparent);
 	color: hsl(var(--at-fg));
 	font-weight: 500;
@@ -1158,8 +1160,9 @@ body {
 
 .empty-mark::before {
 	content: '';
-	width: 6px;
-	height: 6px;
+	flex: 0 0 auto;
+	width: 7px;
+	height: 7px;
 	border-radius: 50%;
 	background: var(--mark-color);
 }
@@ -1189,7 +1192,7 @@ body {
 .empty-steps li {
 	display: grid;
 	grid-template-columns: 18px 88px minmax(0, 1fr) auto;
-	align-items: baseline;
+	align-items: center;
 	column-gap: 10px;
 	padding: 5px 0;
 	color: hsl(var(--at-fg-muted));
@@ -1207,14 +1210,13 @@ body {
 	place-items: center;
 	width: 18px;
 	height: 18px;
-	border-radius: 5px;
+	border-radius: 50%;
 	background: hsl(var(--at-fg) / 0.08);
 	color: hsl(var(--at-fg-secondary));
 	font-family: var(--at-font-mono);
 	font-size: 11px;
-	font-weight: 500;
+	font-weight: 600;
 	line-height: 1;
-	align-self: center;
 }
 
 .empty-footer {
