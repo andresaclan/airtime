@@ -128,13 +128,13 @@
 		display: flex;
 		flex: 0 0 auto;
 		flex-direction: column;
-		gap: 8px;
-		padding: 10px 14px 12px;
+		gap: 6px;
+		padding: 10px 14px;
 		border-top: 1px solid hsl(var(--at-border));
 		background: hsl(var(--at-bg-elevated));
 		color: hsl(var(--at-fg-secondary));
 		font-size: 14px;
-		line-height: 24px;
+		line-height: 22px;
 		font-variant-numeric: tabular-nums;
 	}
 
@@ -280,10 +280,9 @@
 
 	.guide-detail {
 		display: block;
-		margin-top: 2px;
 		color: hsl(var(--at-fg-muted));
 		font-size: 12px;
-		line-height: 20px;
+		line-height: 18px;
 	}
 
 	/* The button to press, drawn as it looks in the dock below. */
@@ -299,7 +298,7 @@
 		border-radius: 6px;
 		font-size: 13px;
 		line-height: 1;
-		vertical-align: 1px;
+		vertical-align: middle;
 		background: color-mix(in srgb, var(--mark-color) 10%, transparent);
 		color: hsl(var(--at-fg));
 		font-weight: 500;
@@ -324,7 +323,6 @@
 		min-width: 18px;
 		height: 18px;
 		padding: 0 4px;
-		vertical-align: 1px;
 		border: 1px solid hsl(var(--at-border-hover));
 		border-radius: 4px;
 		background: hsl(var(--at-surface));
@@ -337,7 +335,6 @@
 	.guide-button kbd {
 		min-width: 16px;
 		height: 16px;
-		vertical-align: 0;
 		border: none;
 		background: none;
 		color: hsl(var(--at-fg-muted));
@@ -351,31 +348,43 @@
 		}
 	}
 
+	/* Touch: Hide gets an outline so it reads as a button, and a 44px hit area.
+	   Insets count from inside the 1px border, so -7px reaches 44. */
 	@media (pointer: coarse) {
 		.guide-hide {
 			position: relative;
+			min-width: 52px;
 			height: 32px;
+			padding: 0 12px;
+			border: 1px solid hsl(var(--at-border-hover));
+			border-radius: var(--at-radius);
+			color: hsl(var(--at-fg-secondary));
 			font-size: 13px;
+			font-weight: 500;
 		}
 
 		.guide-hide::after {
 			content: '';
 			position: absolute;
-			inset: -6px 0;
+			inset: -7px -1px;
 		}
 	}
 
 	/* Phones: the step chips shed their labels except the current one. */
 	@media (max-width: 480px) {
 		.marking-guide {
-			gap: 6px;
+			gap: 4px;
 			padding: 8px 10px 10px;
 			font-size: 13px;
-			line-height: 22px;
+			line-height: 20px;
 		}
 
 		.guide-detail {
-			margin-top: 0;
+			line-height: 18px;
+		}
+
+		.guide-button {
+			height: 20px;
 		}
 
 		.guide-step:not(.current) .guide-chip {
