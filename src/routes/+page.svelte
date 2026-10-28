@@ -968,7 +968,7 @@
 							<text x="79" y="108">Run-up</text>
 						</g>
 						<path class="diagram-flight" d="M226 80C262 14 382 14 418 80" />
-						<path class="diagram-span" d="M166 92v4h60v-4" />
+						<path class="diagram-span" d="M166 87v4h60v-4" />
 						<text class="diagram-span-label" x="196" y="108">Contact</text>
 						<text class="diagram-span-label" x="322" y="64">Flight</text>
 						<g class="diagram-mark landing">
