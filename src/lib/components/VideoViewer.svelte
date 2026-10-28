@@ -176,6 +176,8 @@
 		if (previewCanvas.height !== image.displayHeight) previewCanvas.height = image.displayHeight;
 		context.drawImage(image, 0, 0);
 		previewFrame = frame;
+		// A frame the video already shows gets no later event to hand back on.
+		handBackWhenCaughtUp();
 	}
 
 	$effect(() => {
