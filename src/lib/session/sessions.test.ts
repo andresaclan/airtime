@@ -11,13 +11,7 @@ import {
 	lastBackupAt,
 	needsBackup
 } from './backup';
-import {
-	DEFAULT_JUMP_TYPE,
-	hasMeaningfulContact,
-	JUMP_TYPES,
-	SCHEMA_VERSION,
-	type Session
-} from './schema';
+import { DEFAULT_JUMP_TYPE, JUMP_TYPES, SCHEMA_VERSION, type Session } from './schema';
 import type { Mark, MarkType } from '$lib/video/marks';
 // A real export from schema v1, frozen. Never regenerate it: it stands in for the backups
 // users already have, which every future version must still import.
@@ -85,15 +79,18 @@ describe('importing old exports', () => {
 		const recomputed = buildExport(sessions);
 		// Marks are exported to the microsecond, so a duration on an exact tie can round the
 		// other way: 51 frames at 59.94 fps is 0.85085 s, recorded 0.8508 and recomputed 0.8509.
+		// The retired countermovement type comes back unset.
 		const durationKeys = /Seconds$|^seconds$/;
 		const nearDurations = (value: unknown, key = ''): unknown =>
-			Array.isArray(value)
-				? value.map((item) => nearDurations(item))
-				: value && typeof value === 'object'
-					? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, nearDurations(v, k)]))
-					: typeof value === 'number' && durationKeys.test(key)
-						? expect.closeTo(value, 3)
-						: value;
+			key === 'jumpType'
+				? null
+				: Array.isArray(value)
+					? value.map((item) => nearDurations(item))
+					: value && typeof value === 'object'
+						? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, nearDurations(v, k)]))
+						: typeof value === 'number' && durationKeys.test(key)
+							? expect.closeTo(value, 3)
+							: value;
 		expect(recomputed.tables).toEqual(nearDurations(exportV3.tables));
 		expect(recomputed.overview).toEqual(nearDurations(exportV3.overview));
 		expect(recomputed.sessions.map((session) => session.derived)).toEqual(
@@ -173,9 +170,17 @@ describe('migrateSession', () => {
 		expect(migrateSession(v2)).toEqual({ ...v2, schemaVersion: SCHEMA_VERSION, jumpType: null });
 	});
 
-	test('v3 sessions only change version: v4 just adds the approach type', () => {
-		const v3 = { schemaVersion: 3, id: 'x', jumpType: 'squat', marks: [] };
-		expect(migrateSession(v3)).toEqual({ ...v3, schemaVersion: 4 });
+	test('v3 sessions only change version on the way to v4', () => {
+		const v3 = { schemaVersion: 3, id: 'x', jumpType: 'drop', marks: [] };
+		expect(migrateSession(v3, undefined, 4)).toEqual({ ...v3, schemaVersion: 4 });
+	});
+
+	test('v4 jump types are renamed to their menu names, and retired ones are unset', () => {
+		const types = ['approach', 'drop', 'rebound', 'countermovement', 'squat', null];
+		const migrated = types.map(
+			(jumpType) => migrateSession({ schemaVersion: 4, id: 'x', jumpType }).jumpType
+		);
+		expect(migrated).toEqual(['approach', 'drop-jump', 'repeat-hops', null, null, null]);
 	});
 
 	test('v1 sessions pass through every real step', () => {
@@ -188,7 +193,7 @@ describe('migrateSession', () => {
 	});
 
 	test('a session that already has a jump type is not overwritten by the v2 step', () => {
-		const current = { schemaVersion: SCHEMA_VERSION, id: 'x', jumpType: 'drop' };
+		const current = { schemaVersion: SCHEMA_VERSION, id: 'x', jumpType: 'drop-jump' };
 		expect(migrateSession(current)).toEqual(current);
 	});
 
@@ -265,25 +270,25 @@ describe('exported jumps and unpaired marks', () => {
 
 describe('jump type', () => {
 	const [base] = parseImport(v1Text);
-	const typed = { ...base, jumpType: 'drop' as const };
+	const typed = { ...base, jumpType: 'drop-jump' as const };
 
 	test('is exported on sessions and on every table row', () => {
 		const exported = buildExport([typed]);
-		expect(exported.sessions[0].jumpType).toBe('drop');
+		expect(exported.sessions[0].jumpType).toBe('drop-jump');
 		const rows = [
 			...exported.tables.sessions,
 			...exported.tables.jumps,
 			...exported.tables.intervals
 		];
 		expect(rows.length).toBeGreaterThan(1);
-		for (const row of rows) expect(row.jumpType).toBe('drop');
+		for (const row of rows) expect(row.jumpType).toBe('drop-jump');
 		expect(exported.fields).toHaveProperty(['sessions[].jumpType']);
 	});
 
 	test('survives an export and import', () => {
 		const text = JSON.stringify(buildExport([typed, { ...base, id: 'unset' }]));
 		const types = parseImport(text).map((session) => session.jumpType);
-		expect(types).toEqual(expect.arrayContaining(['drop', null]));
+		expect(types).toEqual(expect.arrayContaining(['drop-jump', null]));
 	});
 
 	test('an unrecognised type is rejected', () => {
@@ -292,28 +297,25 @@ describe('jump type', () => {
 		expect(() => parseImport(JSON.stringify(data))).toThrow(/jumpType is not recognised/);
 	});
 
-	test('only approach, drop and rebound jumps have a meaningful contact', () => {
-		expect(
-			(['countermovement', 'approach', 'squat', 'drop', 'rebound', null] as const).map(
-				hasMeaningfulContact
-			)
-		).toEqual([false, true, false, true, true, false]);
-	});
-
 	test('the menu offers approach, drop jump and repeat hops, in that order', () => {
-		expect(JUMP_TYPES.filter((type) => !type.retired).map((type) => type.label)).toEqual([
-			'Approach',
-			'Drop jump',
-			'Repeat hops'
-		]);
+		expect(JUMP_TYPES.map((type) => type.label)).toEqual(['Approach', 'Drop jump', 'Repeat hops']);
 		expect(DEFAULT_JUMP_TYPE).toBe('approach');
 	});
 
-	test('sessions with a retired type still import and keep it', () => {
+	test('sessions saved with a retired type import with the type unset', () => {
 		const types = parseImport(v3Text).map((session) => session.jumpType);
-		expect(types).toEqual(['countermovement', 'countermovement', 'countermovement']);
-		const squat = { ...parseImport(v3Text)[0], jumpType: 'squat' as const };
-		expect(parseImport(JSON.stringify(buildExport([squat])))[0].jumpType).toBe('squat');
+		expect(types).toEqual([null, null, null]);
+	});
+
+	test('a v4 export imports under the new names', () => {
+		const data = JSON.parse(JSON.stringify(buildExport([typed, { ...typed, id: 'hops' }])));
+		data.schemaVersion = 4;
+		data.sessions[0].schemaVersion = 4;
+		data.sessions[0].jumpType = 'drop';
+		data.sessions[1].schemaVersion = 4;
+		data.sessions[1].jumpType = 'rebound';
+		const types = parseImport(JSON.stringify(data)).map((session) => session.jumpType);
+		expect(types).toEqual(['drop-jump', 'repeat-hops']);
 	});
 
 	test('a v3 session set to approach survives an export and import', () => {

@@ -1,7 +1,7 @@
 /** A saved marking session for one video. The video itself is never stored. */
 import type { Mark } from '$lib/video/marks';
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /**
  * `default` means 30 fps was assumed because the frame rate couldn't be read or measured.
@@ -9,29 +9,16 @@ export const SCHEMA_VERSION = 4;
  */
 export type FrameRateSource = 'container' | 'playback-estimate' | 'default';
 
-export type JumpType = 'approach' | 'drop' | 'rebound' | 'countermovement' | 'squat';
+export type JumpType = 'approach' | 'drop-jump' | 'repeat-hops';
 
-/**
- * In menu order. Retired types are no longer offered, but sessions saved with one keep it,
- * so they stay readable. `rebound` is stored under its old name.
- */
-export const JUMP_TYPES: readonly { value: JumpType; label: string; retired?: true }[] = [
+/** In menu order. Every type has a meaningful contact: an approach jump's is its plant step. */
+export const JUMP_TYPES: readonly { value: JumpType; label: string }[] = [
 	{ value: 'approach', label: 'Approach' },
-	{ value: 'drop', label: 'Drop jump' },
-	{ value: 'rebound', label: 'Repeat hops' },
-	{ value: 'countermovement', label: 'Countermovement', retired: true },
-	{ value: 'squat', label: 'Squat', retired: true }
+	{ value: 'drop-jump', label: 'Drop jump' },
+	{ value: 'repeat-hops', label: 'Repeat hops' }
 ];
 
 export const DEFAULT_JUMP_TYPE: JumpType = 'approach';
-
-/**
- * Contact time and RSI only mean something for these; for other types they're just numbers.
- * An approach jump's contact is its plant step.
- */
-export function hasMeaningfulContact(jumpType: JumpType | null): boolean {
-	return jumpType === 'approach' || jumpType === 'drop' || jumpType === 'rebound';
-}
 
 export type SessionMedia = {
 	fileName: string;
@@ -51,7 +38,10 @@ export type Session = {
 	id: string;
 	title: string;
 	notes: string;
-	/** One per session. `null` for sessions saved before jump types existed. */
+	/**
+	 * One per session. `null` until the athlete sets one: sessions saved before jump types
+	 * existed, or with a type that's no longer offered.
+	 */
 	jumpType: JumpType | null;
 	createdAt: string;
 	updatedAt: string;

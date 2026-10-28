@@ -59,7 +59,7 @@ How high the athlete rose, estimated from flight time on the assumption that the
 Reactive strength index: a jump's height divided by the contact before it. Only jumps with a contact have one, and it only means something for approach jumps, drop jumps and repeat hops.
 
 **Jump type**:
-What kind of jump a session holds: approach, drop jump or repeat hops. Sessions saved earlier may be countermovement or squat jumps, which are no longer offered. A session has one jump type, so later comparisons set like against like. A session saved before jump types existed has none until the athlete sets one.
+What kind of jump a session holds: approach, drop jump or repeat hops, stored as `approach`, `drop-jump` and `repeat-hops`. A session has one jump type, so later comparisons set like against like. A session has none until the athlete sets one if it was saved before jump types existed, or saved as a countermovement or squat jump, which are no longer offered.
 _Avoid_: Drill, exercise
 
 **Approach jump**:
@@ -69,14 +69,14 @@ A jump taken at the end of a run-up, as in volleyball or basketball. Its contact
 A jump that starts by stepping off a box, landing, and jumping again straight away.
 
 **Repeat hops**:
-Several jumps in a row, each aiming for as little ground contact as possible before the next. Stored as `rebound`.
+Several jumps in a row, each aiming for as little ground contact as possible before the next.
 _Avoid_: Rebound jump
 
 **Countermovement jump**:
-A jump that starts standing, dips down, then drives straight up. No longer offered.
+A jump that starts standing, dips down, then drives straight up. No longer offered; sessions saved with it now have no jump type.
 
 **Squat jump**:
-A jump that starts from a held squat, with no dip beforehand. No longer offered.
+A jump that starts from a held squat, with no dip beforehand. No longer offered; sessions saved with it now have no jump type.
 
 **Best jump**:
 The jump with the greatest jump height in a session.

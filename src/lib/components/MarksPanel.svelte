@@ -11,12 +11,7 @@
 		type Interval,
 		type Mark
 	} from '$lib/video/marks';
-	import {
-		hasMeaningfulContact,
-		JUMP_TYPES,
-		TIME_SCALES,
-		type JumpType
-	} from '$lib/session/schema';
+	import { JUMP_TYPES, TIME_SCALES, type JumpType } from '$lib/session/schema';
 
 	interface Props {
 		marks: Mark[];
@@ -122,17 +117,11 @@
 	let outOfSequenceMarks = $derived(
 		grouped.unpairedMarks.filter((mark) => analysis.outOfSequence.has(mark.id))
 	);
-	// Contact and RSI are only meaningful for approach jumps, drop jumps and repeat hops. An unset type says nothing.
-	let contactApplies = $derived(jumpType === null || hasMeaningfulContact(jumpType));
-	// A retired type only shows on a session that already has it.
-	let jumpTypeOptions = $derived(
-		JUMP_TYPES.filter((type) => !type.retired || type.value === jumpType)
-	);
 	let completedJumps = $derived(grouped.jumps.filter((jump) => jump.flight).length);
 
-	let bestRsi = $derived(bestJump && contactApplies ? rsi(bestJump) : undefined);
-	// Contact only means something for approach jumps, drop jumps and repeat hops; there it gets a summary slot.
-	let contactMatters = $derived(jumpType !== null && hasMeaningfulContact(jumpType));
+	let bestRsi = $derived(bestJump ? rsi(bestJump) : undefined);
+	// Once the jump type is set, contact gets a summary slot.
+	let contactMatters = $derived(jumpType !== null);
 	function mean(values: (number | undefined)[]): number | null {
 		const present = values.filter((value) => value !== undefined);
 		return present.length ? present.reduce((sum, value) => sum + value, 0) / present.length : null;
@@ -270,8 +259,7 @@
 			aria-describedby={jumpType === null ? 'mp-jump-type-hint' : undefined}
 		>
 			{#if jumpType === null}<option value={null}>Jump type not set</option>{/if}
-			{#each jumpTypeOptions as type (type.value)}<option value={type.value}>{type.label}</option
-				>{/each}
+			{#each JUMP_TYPES as type (type.value)}<option value={type.value}>{type.label}</option>{/each}
 		</select>
 		<select class="mp-chip-select" bind:value={timeScale} aria-label="Footage">
 			{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}>{scale.label}</option
@@ -500,7 +488,7 @@
 						<div class="mp-results">
 							{#each grouped.jumps as jump, index (jump.takeoff.id)}
 								{@const folded = foldedJumps.has(jump.takeoff.id)}
-								{@const index_ = contactApplies ? rsi(jump) : undefined}
+								{@const index_ = rsi(jump)}
 								<section
 									class="mp-jump"
 									class:mp-best={completedJumps >= 2 && jump === bestJump}

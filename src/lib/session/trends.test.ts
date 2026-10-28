@@ -102,7 +102,7 @@ describe('trendGroups', () => {
 		const groups = trendGroups([
 			session('new-approach', { recordedAt: '2026-10-20T09:00:00Z', marks: jump }),
 			session('untyped', { jumpType: null, marks: jump }),
-			session('drop', { jumpType: 'drop', marks: jump }),
+			session('drop', { jumpType: 'drop-jump', marks: jump }),
 			session('old-approach', { recordedAt: '2026-09-01T09:00:00Z', marks: jump }),
 			session('empty', { recordedAt: '2026-10-25T09:00:00Z', marks: [] })
 		]);
@@ -114,18 +114,16 @@ describe('trendGroups', () => {
 		expect(latestGroup(groups)?.jumpType).toBe('approach');
 	});
 
-	test('contact shows only where it means something and was marked', () => {
+	test('contact shows only where it was marked', () => {
 		const flightOnly = marksAt(100, ['T1', 30], ['L1', 110]);
 		const groups = trendGroups([
-			session('cmj', { jumpType: 'countermovement', marks: jump }),
 			session('approach', { marks: flightOnly }),
-			session('drop', { jumpType: 'drop', marks: jump }),
+			session('drop', { jumpType: 'drop-jump', marks: jump }),
 			session('untyped', { jumpType: null, marks: jump })
 		]);
 		expect(groups.map((group) => [group.label, group.showContact])).toEqual([
 			['Approach', false],
 			['Drop jump', true],
-			['Countermovement', false],
 			['No jump type', true]
 		]);
 	});
