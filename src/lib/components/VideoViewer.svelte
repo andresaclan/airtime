@@ -162,7 +162,7 @@
 		lastSeekAt = now;
 		if (!scrubCache || !previewTiming()) return;
 		scrubCache.focus(frame);
-		if (!scrubCache.has(frame) || videoShows(frame)) hidePreview();
+		if (!scrubCache.has(frame) || (previewFrame === null && videoShows(frame))) hidePreview();
 		else scrubCache.request(frame);
 	}
 
