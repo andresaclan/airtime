@@ -5,6 +5,7 @@
 	import MarksPanel from '$lib/components/MarksPanel.svelte';
 	import KeybindsDialog from '$lib/components/KeybindsDialog.svelte';
 	import SessionsDialog from '$lib/components/SessionsDialog.svelte';
+	import MarkingGuide from '$lib/components/MarkingGuide.svelte';
 	import { onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
@@ -22,6 +23,7 @@
 	} from '$lib/video/frames';
 	import { displayedFrame, settledDisplayedFrame } from '$lib/video/presentedFrame';
 	import { seek } from '$lib/video/seek';
+	import { STEP_MARK, guideStep, isGuideHidden, setGuideHidden } from '$lib/video/guide';
 	import {
 		analyzeMarks,
 		frameOf,
@@ -148,18 +150,36 @@
 	let analysis = $derived(analyzeMarks(marks, timing, timeScale));
 	let activeMark = $derived(markAtFrame(marks, currentTime, timing));
 
+	// The marking guide walks a new athlete through a jump, step by step, and lights
+	// up the button that marks the step they're on.
+	let guideHidden = $state(false);
+	let showGuide = $derived(!guideHidden && !mediaError);
+	let nextMark = $derived.by(() => {
+		if (!showGuide || !frameRateKnown) return null;
+		const step = guideStep(marks);
+		return step === 'done' ? null : STEP_MARK[step];
+	});
+
+	function setGuide(hidden: boolean) {
+		guideHidden = hidden;
+		setGuideHidden(hidden);
+	}
+
 	// Width over height, once the video's metadata is in. On narrow screens a landscape
 	// video is sized to fit and the analysis sheet takes the room left underneath, as
 	// long as the controls still fit below it. A phone held sideways has no such room:
 	// there the video letterboxes in what's left, so the controls stay on screen.
 	let videoAspect: number | null = $state(null);
-	// Header, stage padding, control bar and the collapsed sheet, roughly.
+	// Header, stage padding, control bar and the collapsed sheet, roughly; the
+	// marking guide adds its band.
 	const STACKED_CHROME_PX = 300;
+	const GUIDE_PX = 76;
 	let fitLandscape = $derived.by(() => {
 		if (!stacked.current || !((videoAspect ?? 0) > 1)) return false;
 		const width = innerWidth.current ?? 0;
 		const height = innerHeight.current ?? 0;
-		return width / videoAspect! <= height - STACKED_CHROME_PX;
+		const chrome = STACKED_CHROME_PX + (showGuide ? GUIDE_PX : 0);
+		return width / videoAspect! <= height - chrome;
 	});
 
 	let saveShortcut = $state('⌘S');
@@ -369,6 +389,7 @@
 
 	onMount(() => {
 		saveShortcut = isApplePlatform() ? '⌘S' : 'Ctrl S';
+		guideHidden = isGuideHidden();
 		// Phones start with the sheet collapsed so the video gets the height.
 		if (stacked.current) panelOpen = false;
 		void refreshBackup();
@@ -692,7 +713,15 @@
 	ondragleave={handleDragLeave}
 />
 
-<KeybindsDialog isOpen={keybindsOpen} onClose={() => (keybindsOpen = false)} />
+<KeybindsDialog
+	isOpen={keybindsOpen}
+	onClose={() => (keybindsOpen = false)}
+	{guideHidden}
+	onShowGuide={() => {
+		setGuide(false);
+		keybindsOpen = false;
+	}}
+/>
 <SessionsDialog
 	isOpen={sessionsOpen}
 	currentSessionId={sessionId}
@@ -895,8 +924,7 @@
 					<div class="empty-head">
 						<h1 class="empty-title">Measure jump height from video</h1>
 						<p class="empty-lede">
-							Step to the frames where your feet leave and touch the ground. Airtime turns the
-							flight time into jump height.
+							Open a clip of your approach jump and mark three frames. Airtime does the math.
 						</p>
 					</div>
 					<button onclick={openFilePicker} class="dropzone" class:dragging={isDragging}>
@@ -924,25 +952,68 @@
 						</span>
 						<span class="btn btn-primary">Choose video</span>
 					</button>
+					<!-- An approach jump, as the three marks see it: the plant step and landing
+					     are both touchdowns (Landing); the takeoff is when the feet leave. -->
+					<svg
+						class="empty-diagram"
+						viewBox="0 14 520 100"
+						role="img"
+						aria-label="An approach jump: run-up, plant step, takeoff, flight and landing. Contact runs from the plant step to takeoff; flight from takeoff to landing."
+					>
+						<path class="diagram-ground" d="M16 80H504" />
+						<g class="diagram-runup">
+							<circle cx="40" cy="80" r="2.5" />
+							<circle cx="80" cy="80" r="2.5" />
+							<circle cx="118" cy="80" r="2.5" />
+							<text x="79" y="108">Run-up</text>
+						</g>
+						<path class="diagram-flight" d="M226 80C262 14 382 14 418 80" />
+						<path class="diagram-span" d="M166 92v4h60v-4" />
+						<text class="diagram-span-label" x="196" y="108">Contact</text>
+						<text class="diagram-span-label" x="322" y="64">Flight</text>
+						<g class="diagram-mark landing">
+							<circle cx="166" cy="80" r="6" />
+							<text x="166" y="64">1</text>
+						</g>
+						<g class="diagram-mark takeoff">
+							<circle cx="226" cy="80" r="6" />
+							<text x="226" y="64">2</text>
+						</g>
+						<g class="diagram-mark landing">
+							<circle cx="418" cy="80" r="6" />
+							<text x="418" y="64">3</text>
+						</g>
+					</svg>
 					<ol class="empty-steps">
 						<li>
 							<span class="empty-step-num">1</span>
-							<strong>Find takeoff</strong>
-							<span class="empty-step-text"
-								>Step to the first frame where the feet leave the ground.</span
+							<strong>Plant step</strong>
+							<span class="empty-step-text">First frame your plant foot touches the ground.</span>
+							<span class="empty-mark landing"
+								><span class="sr-only">Mark it with </span>Landing</span
 							>
 						</li>
 						<li>
 							<span class="empty-step-num">2</span>
-							<strong>Find landing</strong>
-							<span class="empty-step-text">Step to the first frame they touch down again.</span>
+							<strong>Takeoff</strong>
+							<span class="empty-step-text">First frame both feet are off the ground.</span>
+							<span class="empty-mark takeoff"
+								><span class="sr-only">Mark it with </span>Takeoff</span
+							>
 						</li>
 						<li>
 							<span class="empty-step-num">3</span>
-							<strong>Read the jump</strong>
-							<span class="empty-step-text">Flight time, contact time and height, per jump.</span>
+							<strong>Landing</strong>
+							<span class="empty-step-text">First frame your feet touch back down.</span>
+							<span class="empty-mark landing"
+								><span class="sr-only">Mark it with </span>Landing</span
+							>
 						</li>
 					</ol>
+					<p class="empty-result">
+						Mark each frame with the button shown. You get contact time, flight time, jump height
+						and RSI, and a guide under the video walks you through it.
+					</p>
 				</div>
 				<div class="empty-footer at-reveal" style="--delay: 60ms">
 					<span>
@@ -1033,6 +1104,16 @@
 							<p class="viewer-overlay-title">Drop to replace video</p>
 						</div>
 					{/if}
+					{#if showGuide}
+						<MarkingGuide
+							{marks}
+							{analysis}
+							{jumpType}
+							frameRate={frameRateKnown ? 'known' : frameRateFailed ? 'failed' : 'detecting'}
+							{saveShortcut}
+							onHide={() => setGuide(true)}
+						/>
+					{/if}
 					<div class="control-bar">
 						<div class="control-bar-inner">
 							<VideoScrubber
@@ -1091,6 +1172,7 @@
 									<button
 										class="mark-action mark-action-takeoff"
 										class:on-frame={activeMark?.type === 'takeoff'}
+										class:next={nextMark === 'takeoff'}
 										onclick={() => addMark('takeoff')}
 										title="Mark takeoff on this frame (T)"
 									>
@@ -1099,6 +1181,7 @@
 									<button
 										class="mark-action mark-action-landing"
 										class:on-frame={activeMark?.type === 'landing'}
+										class:next={nextMark === 'landing'}
 										onclick={() => addMark('landing')}
 										title="Mark landing on this frame (L)"
 									>

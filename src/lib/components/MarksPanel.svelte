@@ -12,6 +12,7 @@
 		type Mark
 	} from '$lib/video/marks';
 	import { JUMP_TYPES, TIME_SCALES, type JumpType } from '$lib/session/schema';
+	import { guideStep, plantLabel } from '$lib/video/guide';
 
 	interface Props {
 		marks: Mark[];
@@ -112,16 +113,23 @@
 	let slowMotion = $derived(
 		TIME_SCALES.find((scale) => scale.value === timeScale && scale.value !== 1)
 	);
-	// A landing followed by the next attempt's touchdown is normal; only warn about
-	// repeated marks that no jump could use.
-	let outOfSequenceMarks = $derived(
-		grouped.unpairedMarks.filter((mark) => analysis.outOfSequence.has(mark.id))
-	);
 	let completedJumps = $derived(grouped.jumps.filter((jump) => jump.flight).length);
 
 	let bestRsi = $derived(bestJump ? rsi(bestJump) : undefined);
 	// Once the jump type is set, contact gets a summary slot.
 	let contactMatters = $derived(jumpType !== null);
+	// The touchdown that starts a jump's contact: an approach jump's plant step.
+	let plantName = $derived(plantLabel(jumpType));
+	let nextStep = $derived(guideStep(marks));
+	// A plant step waiting for its takeoff starts the next jump rather than sitting
+	// among the unpaired marks.
+	let pendingPlant = $derived(nextStep === 'takeoff' ? marks.at(-1) : undefined);
+	let unpairedMarks = $derived(grouped.unpairedMarks.filter((mark) => mark !== pendingPlant));
+	// A landing followed by the next jump's plant step is normal; only warn about
+	// repeated marks that no jump could use.
+	let outOfSequenceMarks = $derived(
+		unpairedMarks.filter((mark) => analysis.outOfSequence.has(mark.id))
+	);
 	function mean(values: (number | undefined)[]): number | null {
 		const present = values.filter((value) => value !== undefined);
 		return present.length ? present.reduce((sum, value) => sum + value, 0) / present.length : null;
@@ -219,9 +227,11 @@
 		{/if}
 	{:else}
 		<span class="mp-peek-hint"
-			>{marks.length > 0
-				? 'Mark a landing to measure the jump'
-				: 'Mark takeoff and landing to measure a jump'}</span
+			>{nextStep === 'takeoff'
+				? 'Next: mark the takeoff'
+				: nextStep === 'landing'
+					? 'Next: mark the landing'
+					: `Mark the ${plantName.toLowerCase()}, takeoff and landing`}</span
 		>
 	{/if}
 {/snippet}
@@ -422,7 +432,9 @@
 								)}{/if} ms per frame
 						</p>
 						{#if contactMatters && !bestJump.contact}
-							<p class="mp-caption">Mark the landing before the takeoff to get contact time.</p>
+							<p class="mp-caption">
+								Mark the {plantName.toLowerCase()} with Landing to get contact time.
+							</p>
 						{/if}
 					</div>
 				{:else}
@@ -436,7 +448,9 @@
 				<section class="mp-section" aria-labelledby="mp-jumps-heading">
 					<div class="mp-section-head">
 						<h3 id="mp-jumps-heading" class="mp-section-title">
-							Jumps{#if marks.length > 0}<span class="mp-count">{marks.length} marks</span>{/if}
+							Jumps{#if marks.length > 0}<span class="mp-count"
+									>{marks.length} mark{marks.length === 1 ? '' : 's'}</span
+								>{/if}
 						</h3>
 						<div class="mp-section-actions">
 							{#if canUndo}<button class="mp-text-btn" onclick={onUndo} title="Undo (⌘Z)"
@@ -464,24 +478,29 @@
 								<li>
 									<span class="mp-empty-num">1</span>
 									<span
-										>Pause on the first frame where the feet leave the ground, then <span
-											class="pointer-only">press <kbd>T</kbd></span
-										><span class="touch-only">tap Takeoff</span>.</span
+										><strong>{plantName}:</strong> first frame the foot touches down. Mark it with
+										Landing<span class="pointer-only">&nbsp;(<kbd>L</kbd>)</span>.</span
 									>
 								</li>
 								<li>
 									<span class="mp-empty-num">2</span>
 									<span
-										>Step to the first frame they touch down, then <span class="pointer-only"
-											>press <kbd>L</kbd></span
-										><span class="touch-only">tap Landing</span>.</span
+										><strong>Takeoff:</strong> first frame both feet are off the ground. Mark it
+										with Takeoff<span class="pointer-only">&nbsp;(<kbd>T</kbd>)</span>.</span
+									>
+								</li>
+								<li>
+									<span class="mp-empty-num">3</span>
+									<span
+										><strong>Landing:</strong> first frame the feet touch back down. Mark it with
+										Landing<span class="pointer-only">&nbsp;(<kbd>L</kbd>)</span>.</span
 									>
 								</li>
 							</ol>
 							<p class="mp-empty-hint">
 								<span class="pointer-only"
 									>Step frames with <kbd>,</kbd> <kbd>.</kbd>&nbsp;·&nbsp;</span
-								>A landing before the takeoff adds contact time.
+								>Each jump appears here as you mark it.
 							</p>
 						</div>
 					{:else}
@@ -557,7 +576,7 @@
 										<div class="mp-jump-marks">
 											<!-- A touchdown that is the previous jump's landing isn't listed twice. -->
 											{#if jump.contact && grouped.jumps[index - 1]?.flight?.to.id !== jump.contact.from.id}
-												{@render markRow(jump.contact.from, 'Touchdown')}
+												{@render markRow(jump.contact.from, plantName)}
 											{/if}
 											{@render markRow(jump.takeoff, 'Takeoff')}
 											{#if jump.flight}
@@ -576,13 +595,24 @@
 										.join(', ')}
 								</div>
 							{/if}
-							{#if grouped.unpairedMarks.length > 0}
+							{#if unpairedMarks.length > 0}
 								<section class="mp-jump mp-unpaired" aria-label="Unpaired marks">
 									<h4 class="mp-jump-head"><span class="mp-jump-name">Unpaired marks</span></h4>
-									{#each grouped.unpairedMarks as mark (mark.id)}{@render markRow(
+									{#each unpairedMarks as mark (mark.id)}{@render markRow(
 											mark,
 											mark.type === 'landing' ? 'Landing' : 'Takeoff'
 										)}{/each}
+								</section>
+							{/if}
+							{#if pendingPlant}
+								<section class="mp-jump" aria-label="Jump {grouped.jumps.length + 1}">
+									<h4 class="mp-jump-head">
+										<span class="mp-jump-name">Jump {grouped.jumps.length + 1}</span>
+									</h4>
+									<div class="mp-jump-marks">
+										{@render markRow(pendingPlant, plantName)}
+										<p class="mp-incomplete">Mark the takeoff to continue this jump.</p>
+									</div>
 								</section>
 							{/if}
 						</div>
@@ -1054,6 +1084,11 @@
 	.mp-empty li {
 		display: flex;
 		gap: 10px;
+	}
+
+	.mp-empty strong {
+		color: hsl(var(--at-fg));
+		font-weight: 500;
 	}
 
 	.mp-empty-num {

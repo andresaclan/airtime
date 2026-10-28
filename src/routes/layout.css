@@ -848,6 +848,31 @@ body {
 	transform: translateY(1px);
 }
 
+/* The marking guide's next step: the button that marks it is outlined in its colour
+   and breathes once in a while, so a new athlete knows what to press. */
+.mark-action.next:not(.on-frame) {
+	border-color: color-mix(in srgb, var(--mark-color) 70%, transparent);
+	background: color-mix(in srgb, var(--mark-color) 8%, transparent);
+	animation: mark-next 2.4s var(--at-ease) infinite;
+}
+
+@keyframes mark-next {
+	0%,
+	60%,
+	100% {
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--mark-color) 0%, transparent);
+	}
+	30% {
+		box-shadow: 0 0 0 4px color-mix(in srgb, var(--mark-color) 22%, transparent);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.mark-action.next {
+		animation: none;
+	}
+}
+
 .mark-action-dot {
 	flex: 0 0 auto;
 	width: 7px;
@@ -1052,6 +1077,106 @@ body {
 	pointer-events: none;
 }
 
+/* The approach jump drawn as its marks: the plant step and landing in the
+   landing colour, the takeoff in the takeoff colour. */
+.empty-diagram {
+	display: block;
+	width: 100%;
+	height: auto;
+	padding: 14px 20px 0;
+	font-family: inherit;
+}
+
+.diagram-ground {
+	stroke: hsl(var(--at-border-hover));
+	stroke-width: 1.5;
+}
+
+.diagram-runup circle {
+	fill: hsl(var(--at-fg-muted) / 0.6);
+}
+
+.diagram-runup text,
+.diagram-span-label {
+	fill: hsl(var(--at-fg-muted));
+	font-size: 12px;
+	text-anchor: middle;
+}
+
+.diagram-flight {
+	fill: none;
+	stroke: hsl(var(--at-fg) / 0.5);
+	stroke-width: 1.6;
+	stroke-dasharray: 2 5;
+	stroke-linecap: round;
+}
+
+.diagram-span {
+	fill: none;
+	stroke: hsl(var(--at-fg-muted) / 0.7);
+	stroke-width: 1.2;
+}
+
+.diagram-mark {
+	--mark-color: hsl(var(--at-landing));
+}
+
+.diagram-mark.takeoff {
+	--mark-color: hsl(var(--at-takeoff));
+}
+
+.diagram-mark circle {
+	fill: var(--mark-color);
+	stroke: hsl(var(--at-bg-elevated));
+	stroke-width: 3;
+}
+
+.diagram-mark text {
+	fill: hsl(var(--at-fg));
+	font-family: var(--at-font-mono);
+	font-size: 12px;
+	font-weight: 600;
+	text-anchor: middle;
+}
+
+/* The button that marks a step, as a small chip in its colour. */
+.empty-mark {
+	--mark-color: hsl(var(--at-landing));
+	display: inline-flex;
+	justify-self: end;
+	font-size: 12px;
+	align-items: center;
+	gap: 5px;
+	padding: 0 6px;
+	border: 1px solid color-mix(in srgb, var(--mark-color) 45%, transparent);
+	border-radius: 5px;
+	background: color-mix(in srgb, var(--mark-color) 10%, transparent);
+	color: hsl(var(--at-fg));
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.empty-mark::before {
+	content: '';
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--mark-color);
+}
+
+.empty-mark.takeoff {
+	--mark-color: hsl(var(--at-takeoff));
+}
+
+.empty-result {
+	margin: 0;
+	padding: 10px 20px 14px;
+	border-top: 1px solid hsl(var(--at-border));
+	color: hsl(var(--at-fg-muted));
+	font-size: 12px;
+	line-height: 1.5;
+}
+
 .empty-steps {
 	display: flex;
 	flex-direction: column;
@@ -1063,7 +1188,7 @@ body {
 
 .empty-steps li {
 	display: grid;
-	grid-template-columns: 18px 104px minmax(0, 1fr);
+	grid-template-columns: 18px 88px minmax(0, 1fr) auto;
 	align-items: baseline;
 	column-gap: 10px;
 	padding: 5px 0;
@@ -1291,14 +1416,24 @@ body {
 	.empty-steps {
 		padding: 8px 16px 12px;
 	}
-	/* Phones: each step's description under its title. */
+	.empty-diagram {
+		padding: 10px 12px 0;
+	}
+	.empty-result {
+		padding: 10px 16px 12px;
+	}
+	/* Phones: each step's description under its title, its button beside the title. */
 	.empty-steps li {
-		grid-template-columns: 18px minmax(0, 1fr);
+		grid-template-columns: 18px minmax(0, 1fr) auto;
 		row-gap: 2px;
 	}
 	.empty-step-text {
-		grid-column: 2;
+		grid-column: 2 / -1;
 		font-size: 12px;
+	}
+	.empty-steps .empty-mark {
+		grid-column: 3;
+		grid-row: 1;
 	}
 }
 
