@@ -421,7 +421,8 @@
 
 	.trends-toggles {
 		display: flex;
-		gap: 14px;
+		flex-wrap: wrap;
+		gap: 0 14px;
 	}
 
 	.trends-toggles button,
