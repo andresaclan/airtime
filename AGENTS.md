@@ -46,6 +46,7 @@ const { page, close } = await launchBackground(chromium);
 - Bring branches up to date with merge commits titled "Merge main into <branch>".
 - Commit your work before ending a turn. Never share a checkout with another agent.
 - Stacked PRs: merge from the bottom up, and check that every layer actually reached `main`.
+- After opening a PR, wait for the Vercel bot's comment and put its preview deployment link in your reply to the user.
 - Keep `gh` current; version 2.59 failed on `gh pr edit`. With `--repo`, always pass the PR number, URL or branch as a positional argument:
 
 ```bash
