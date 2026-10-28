@@ -84,6 +84,10 @@ The jump with the greatest jump height in a session.
 **Best height**:
 The greatest jump height across several sessions.
 
+**Trends**:
+Flight and contact time across the sessions of one jump type, each placed on its recorded date. A session is charted by its best jump and the contact before it, with its other jumps beside it.
+_Avoid_: Progress, history
+
 ### Time
 
 **Media time**:

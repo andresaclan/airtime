@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { analyzeMarks } from '$lib/video/marks';
+	import TrendsView from './TrendsView.svelte';
 	import type { Session } from '$lib/session/schema';
 	import { deleteSession, readSessions } from '$lib/session/store';
 	import { dialogFocus, focusFirst, trapTab } from '$lib/dialogFocus';
@@ -38,6 +39,8 @@
 	let lastBackup: string | null = $state(null);
 	let sessionsReadAt = '';
 	let unreadableIds: string[] = $state([]);
+	let view: 'list' | 'trends' = $state('list');
+	let trendsView: ReturnType<typeof TrendsView> | undefined = $state();
 	let backup = $derived(backupStatus(sessions, lastBackup, { unreadable: unreadableIds.length }));
 
 	async function refresh() {
@@ -71,6 +74,7 @@
 				event.preventDefault();
 				onClose();
 			}
+			if (view === 'trends' && trendsView?.handleKey(event)) event.preventDefault();
 			trapTab(event, card);
 			event.stopImmediatePropagation();
 		}
@@ -151,8 +155,18 @@
 				<div>
 					<h2 id="sessions-title" class="dialog-title">Saved sessions</h2>
 					<p class="dialog-subtitle">
-						Saved in this browser. Open the same video again to bring back its marks.
+						{view === 'list'
+							? 'Saved in this browser. Open the same video again to bring back its marks.'
+							: "Each session's best jump, on the date it was recorded."}
 					</p>
+					<div class="dialog-tabs" role="tablist" aria-label="Show">
+						<button role="tab" aria-selected={view === 'list'} onclick={() => (view = 'list')}
+							>List</button
+						>
+						<button role="tab" aria-selected={view === 'trends'} onclick={() => (view = 'trends')}
+							>Trends</button
+						>
+					</div>
 				</div>
 				<button class="close-btn" onclick={onClose} aria-label="Close" title="Close (Esc)">
 					<svg
@@ -174,6 +188,8 @@
 
 				{#if loading && sessions.length === 0}
 					<p class="sessions-empty">Loading…</p>
+				{:else if view === 'trends'}
+					<TrendsView bind:this={trendsView} {sessions} {currentSessionId} {onOpen} />
 				{:else if sessions.length === 0 && unreadableIds.length === 0}
 					<div class="sessions-empty">
 						<p class="sessions-empty-title">No saved sessions yet</p>
@@ -235,7 +251,7 @@
 						{/each}
 					</ul>
 				{/if}
-				{#if sessions.length > 0 || backup.unreadable > 0}
+				{#if view === 'list' && (sessions.length > 0 || backup.unreadable > 0)}
 					<div
 						class="sessions-status"
 						class:warn={protection === 'unprotected' || backup.due || backup.unreadable > 0}
@@ -295,12 +311,14 @@
 				{/if}
 			</div>
 
-			<div class="dialog-footer">
-				<button class="secondary-btn" onclick={() => importInput?.click()}>Import backup…</button>
-				<button class="primary-btn" onclick={handleExportAll} disabled={sessions.length === 0}>
-					Export all
-				</button>
-			</div>
+			{#if view === 'list'}
+				<div class="dialog-footer">
+					<button class="secondary-btn" onclick={() => importInput?.click()}>Import backup…</button>
+					<button class="primary-btn" onclick={handleExportAll} disabled={sessions.length === 0}>
+						Export all
+					</button>
+				</div>
+			{/if}
 		</div>
 		<input
 			bind:this={importInput}
@@ -365,8 +383,37 @@
 		align-items: flex-start;
 		justify-content: space-between;
 		gap: 16px;
-		padding: 18px 16px 16px 24px;
+		padding: 18px 16px 0 24px;
 		border-bottom: 1px solid hsl(var(--at-border));
+	}
+
+	/* List and Trends: underlined text tabs sitting on the header's bottom border. */
+	.dialog-tabs {
+		display: flex;
+		gap: 18px;
+		margin-top: 10px;
+	}
+
+	.dialog-tabs button {
+		margin-bottom: -1px;
+		padding: 8px 0 9px;
+		border: none;
+		border-bottom: 2px solid transparent;
+		background: none;
+		color: hsl(var(--at-fg-muted));
+		font: inherit;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+	}
+
+	.dialog-tabs button:hover {
+		color: hsl(var(--at-fg-secondary));
+	}
+
+	.dialog-tabs button[aria-selected='true'] {
+		border-bottom-color: hsl(var(--at-fg) / 0.85);
+		color: hsl(var(--at-fg));
 	}
 
 	.dialog-title {
@@ -737,6 +784,9 @@
 	}
 
 	@media (pointer: coarse) {
+		.dialog-tabs button {
+			min-height: 44px;
+		}
 		.text-btn,
 		.primary-btn,
 		.secondary-btn,
