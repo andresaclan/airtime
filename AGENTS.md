@@ -14,9 +14,21 @@ These rules apply to every agent working in this repo, whatever the provider.
 - When handing back UI work, list one `http://localhost:<port>` link per branch, labelled with what it shows, and check that each server is still running.
 - For testing on a phone, add `--host` and give the LAN address.
 
+## Browser checks
+
+- Never take focus from the user, who keeps working on this Mac while agents test. Don't launch Chrome with `chromium.launch({headless: false})` or call `page.bringToFront()` / `context.newPage()`; each one brings a window to the front.
+- Run automated checks with `scripts/background-chrome.mjs`. It opens a real Chrome window behind the user's apps, and rAF and rVFC stay at full rate. Get playwright-core from `/tmp/airtime-limits-pw` (if it's gone, `bun add playwright-core` in that directory):
+
+```js
+import { createRequire } from 'node:module';
+import { launchBackground } from './scripts/background-chrome.mjs';
+const { chromium } = createRequire('/tmp/airtime-limits-pw/')('playwright-core');
+const { page, close } = await launchBackground(chromium);
+```
+
 ## Browser preview (T3 `preview_*` tools)
 
-- Open tabs visibly, in the incognito profile: `preview_open {open: true, profileId: "incognito"}`. Snapshots hang in background tabs; if one times out, call `preview_open {tabId, open: true}` and retry.
+- Use these only when the user asks to see a page, not for background testing. Open tabs in the incognito profile: `preview_open {open: true, profileId: "incognito"}`. Snapshots hang in background tabs; if one times out, call `preview_open {tabId, open: true}` and retry.
 - Load videos with `preview_upload {locator: "#video-file-input"}`. Clicking "Open video" doesn't open a file chooser in automation.
 - Don't call `location.reload()` inside `preview_evaluate`; use `preview_navigate`.
 - The unsaved-changes `confirm()` makes uploads and navigation hang for 15 seconds. Answer it with `preview_dialog`.
