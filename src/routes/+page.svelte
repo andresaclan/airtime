@@ -555,7 +555,9 @@
 									<span class="time-separator">/</span>
 									<span class="time-duration">{formatDuration()}</span>
 									<span class="time-frame">frame {playheadLabel + 1}</span>
-									{#if !mediaError}<span class="time-fps"
+									{#if !mediaError}<span
+											class="time-fps"
+											class:clean={sourceFrameRate && !variableFrameRate}
 											><span class="fps-dot" class:uncertain={!sourceFrameRate}
 											></span>{#if sourceFrameRate && variableFrameRate}
 												<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps · variable</span>
