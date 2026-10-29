@@ -41,6 +41,7 @@
 
 	--at-shadow: 0 0% 0%;
 
+	--at-font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
 	--at-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
 	--at-radius-sm: 6px;
 	--at-radius: 8px;
@@ -68,12 +69,7 @@ select,
 }
 
 body {
-	font-family:
-		'Inter',
-		ui-sans-serif,
-		system-ui,
-		-apple-system,
-		sans-serif;
+	font-family: var(--at-font-sans);
 	font-feature-settings: 'cv11', 'ss01';
 	text-rendering: optimizeLegibility;
 	-webkit-font-smoothing: antialiased;
@@ -468,8 +464,9 @@ body {
    ======================================== */
 
 .viewer-stage {
+	--stage-pad: 12px;
 	gap: 12px;
-	padding: 12px;
+	padding: var(--stage-pad);
 }
 
 .viewer-frame {
@@ -888,46 +885,113 @@ body {
 		monospace;
 }
 
-/* Narrow bar: a thumb row of marking and stepping, Takeoff and Landing either side
-   of the frame steppers, then the context strip. */
+/* Narrow bar (a phone): a phone player, not an editor strip. The scrubber, one
+   row of playback with the time beside it, then Takeoff and Landing as two big
+   buttons under the thumb. No dock or strip boxes, no tick labels, and the frame
+   rate only when it needs a look. */
 @container control-bar (max-width: 700px) {
 	.control-bar-inner {
 		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 		grid-template-areas:
 			'scrub scrub scrub'
-			'takeoff transport landing'
-			'time time extras';
+			'status status status'
+			'time transport extras'
+			'marks marks marks';
 		column-gap: 8px;
-		row-gap: 4px;
+		row-gap: 6px;
+		padding-inline: 16px;
+	}
+	.control-bar .control-bar-inner > .timeline-container {
+		margin-inline: 0;
+		padding-bottom: 6px;
+	}
+	.control-bar .timeline-ticks {
+		display: none;
+	}
+	.transport-dock,
+	.context-strip {
+		display: none;
+	}
+	.time-readout {
+		display: contents;
+	}
+	.time-current {
+		grid-area: time;
+		align-self: center;
+		color: hsl(var(--at-fg-secondary));
+		font-family: var(--at-font-sans);
+		font-size: 14px;
+		font-variant-numeric: tabular-nums;
+	}
+	.time-separator,
+	.time-duration,
+	.time-frame,
+	.time-fps.clean {
+		display: none;
+	}
+	.time-fps {
+		grid-area: status;
+		justify-self: center;
+		margin: 0;
+		padding: 0;
+		border: none;
+		font-family: inherit;
+		font-size: 12px;
+	}
+	.time-readout,
+	.control-toolbar .playback-extras {
+		margin-top: 0;
+	}
+	.control-toolbar .playback-controls {
+		gap: 14px;
+		padding-inline: 0;
+	}
+	.control-toolbar .playback-controls::before,
+	.control-toolbar .playback-controls::after {
+		display: none;
+	}
+	.control-bar .control-toolbar .play-btn {
+		width: 56px;
+		height: 56px;
+		margin: 0;
+		background: hsl(var(--at-fg));
+		color: hsl(var(--at-bg));
+	}
+	.control-bar .control-toolbar .play-btn svg {
+		width: 24px;
+		height: 24px;
+	}
+	.control-bar .control-toolbar .step-btn svg {
+		width: 22px;
+		height: 22px;
+	}
+	.mark-actions {
+		grid-area: marks;
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 10px;
+		margin-top: 6px;
+	}
+	.mark-action-takeoff,
+	.mark-action-landing {
+		grid-area: auto;
+		justify-self: stretch;
 	}
 	.mark-action {
 		justify-content: center;
-		justify-self: stretch;
 		min-width: 0;
-		height: 44px;
-		border-radius: 10px;
-		font-size: 14px;
+		height: 52px;
+		border-radius: 14px;
+		background: hsl(var(--at-fg) / 0.07);
+		font-size: 16px;
+		font-weight: 600;
+	}
+	.mark-action-dot {
+		width: 9px;
+		height: 9px;
 	}
 	.mark-action kbd {
 		display: none;
-	}
-	.transport-dock {
-		height: 52px;
-		border-radius: 14px;
-	}
-	.control-toolbar .playback-controls {
-		padding-inline: 4px;
-	}
-}
-
-/* Short of room, the duration gives way; the frame number is what stepping needs. */
-@container control-bar (max-width: 520px) {
-	.time-separator,
-	.time-duration {
-		display: none;
-	}
-	.time-frame {
-		margin-left: 2px;
 	}
 }
 
@@ -1392,14 +1456,21 @@ body {
 		flex: 1;
 	}
 	.viewer-stage {
+		--stage-pad: 8px;
 		gap: 8px;
-		padding: 8px;
 	}
-	.viewer-frame {
-		border-radius: 10px;
+	/* With a video open the picture runs edge to edge, as a phone's own player
+	   does, rather than sitting in a bordered pane. */
+	.viewer-stage.has-video {
+		--stage-pad: 0px;
+		gap: 0;
+	}
+	.viewer-stage.has-video .viewer-frame {
+		border: none;
+		border-radius: 0;
 	}
 	.control-bar-inner {
-		padding: 0 10px 8px;
+		padding: 0 16px 10px;
 	}
 	.empty {
 		margin: 4px auto auto;
@@ -1503,7 +1574,7 @@ body {
 	.mark-action {
 		position: relative;
 		z-index: 1;
-		height: 44px;
+		min-height: 44px;
 	}
 }
 
