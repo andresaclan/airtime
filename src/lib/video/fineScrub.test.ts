@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'vitest';
-import { FAST_PX_PER_MS, FINE_PX_PER_FRAME, SLOW_PX_PER_MS, framesPerPx } from './fineScrub';
+import {
+	FAST_PX_PER_MS,
+	FINE_PX_PER_FRAME,
+	SLOW_PX_PER_MS,
+	fingerSpeed,
+	framesPerPx
+} from './fineScrub';
 
 // A phone's bar, about 340 px wide, and a short clip.
 const WIDTH = 340;
@@ -38,5 +44,23 @@ describe('framesPerPx', () => {
 
 	test('a clip of unknown length still scrubs', () => {
 		expect(framesPerPx(FAST_PX_PER_MS, 30, Infinity, WIDTH)).toBeCloseTo(30 / 160, 9);
+	});
+});
+
+describe('fingerSpeed', () => {
+	test('a pause after a quick swipe leaves a slow correction fine', () => {
+		let speed = 0;
+		for (let i = 0; i < 20; i++) speed = fingerSpeed(speed, 16, 16);
+		expect(speed).toBeGreaterThan(FAST_PX_PER_MS);
+		// Rest 900 ms, then nudge 4 px over 40 ms.
+		speed = fingerSpeed(speed, 4, 900 + 40);
+		expect(speed).toBeLessThan(SLOW_PX_PER_MS);
+		expect(4 * framesPerPx(speed, 240, 960, WIDTH)).toBeLessThan(1);
+	});
+
+	test('steady moves settle on their speed', () => {
+		let speed = 0;
+		for (let i = 0; i < 20; i++) speed = fingerSpeed(speed, 8, 16);
+		expect(speed).toBeCloseTo(0.5, 3);
 	});
 });

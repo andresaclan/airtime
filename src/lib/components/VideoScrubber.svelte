@@ -7,7 +7,7 @@
 		lastFrameIndex,
 		type FrameTiming
 	} from '$lib/video/frames';
-	import { framesPerPx } from '$lib/video/fineScrub';
+	import { fingerSpeed, framesPerPx } from '$lib/video/fineScrub';
 	import { frameOf, type Interval, type Mark, type MarkType } from '$lib/video/marks';
 	import { isWatching, seek, targetTime } from '$lib/video/seek';
 	import { formatFrameClock } from '$lib/video/timecode';
@@ -156,10 +156,9 @@
 		if (!fine || !videoElement || !trackRef) return;
 		if (Math.abs(event.clientX - fine.startX) > TAP_SLOP_PX) fine.tapMark = null;
 		const dx = event.clientX - fine.x;
-		const dt = Math.max(1, event.timeStamp - fine.at);
+		fine.speed = fingerSpeed(fine.speed, dx, event.timeStamp - fine.at);
 		fine.x = event.clientX;
 		fine.at = event.timeStamp;
-		fine.speed = fine.speed * 0.6 + (Math.abs(dx) / dt) * 0.4;
 		const width = trackRef.getBoundingClientRect().width;
 		const last = lastFrameIndex(duration, timing);
 		const rate = framesPerPx(fine.speed, timing.fps, frameCount(), width);

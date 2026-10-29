@@ -19,6 +19,16 @@ export const COARSE_PX_PER_SECOND = 160;
 export const SLOW_PX_PER_MS = 0.15;
 export const FAST_PX_PER_MS = 0.8;
 
+/** How quickly the speed estimate forgets, in ms: a pause leaves none of a swipe's speed. */
+const SPEED_MEMORY_MS = 32;
+
+/** The finger's speed in px/ms after it moves `dx` px in `dt` ms, smoothed over recent moves. */
+export function fingerSpeed(previous: number, dx: number, dt: number): number {
+	const elapsed = Math.max(1, dt);
+	const keep = Math.exp(-elapsed / SPEED_MEMORY_MS);
+	return previous * keep + (Math.abs(dx) / elapsed) * (1 - keep);
+}
+
 /** How many frames one pixel of finger travel moves the playhead at `speed` (px/ms). */
 export function framesPerPx(
 	speed: number,
