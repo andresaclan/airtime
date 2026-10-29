@@ -355,7 +355,12 @@
 				>
 			</button>
 		</div>
-		{#if showDetails && tab === 'analysis'}<div class="mp-peek">{@render peek()}</div>{/if}
+		<!-- With one jump its own row below says the same, so the summary steps aside. -->
+		{#if showDetails && tab === 'analysis' && !(completedJumps === 1 && grouped.jumps.length === 1)}<div
+				class="mp-peek"
+			>
+				{@render peek()}
+			</div>{/if}
 	{:else}
 		<div class="mp-head">
 			<h2 class="sr-only">Analysis</h2>

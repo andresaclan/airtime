@@ -925,9 +925,19 @@ body {
 	}
 	.time-separator,
 	.time-duration,
-	.time-frame,
-	.time-fps.clean {
+	.time-frame {
 		display: none;
+	}
+	/* A clean read sits quietly under the time; a warning gets its own row. */
+	.time-fps.clean {
+		grid-area: time;
+		align-self: center;
+		justify-self: start;
+		translate: 0 10px;
+		font-size: 11px;
+	}
+	.control-bar-inner:has(.time-fps.clean) .time-current {
+		translate: 0 -9px;
 	}
 	.time-fps {
 		grid-area: status;
@@ -935,7 +945,7 @@ body {
 		margin: 0;
 		padding: 0;
 		border: none;
-		font-family: inherit;
+		font-family: var(--at-font-sans);
 		font-size: 12px;
 	}
 	.time-readout,
@@ -961,9 +971,14 @@ body {
 		width: 24px;
 		height: 24px;
 	}
+	.control-bar .control-toolbar .step-btn {
+		width: 48px;
+		height: 48px;
+		margin-block: 0;
+	}
 	.control-bar .control-toolbar .step-btn svg {
-		width: 22px;
-		height: 22px;
+		width: 28px;
+		height: 28px;
 	}
 	.mark-actions {
 		grid-area: marks;
