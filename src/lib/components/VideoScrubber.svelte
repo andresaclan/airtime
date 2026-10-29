@@ -100,7 +100,8 @@
 	let justSet: MarkType | null = $state(null);
 	/** A hold can mark once the finger fine-tunes, and again only after the frame changes. */
 	let canHold = false;
-	let markedThisTouch = false;
+	/** The touch set or moved a point, so playback stays paused on it. */
+	let keepPaused = false;
 	let holdShowTimer: ReturnType<typeof setTimeout> | undefined;
 	let holdTimer: ReturnType<typeof setTimeout> | undefined;
 	let justSetTimer: ReturnType<typeof setTimeout> | undefined;
@@ -131,6 +132,8 @@
 	function restartHold() {
 		stopHoldTimers();
 		if (!precise || touch?.pin || !holdMark || !onHold || !canHold) return;
+		// A point already on this frame can't take another; the cue says so instead.
+		if (occupant) return;
 		holdShowTimer = setTimeout(() => {
 			holdState = 'filling';
 			// Centre the finger on the frame so a fingertip's tremble can't tip it over.
@@ -142,7 +145,7 @@
 			holdState = 'idle';
 			canHold = false;
 			if (!onHold(touch.frame)) return;
-			markedThisTouch = true;
+			keepPaused = true;
 			flashSet(type);
 		}, HOLD_MS);
 	}
@@ -169,8 +172,8 @@
 		}
 		precise = false;
 		canHold = false;
-		markedThisTouch = false;
 		justSet = null;
+		touchFrame = frame;
 		fineOpen = true;
 	}
 
@@ -204,6 +207,7 @@
 		const frame = Math.floor(touch.position);
 		if (frame === touch.frame) return;
 		touch.frame = frame;
+		touchFrame = frame;
 		canHold = true;
 		// Moving on ends the "set" cue, so the next pause shows its own sweep.
 		if (justSet) {
@@ -220,16 +224,33 @@
 		stopHoldTimers();
 		const ended = touch;
 		touch = null;
+		touchFrame = null;
 		fineOpen = false;
 		precise = false;
 		draggedPin = null;
 		const pin = ended?.pin;
 		if (!pin || event.type !== 'pointerup' || frameOf(pin.time, timing) === ended.frame) return;
-		if (onMoveMark?.(pin, ended.frame)) flashSet(pin.type);
+		if (!onMoveMark?.(pin, ended.frame)) return;
+		keepPaused = true;
+		flashSet(pin.type);
 	}
 
 	function capitalize(text: string): string {
 		return text.charAt(0).toUpperCase() + text.slice(1);
+	}
+
+	/** The touch's frame as a reactive value, for `occupant`. */
+	let touchFrame: number | null = $state(null);
+
+	/** Another point already on the frame the touch is at, which a hold or a pin can't take. */
+	let occupant: Mark | undefined = $derived.by(() => {
+		if (touchFrame === null) return undefined;
+		const own = draggedPin?.id;
+		return marks.find((mark) => mark.id !== own && frameOf(mark.time, timing) === touchFrame);
+	});
+
+	function occupiedText(mark: Mark): string {
+		return `${capitalize(markLabels[mark.type])} is on this frame`;
 	}
 
 	let touchCue: ScrubCue | null = $derived.by(() => {
@@ -237,8 +258,11 @@
 			return { text: `${capitalize(markLabels[justSet])} set`, type: justSet, state: 'set' };
 		if (draggedPin) {
 			const type = draggedPin.type;
+			if (occupant) return { text: occupiedText(occupant), type, state: 'hint' };
 			return { text: `Let go to place ${markLabels[type]}`, type, state: 'hint' };
 		}
+		if (precise && holdMark && occupant)
+			return { text: occupiedText(occupant), type: holdMark, state: 'hint' };
 		if (precise && holdMark) {
 			const state = holdState === 'filling' ? 'filling' : 'hint';
 			return { text: `Pause to set ${markLabels[holdMark]}`, type: holdMark, state };
@@ -331,6 +355,7 @@
 		activePointer = event.pointerId;
 
 		isDragging = true;
+		keepPaused = false;
 		wasPlayingBeforeScrub = isWatching(videoElement);
 
 		if (wasPlayingBeforeScrub) {
@@ -378,8 +403,8 @@
 		markPressX = null;
 		if (touch) endTouch(event);
 
-		// A touch that set a point leaves the playhead on it.
-		if (wasPlayingBeforeScrub && !markedThisTouch && videoElement) {
+		// A touch that set or moved a point leaves the playhead on it.
+		if (wasPlayingBeforeScrub && !keepPaused && videoElement) {
 			void videoElement.play().catch(() => {
 				console.warn('Unable to resume video playback after scrubbing');
 			});
