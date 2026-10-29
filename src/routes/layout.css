@@ -1598,7 +1598,7 @@ body {
 /* The time tool on a phone held upright, with a landscape video: the controls sit
    low, just above the result, where a thumb reaches them, and the picture stays at
    the top. A portrait video fills the space down to them anyway. */
-@media (max-width: 900px) and (min-height: 501px) {
+@media (max-width: 900px) and (min-height: 501px) and (pointer: coarse) {
 	.viewer-column > .viewer-frame.landscape:has(> .timer-readout) > .control-bar {
 		margin-top: auto;
 	}
