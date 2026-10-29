@@ -59,7 +59,7 @@
 		title="Go to the {point} point"
 	>
 		<span class="tr-dot"></span><span class="tr-point-name">{point === 'in' ? 'In' : 'Out'}</span
-		>{pointClock(mark)}
+		><span class="tr-point-clock">{pointClock(mark)}</span>
 	</button>
 {/snippet}
 
@@ -77,10 +77,16 @@
 			{:else if result}
 				{@const shown = formatElapsed(result.seconds)}
 				<p class="tr-result">
-					<span class="tr-value"
-						>{shown.value}{#if shown.unit}<small>{shown.unit}</small>{/if}</span
-					>
-					<span class="tr-frames">{result.frames} frame{result.frames === 1 ? '' : 's'}</span>
+					<span class="tr-stat tr-stat-primary">
+						<span class="tr-label">Time</span>
+						<span class="tr-value"
+							>{shown.value}{#if shown.unit}<small>{shown.unit}</small>{/if}</span
+						>
+					</span>
+					<span class="tr-stat">
+						<span class="tr-label">Frames</span>
+						<span class="tr-value">{result.frames}</span>
+					</span>
 				</p>
 				<div class="tr-points">
 					{#if inMark}{@render chip('in', inMark)}{/if}
@@ -161,33 +167,56 @@
 		color: hsl(var(--at-fg-muted));
 	}
 
+	/* Label over value, as in the full app's results summary: labels share the first
+	   row and values the second, so they line up. */
 	.tr-result {
-		display: flex;
-		align-items: baseline;
-		gap: 10px;
+		display: grid;
+		grid-template-rows: auto auto;
+		grid-auto-flow: column;
+		column-gap: 24px;
+		row-gap: 2px;
 		margin: 0;
+	}
+
+	.tr-stat {
+		display: contents;
+	}
+
+	.tr-label {
+		align-self: end;
+	}
+
+	.tr-stat .tr-value {
+		align-self: last baseline;
+	}
+
+	.tr-label {
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+		font-weight: 500;
+		line-height: 14px;
 	}
 
 	.tr-value {
 		color: hsl(var(--at-fg));
-		font-family: var(--at-font-mono);
-		font-size: 26px;
+		font-size: 15px;
 		font-weight: 600;
-		line-height: 1;
+		line-height: 20px;
 		letter-spacing: -0.02em;
+		white-space: nowrap;
+	}
+
+	.tr-stat-primary .tr-value {
+		font-size: 22px;
+		line-height: 26px;
 	}
 
 	.tr-value small {
 		margin-left: 3px;
 		color: hsl(var(--at-fg-muted));
-		font-size: 15px;
+		font-size: 11px;
 		font-weight: 500;
-	}
-
-	.tr-frames {
-		color: hsl(var(--at-fg-muted));
-		font-family: var(--at-font-mono);
-		font-size: 12px;
+		letter-spacing: 0;
 	}
 
 	.tr-points {
@@ -362,13 +391,27 @@
 		}
 	}
 
-	/* Phones: two rows. The time (or what to do next) on top with the footage and
-	   Clear beside it; the points under it. */
-	@media (max-width: 480px) {
+	/* Phones held upright: the band becomes a sheet resting on the bottom edge under
+	   the In and Out buttons, as the full app's results sheet does. What to do next,
+	   or the time, with the footage and Clear beside it. The point chips step aside:
+	   a tap on a point's flag on the timeline goes to its frame. */
+	@media (max-width: 900px) and (min-height: 501px) {
+		/* The frame runs to the bottom so the sheet can rest there, under a landscape
+		   video too. */
+		:global(.viewer-column > .viewer-frame:has(> .timer-readout)) {
+			flex: 1 1 auto;
+		}
+
 		.timer-readout {
+			order: 1;
 			flex-wrap: wrap;
-			gap: 6px 8px;
-			padding: 8px 10px 9px;
+			gap: 10px 8px;
+			min-height: 64px;
+			margin-top: auto;
+			padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+			border: 1px solid hsl(var(--at-border));
+			border-width: 1px 0 0;
+			border-radius: 14px 14px 0 0;
 			font-size: 13px;
 			line-height: 20px;
 		}
@@ -378,21 +421,39 @@
 		}
 
 		.tr-text {
-			flex-basis: 100%;
-			order: -1;
+			flex: 1 1 0;
+			min-width: 0;
+			color: hsl(var(--at-fg-secondary));
 		}
 
-		.tr-tools {
-			order: 1;
+		.tr-text strong {
+			color: inherit;
+			font-weight: inherit;
 		}
 
-		.tr-result ~ .tr-points {
-			flex-basis: 100%;
-			order: 2;
+		/* The buttons to press are right below; here they are just their names. */
+		.tr-key {
+			gap: 5px;
+			height: auto;
+			margin: 0;
+			padding: 0;
+			border: none;
+			background: none;
+			font-size: inherit;
+			vertical-align: baseline;
 		}
 
-		.tr-value {
-			font-size: 24px;
+		.tr-key .tr-dot {
+			align-self: center;
+		}
+
+		.tr-key kbd,
+		.tr-points {
+			display: none;
+		}
+
+		.tr-result {
+			flex: 1 1 auto;
 		}
 	}
 </style>
