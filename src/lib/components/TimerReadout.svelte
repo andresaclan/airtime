@@ -11,11 +11,21 @@
 		/** Points wait for the frame rate; `failed` means they never can be set. */
 		frameRate: 'detecting' | 'known' | 'failed';
 		timeScale: number;
+		/** Points are set by a hold on the timeline (a touchscreen), so say that instead. */
+		holdToMark?: boolean;
 		onSeek: (time: number) => void;
 		onClear: () => void;
 	}
 
-	let { marks, timing, frameRate, timeScale = $bindable(), onSeek, onClear }: Props = $props();
+	let {
+		marks,
+		timing,
+		frameRate,
+		timeScale = $bindable(),
+		holdToMark = false,
+		onSeek,
+		onClear
+	}: Props = $props();
 
 	let inMark = $derived(findPoint(marks, 'in'));
 	let outMark = $derived(findPoint(marks, 'out'));
@@ -93,6 +103,22 @@
 					<span class="tr-arrow" aria-hidden="true">{result.reversed ? '←' : '→'}</span>
 					{#if outMark}{@render chip('out', outMark)}{/if}
 				</div>
+			{:else if holdToMark}
+				<!-- The bar sets the points: scrub to a frame and pause there. -->
+				{#if inMark}<div class="tr-points">{@render chip('in', inMark)}</div>{/if}
+				{#if outMark}<div class="tr-points">{@render chip('out', outMark)}</div>{/if}
+				<p class="tr-text">
+					{#if inMark}
+						<strong>Slide on to the end frame</strong> and pause there to set {@render press(
+							'out'
+						)}.
+					{:else if outMark}
+						<strong>Slide to the start frame</strong> and pause there to set {@render press('in')}.
+					{:else}
+						<strong>Hold the bar and slide to the start frame.</strong> Pause there to set
+						{@render press('in')}, then do the same at the end.
+					{/if}
+				</p>
 			{:else if inMark}
 				<div class="tr-points">{@render chip('in', inMark)}</div>
 				<p class="tr-text">

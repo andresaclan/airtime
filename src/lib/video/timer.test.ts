@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { elapsed, findPoint, setPoint } from './timer';
+import { elapsed, findPoint, holdPoint, setPoint } from './timer';
 import type { Mark } from './marks';
 
 const FPS = 60;
@@ -33,6 +33,29 @@ describe('setPoint', () => {
 		marks = setPoint(marks, 'out', at(12), FPS);
 		expect(findPoint(marks, 'in')).toBeUndefined();
 		expect(frames(marks)).toEqual([12]);
+	});
+});
+
+describe('holdPoint', () => {
+	test('sets the point on the frame start', () => {
+		const marks = holdPoint([], 'in', 12, FPS);
+		expect(frames(marks ?? [])).toEqual([12]);
+	});
+
+	test('moves a point that was set elsewhere', () => {
+		let marks = setPoint([], 'in', at(12), FPS);
+		marks = holdPoint(marks, 'in', 20, FPS) ?? [];
+		expect(frames(marks)).toEqual([20]);
+	});
+
+	test('never clears a point held on its own frame', () => {
+		const marks = setPoint([], 'in', at(12), FPS);
+		expect(holdPoint(marks, 'in', 12, FPS)).toBeNull();
+	});
+
+	test('never replaces the other point', () => {
+		const marks = setPoint([], 'in', at(12), FPS);
+		expect(holdPoint(marks, 'out', 12, FPS)).toBeNull();
 	});
 });
 

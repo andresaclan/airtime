@@ -24,7 +24,15 @@
 	import { displayedFrame, settledDisplayedFrame } from '$lib/video/presentedFrame';
 	import { seek } from '$lib/video/seek';
 	import { analyzeMarks, frameOf, markAtFrame, removeMark, type Mark } from '$lib/video/marks';
-	import { POINT_LABELS, findPoint, pointOf, setPoint, type TimerPoint } from '$lib/video/timer';
+	import {
+		POINT_LABELS,
+		POINT_MARK,
+		findPoint,
+		holdPoint,
+		pointOf,
+		setPoint,
+		type TimerPoint
+	} from '$lib/video/timer';
 
 	let videoElement: HTMLVideoElement | null = $state(null);
 	let videoSrc: string | null = $state(null);
@@ -74,6 +82,22 @@
 		if (!findPoint(marks, 'out')) return 'out';
 		return null;
 	});
+
+	// On a touchscreen the points are set by a hold on the timeline (VideoScrubber): scrub
+	// to a frame and pause there. The first hold sets the in point and the next the
+	// out point; after that a tap on a point's pin lets the next hold move it.
+	const touchScreen = new MediaQuery('(pointer: coarse)');
+	let movingPoint: TimerPoint | null = $state(null);
+	let holdTarget: TimerPoint | null = $derived(frameRateKnown ? (movingPoint ?? nextPoint) : null);
+
+	function handleHold(frame: number): boolean {
+		if (!holdTarget) return false;
+		const next = holdPoint(marks, holdTarget, frame, timing);
+		if (!next) return false;
+		marks = next;
+		movingPoint = null;
+		return true;
+	}
 
 	// Below 900px the readout and controls stack under the video (see layout.css). A
 	// landscape video is sized to fit when the controls still fit underneath it.
@@ -133,6 +157,7 @@
 		sourceFrameRateChecked = false;
 		frameRateSettled = false;
 		marks = [];
+		movingPoint = null;
 		timeScale = 1;
 		zoomLevel = 1;
 		videoAspect = null;
@@ -190,6 +215,7 @@
 		const frame = await settledDisplayedFrame(videoElement, timing);
 		if (loadId !== activeVideoLoadId) return;
 		marks = setPoint(marks, point, frameStartTime(frame, timing), timing);
+		movingPoint = null;
 	}
 
 	const PLAYBACK_RATES = [1, 0.5, 0.25];
@@ -531,10 +557,14 @@
 							frameRate={frameRateKnown ? 'known' : frameRateFailed ? 'failed' : 'detecting'}
 							bind:timeScale
 							onSeek={seekToMark}
-							onClear={() => (marks = [])}
+							holdToMark={touchScreen.current}
+							onClear={() => {
+								marks = [];
+								movingPoint = null;
+							}}
 						/>
 					{/if}
-					<div class="control-bar">
+					<div class="control-bar" class:hold-marking={touchScreen.current}>
 						<div class="control-bar-inner">
 							<VideoScrubber
 								{currentTime}
@@ -545,6 +575,10 @@
 								{intervals}
 								activeMarkId={activeMark?.id ?? null}
 								markLabels={POINT_LABELS}
+								fineTouch={touchScreen.current}
+								holdMark={holdTarget && POINT_MARK[holdTarget]}
+								onHold={handleHold}
+								onPickMark={(mark) => (movingPoint = pointOf(mark))}
 							/>
 
 							<div class="control-toolbar">

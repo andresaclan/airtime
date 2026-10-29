@@ -1595,6 +1595,19 @@ body {
 	}
 }
 
+/* The time tool on a phone held upright: a hold on the timeline sets the points
+   (VideoScrubber), so In and Out step aside, still there for screen readers. */
+@media (max-width: 900px) and (min-height: 501px) and (pointer: coarse) {
+	.control-bar.hold-marking .mark-actions {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+}
+
 /* A touchscreen: room between the rows for the 44px hit areas (mute, the speed
    chip) that reach past their 28px row, so none overlaps the dock above. */
 @media (pointer: coarse) {
