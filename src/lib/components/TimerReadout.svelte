@@ -104,19 +104,21 @@
 					{#if outMark}{@render chip('out', outMark)}{/if}
 				</div>
 			{:else if holdToMark}
-				<!-- The bar sets the points: scrub to a frame and pause there. -->
+				<!-- The bar sets the points: scrub to a frame, slide up to fine-tune, pause. -->
 				{#if inMark}<div class="tr-points">{@render chip('in', inMark)}</div>{/if}
 				{#if outMark}<div class="tr-points">{@render chip('out', outMark)}</div>{/if}
 				<p class="tr-text">
 					{#if inMark}
-						<strong>Slide on to the end frame</strong> and pause there to set {@render press(
+						<strong>Scrub to the end</strong>, then slide up and pause to set {@render press(
 							'out'
 						)}.
 					{:else if outMark}
-						<strong>Slide to the start frame</strong> and pause there to set {@render press('in')}.
+						<strong>Scrub to the start</strong>, then slide up and pause to set {@render press(
+							'in'
+						)}.
 					{:else}
-						<strong>Hold the bar and slide to the start frame.</strong> Pause there to set
-						{@render press('in')}, then do the same at the end.
+						<strong>Scrub to the start</strong>, then slide up above the bar to fine-tune, and pause
+						to set {@render press('in')}.
 					{/if}
 				</p>
 			{:else if inMark}

@@ -83,20 +83,22 @@
 		return null;
 	});
 
-	// On a touchscreen the points are set by a hold on the timeline (VideoScrubber): scrub
-	// to a frame and pause there. The first hold sets the in point and the next the
-	// out point; after that a tap on a point's pin lets the next hold move it.
+	// On a touchscreen the points are set on the timeline (VideoScrubber): scrub to a
+	// frame, slide up above the bar to fine-tune, and pause there. The first pause sets
+	// the in point and the next the out point; after that their pins drag and drop.
 	const touchScreen = new MediaQuery('(pointer: coarse)');
-	let movingPoint: TimerPoint | null = $state(null);
-	let holdTarget: TimerPoint | null = $derived(frameRateKnown ? (movingPoint ?? nextPoint) : null);
 
 	function handleHold(frame: number): boolean {
-		if (!holdTarget) return false;
-		const next = holdPoint(marks, holdTarget, frame, timing);
-		if (!next) return false;
-		marks = next;
-		movingPoint = null;
-		return true;
+		if (!nextPoint) return false;
+		const next = holdPoint(marks, nextPoint, frame, timing);
+		if (next) marks = next;
+		return Boolean(next);
+	}
+
+	function handleMoveMark(mark: Mark, frame: number): boolean {
+		const next = holdPoint(marks, pointOf(mark), frame, timing);
+		if (next) marks = next;
+		return Boolean(next);
 	}
 
 	// Below 900px the readout and controls stack under the video (see layout.css). A
@@ -157,7 +159,6 @@
 		sourceFrameRateChecked = false;
 		frameRateSettled = false;
 		marks = [];
-		movingPoint = null;
 		timeScale = 1;
 		zoomLevel = 1;
 		videoAspect = null;
@@ -215,7 +216,6 @@
 		const frame = await settledDisplayedFrame(videoElement, timing);
 		if (loadId !== activeVideoLoadId) return;
 		marks = setPoint(marks, point, frameStartTime(frame, timing), timing);
-		movingPoint = null;
 	}
 
 	const PLAYBACK_RATES = [1, 0.5, 0.25];
@@ -558,10 +558,7 @@
 							bind:timeScale
 							onSeek={seekToMark}
 							holdToMark={touchScreen.current}
-							onClear={() => {
-								marks = [];
-								movingPoint = null;
-							}}
+							onClear={() => (marks = [])}
 						/>
 					{/if}
 					<div class="control-bar" class:hold-marking={touchScreen.current}>
@@ -576,9 +573,9 @@
 								activeMarkId={activeMark?.id ?? null}
 								markLabels={POINT_LABELS}
 								fineTouch={touchScreen.current}
-								holdMark={holdTarget && POINT_MARK[holdTarget]}
+								holdMark={nextPoint && POINT_MARK[nextPoint]}
 								onHold={handleHold}
-								onPickMark={(mark) => (movingPoint = pointOf(mark))}
+								onMoveMark={handleMoveMark}
 							/>
 
 							<div class="control-toolbar">

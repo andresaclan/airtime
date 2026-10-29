@@ -4,6 +4,7 @@
 		frameAt,
 		frameLabel,
 		frameSeekTime,
+		frameStartTime,
 		lastFrameIndex,
 		type FrameTiming
 	} from '$lib/video/frames';
@@ -23,16 +24,16 @@
 		/** What each mark type is called in the flags' labels. */
 		markLabels?: Record<MarkType, string>;
 		/**
-		 * Touch scrubs by how far the finger moves rather than where it is (fineScrub.ts),
-		 * and the bar opens into a capsule with the time while it's held.
+		 * Touch scrubs by how far the finger moves rather than where it is, and the bar
+		 * opens into a capsule with the time while it's held (see `startTouch`).
 		 */
 		fineTouch?: boolean;
-		/** The mark a touch that rests on a frame sets there (see `onHold`); none when null. */
+		/** The mark a fine-tuning touch that rests on a frame sets there; none when null. */
 		holdMark?: MarkType | null;
-		/** A touch scrubbed to `frame` and rested there for `HOLD_MS`; false if nothing was set. */
+		/** A touch fine-tuned to `frame` and rested there for `HOLD_MS`; false if nothing was set. */
 		onHold?: (frame: number) => boolean;
-		/** A fine touch tapped a mark's pin; the playhead is on its frame. */
-		onPickMark?: (mark: Mark) => void;
+		/** A mark's pin was dragged to `frame` and let go; false if it can't go there. */
+		onMoveMark?: (mark: Mark, frame: number) => boolean;
 	}
 
 	let {
@@ -47,7 +48,7 @@
 		fineTouch = false,
 		holdMark = null,
 		onHold,
-		onPickMark
+		onMoveMark
 	}: Props = $props();
 
 	let wasPlayingBeforeScrub = $state(false);
@@ -63,35 +64,41 @@
 	// How far a press on a mark moves before it scrubs instead.
 	const DRAG_THRESHOLD_PX = 6;
 
-	// Fine touch scrubbing (fineScrub.ts): where the finger was, and the playhead as a
-	// fractional frame, so slow moves add up to a step.
-	let fine: {
+	// Touch on the time tool, after iOS Photos: the playhead follows how far the finger
+	// moves, never jumping to it. Along the bar one width of the bar is the whole clip.
+	// Slid up above the bar, the finger fine-tunes (fineScrub.ts) and a pause there sets
+	// `holdMark`. A touch that starts on a pin drags it, and it lands where it's let go.
+	let touch: {
 		x: number;
+		y: number;
 		at: number;
 		speed: number;
+		/** The playhead as a fractional frame, so small moves add up to a step. */
 		position: number;
 		frame: number;
-		/** The pin a touch started on, while it might still be a tap on it. */
-		tapMark: Mark | null;
-		startX: number;
+		pin: Mark | null;
 	} | null = null;
-	// A tap rather than a scrub: a short touch that stays this close to where it started.
-	const TAP_MS = 350;
-	const TAP_SLOP_PX = 10;
-	// A touch that rests on a frame it scrubbed to sets `holdMark` there. The capsule
-	// shows the hold filling after a short pause, so a glance at a frame doesn't mark it.
+	// How far above the middle of the track the finger fine-tunes, and how far back down
+	// it has to come to scrub the whole clip again.
+	const PRECISE_ENTER_PX = 40;
+	const PRECISE_LEAVE_PX = 24;
+	let precise = $state(false);
+	/** Where the dragged pin is, until it's let go. */
+	let draggedPin: { id: string; type: MarkType; time: number } | null = $state(null);
+	// The capsule shows the hold filling after a short pause, so a glance at a frame
+	// doesn't mark it.
 	const HOLD_SHOW_MS = 250;
 	const HOLD_MS = 800;
 	let holdState: 'idle' | 'filling' = $state('idle');
-	/** The mark a hold just set, while the capsule says so. */
+	/** The mark just set or moved, while the capsule and its pin say so. */
 	let justSet: MarkType | null = $state(null);
-	/** Only a touch that has scrubbed since it started (or since its last mark) can mark. */
-	let scrubbedSinceMark = false;
+	/** A hold can mark once the finger fine-tunes, and again only after the frame changes. */
+	let canHold = false;
 	let markedThisTouch = false;
 	let holdShowTimer: ReturnType<typeof setTimeout> | undefined;
 	let holdTimer: ReturnType<typeof setTimeout> | undefined;
 	let justSetTimer: ReturnType<typeof setTimeout> | undefined;
-	/** The capsule is open while a fine touch holds the bar. */
+	/** The capsule is open while a touch holds the bar. */
 	let fineOpen = $state(false);
 	/** The pointer scrubbing; others (a second finger) are ignored. */
 	let activePointer: number | null = null;
@@ -107,82 +114,106 @@
 		clearTimeout(justSetTimer);
 	});
 
-	// The hold starts over each time the frame changes.
+	function flashSet(type: MarkType) {
+		justSet = type;
+		clearTimeout(justSetTimer);
+		justSetTimer = setTimeout(() => (justSet = null), 1100);
+		navigator.vibrate?.(12);
+	}
+
+	// The hold starts over when the finger starts fine-tuning and each time the frame changes.
 	function restartHold() {
 		stopHoldTimers();
-		if (!holdMark || !onHold || !scrubbedSinceMark) return;
+		if (!precise || touch?.pin || !holdMark || !onHold || !canHold) return;
 		holdShowTimer = setTimeout(() => {
 			holdState = 'filling';
 			// Centre the finger on the frame so a fingertip's tremble can't tip it over.
-			if (fine) fine.position = fine.frame + 0.5;
+			if (touch) touch.position = touch.frame + 0.5;
 		}, HOLD_SHOW_MS);
 		holdTimer = setTimeout(() => {
-			if (!fine || !holdMark || !onHold) return;
+			if (!touch || !holdMark || !onHold) return;
 			const type = holdMark;
 			holdState = 'idle';
-			scrubbedSinceMark = false;
-			if (!onHold(fine.frame)) return;
+			canHold = false;
+			if (!onHold(touch.frame)) return;
 			markedThisTouch = true;
-			justSet = type;
-			clearTimeout(justSetTimer);
-			justSetTimer = setTimeout(() => (justSet = null), 1100);
-			navigator.vibrate?.(12);
+			flashSet(type);
 		}, HOLD_MS);
 	}
 
-	function frameCount(): number {
-		return lastFrameIndex(duration, timing) + 1;
-	}
-
-	function startFine(event: PointerEvent) {
+	function startTouch(event: PointerEvent) {
 		const video = videoElement!;
-		const frame = clampFrame(frameAt(targetTime(video), timing), duration, timing);
-		fine = {
+		const pin = markNear(event.clientX, event.clientY, event.pointerType);
+		const frame = pin
+			? frameOf(pin.time, timing)
+			: clampFrame(frameAt(targetTime(video), timing), duration, timing);
+		touch = {
 			x: event.clientX,
+			y: event.clientY,
 			at: event.timeStamp,
 			speed: 0,
 			position: frame + 0.5,
 			frame,
-			tapMark: markNear(event.clientX, event.clientY, event.pointerType),
-			startX: event.clientX
+			pin
 		};
-		fineDownAt = event.timeStamp;
-		scrubbedSinceMark = false;
+		if (pin) {
+			seek(video, frameSeek(frame), timing);
+			draggedPin = { id: pin.id, type: pin.type, time: pin.time };
+		}
+		precise = false;
+		canHold = false;
 		markedThisTouch = false;
+		justSet = null;
 		fineOpen = true;
 	}
 
-	function moveFine(event: PointerEvent) {
-		if (!fine || !videoElement || !trackRef) return;
-		if (Math.abs(event.clientX - fine.startX) > TAP_SLOP_PX) fine.tapMark = null;
-		const dx = event.clientX - fine.x;
-		fine.speed = fingerSpeed(fine.speed, dx, event.timeStamp - fine.at);
-		fine.x = event.clientX;
-		fine.at = event.timeStamp;
-		const width = trackRef.getBoundingClientRect().width;
+	function moveTouch(event: PointerEvent) {
+		if (!touch || !videoElement || !trackRef) return;
+		const rect = trackRef.getBoundingClientRect();
+		const above = rect.top + rect.height / 2 - event.clientY;
+		const wasPrecise = precise;
+		precise = above > (precise ? PRECISE_LEAVE_PX : PRECISE_ENTER_PX);
+		let dx = event.clientX - touch.x;
+		// A move mostly up or down (into or out of fine-tuning) leaves the playhead be.
+		if (Math.abs(event.clientY - touch.y) > 2 * Math.abs(dx)) dx = 0;
+		touch.speed = fingerSpeed(touch.speed, dx, event.timeStamp - touch.at);
+		touch.x = event.clientX;
+		touch.y = event.clientY;
+		touch.at = event.timeStamp;
 		const last = lastFrameIndex(duration, timing);
-		const rate = framesPerPx(fine.speed, timing.fps, frameCount(), width);
-		fine.position = Math.max(0, Math.min(last + 0.999, fine.position + dx * rate));
-		const frame = Math.floor(fine.position);
-		if (frame === fine.frame) return;
-		fine.frame = frame;
-		scrubbedSinceMark = true;
+		const rate = precise
+			? framesPerPx(touch.speed, timing.fps, last + 1, rect.width)
+			: (last + 1) / rect.width;
+		touch.position = Math.max(0, Math.min(last + 0.999, touch.position + dx * rate));
+		if (precise !== wasPrecise) {
+			canHold = precise;
+			restartHold();
+		}
+		const frame = Math.floor(touch.position);
+		if (frame === touch.frame) return;
+		touch.frame = frame;
+		canHold = true;
 		seek(videoElement, frameSeek(frame), timing);
+		if (touch.pin) draggedPin = { ...draggedPin!, time: frameStartTime(frame, timing) };
 		restartHold();
 	}
 
-	let fineDownAt = 0;
-
-	// A tap on a pin goes to its frame, and the page may let the next hold move it.
-	function endFine(event: PointerEvent) {
+	// A dragged pin lands where it's let go; a tap on one has already gone to its frame.
+	function endTouch(event: PointerEvent) {
 		stopHoldTimers();
-		const tapped =
-			event.type === 'pointerup' && event.timeStamp - fineDownAt < TAP_MS ? fine?.tapMark : null;
-		fine = null;
+		const ended = touch;
+		touch = null;
 		fineOpen = false;
-		if (!tapped || !videoElement) return;
-		seek(videoElement, frameSeek(frameOf(tapped.time, timing)), timing);
-		onPickMark?.(tapped);
+		precise = false;
+		draggedPin = null;
+		const pin = ended?.pin;
+		if (!pin || event.type !== 'pointerup' || frameOf(pin.time, timing) === ended.frame) return;
+		if (onMoveMark?.(pin, ended.frame)) flashSet(pin.type);
+	}
+
+	/** Where a mark's pin is drawn: where it's being dragged, else its own time. */
+	function pinTime(mark: Mark): number {
+		return draggedPin?.id === mark.id ? draggedPin.time : mark.time;
 	}
 
 	function capitalize(text: string): string {
@@ -266,9 +297,9 @@
 			videoElement.pause();
 		}
 
-		// Fine touch: the playhead stays put until the finger moves.
+		// Touch on the time tool: the playhead stays put until the finger moves.
 		if (fineTouch && event.pointerType === 'touch' && duration > 0) {
-			startFine(event);
+			startTouch(event);
 			return;
 		}
 
@@ -283,8 +314,8 @@
 
 	function handlePointerMove(event: PointerEvent) {
 		if (!isDragging || !videoElement || event.pointerId !== activePointer) return;
-		if (fine) {
-			moveFine(event);
+		if (touch) {
+			moveTouch(event);
 			return;
 		}
 		if (markPressX !== null) {
@@ -305,7 +336,7 @@
 		activePointer = null;
 		isDragging = false;
 		markPressX = null;
-		if (fine) endFine(event);
+		if (touch) endTouch(event);
 
 		// A touch that set a point leaves the playhead on it.
 		if (wasPlayingBeforeScrub && !markedThisTouch && videoElement) {
@@ -356,6 +387,7 @@
 	class:dragging={isDragging}
 	class:fine={fineTouch}
 	class:open={fineOpen}
+	class:precise
 	onpointerdown={handlePointerDown}
 	onpointermove={handlePointerMove}
 	onpointerup={handlePointerUp}
@@ -364,8 +396,9 @@
 	role="presentation"
 >
 	{#if fineTouch}
-		<!-- Held, the bar opens into a capsule with the time, as iOS Photos' does; a
-		     touch resting on a frame fills the chip in the middle, then sets the point. -->
+		<!-- Held, the bar opens into a capsule with the time, as iOS Photos' does. The
+		     chip in the middle says what the finger can do: slid up it fine-tunes, and
+		     resting on a frame there fills the chip, then sets the point. -->
 		<div class="capsule" aria-hidden="true" style:--hold-fill="{HOLD_MS - HOLD_SHOW_MS}ms">
 			<span class="capsule-time"
 				>{formatFrameClock(frameLabel(frameAt(currentTime, timing), timing), timing)}</span
@@ -382,12 +415,30 @@
 						/></svg
 					>{capitalize(markLabels[justSet])} set</span
 				>
-			{:else if holdMark}
+			{:else if draggedPin}
+				<span class="hold-chip hold-chip-{draggedPin.type}"
+					><span class="hold-dot"></span>Let go to place {markLabels[draggedPin.type]}</span
+				>
+			{:else if precise && holdMark}
 				<span class="hold-chip hold-chip-{holdMark}" class:filling={holdState === 'filling'}
 					><span class="hold-dot"></span>Pause to set {markLabels[holdMark]}</span
 				>
-			{:else if marks.length && onPickMark}
-				<span class="hold-chip">Tap a pin to move it</span>
+			{:else if precise}
+				<span class="hold-chip">Fine-tuning</span>
+			{:else if holdMark}
+				<span class="hold-chip hold-chip-{holdMark}"
+					><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"
+						><path
+							d="M8 13V3.5M4 7l4-4 4 4"
+							stroke="currentColor"
+							stroke-width="1.8"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/></svg
+					>Slide up to mark</span
+				>
+			{:else if marks.length && onMoveMark}
+				<span class="hold-chip">Drag a pin to move it</span>
 			{/if}
 			<span class="capsule-time capsule-duration">{durationLabel}</span>
 		</div>
@@ -409,8 +460,12 @@
 		{#each intervals as interval (interval.from.id)}
 			<div
 				class="timeline-band timeline-band-{interval.kind}"
-				style="left: {percentOf(interval.from.time)}%; width: {percentOf(interval.to.time) -
-					percentOf(interval.from.time)}%;"
+				style="left: {Math.min(
+					percentOf(pinTime(interval.from)),
+					percentOf(pinTime(interval.to))
+				)}%; width: {Math.abs(
+					percentOf(pinTime(interval.to)) - percentOf(pinTime(interval.from))
+				)}%;"
 			></div>
 		{/each}
 
@@ -434,8 +489,8 @@
 			class="timeline-mark timeline-mark-{mark.type}"
 			class:active={mark.id === activeMarkId}
 			class:just-set={justSet === mark.type}
-			class:armed={fineTouch && holdMark === mark.type}
-			style="left: {percentOf(mark.time)}%;"
+			class:dragged={draggedPin?.id === mark.id}
+			style="left: {percentOf(pinTime(mark))}%;"
 			onclick={() => seekToFrame(frameOf(mark.time, timing))}
 			aria-label="Go to {markLabels[mark.type]}"
 			title="Go to {markLabels[mark.type]}"
@@ -837,21 +892,20 @@
 		transform: translate(-50%, -50%);
 	}
 
-	/* The pin the next hold will move breathes. */
-	.fine .timeline-mark.armed::after {
-		animation: pin-armed 1.6s var(--at-ease) infinite;
+	/* A pin in the hand stands taller, with a ring around it. */
+	.fine .timeline-mark.dragged::before {
+		transform: translateX(-50%) scaleY(1.35);
 	}
 
-	@keyframes pin-armed {
-		0%,
-		100% {
-			opacity: 0;
-			transform: translate(-50%, -50%) scale(0.8);
-		}
-		50% {
-			opacity: 0.8;
-			transform: translate(-50%, -50%) scale(1.5);
-		}
+	.fine .timeline-mark.dragged::after {
+		opacity: 0.7;
+		transform: translate(-50%, -50%) scale(1.6);
+	}
+
+	/* Fine-tuning: the capsule rises a little, as if lifted by the finger. */
+	.precise .capsule {
+		border-color: hsl(var(--at-fg) / 0.22);
+		transform: translateY(-4px);
 	}
 
 	/* A point just set drops in, and a ring goes out from it. */
@@ -892,7 +946,6 @@
 			transition: none;
 		}
 		.hold-chip.set,
-		.fine .timeline-mark.armed::after,
 		.fine .timeline-mark.just-set::before,
 		.fine .timeline-mark.just-set::after {
 			animation: none;
