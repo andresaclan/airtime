@@ -205,6 +205,11 @@
 		if (frame === touch.frame) return;
 		touch.frame = frame;
 		canHold = true;
+		// Moving on ends the "set" cue, so the next pause shows its own sweep.
+		if (justSet) {
+			clearTimeout(justSetTimer);
+			justSet = null;
+		}
 		seek(videoElement, frameSeek(frame), timing);
 		if (touch.pin) draggedPin = { ...draggedPin!, time: frameStartTime(frame, timing) };
 		restartHold();
