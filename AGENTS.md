@@ -5,26 +5,35 @@ These rules apply to every agent working in this repo, whatever the provider.
 ## Setup
 
 - The package manager is **bun** (`bun.lock`). Don't use npm, npx or yarn, and don't create `package-lock.json`.
-- In a new worktree, run `bun install --frozen-lockfile` before anything else. Don't symlink `node_modules` from another checkout; Vite refuses to serve files from outside the worktree.
+- In a new worktree, run `bun install --frozen-lockfile` before anything else. T3's install-on-create script doesn't always run, so check for `node_modules` rather than assuming it's there. Don't symlink `node_modules` from another checkout; Vite refuses to serve files from outside the worktree.
 - Before any commit or PR, run `bun run check && bun run test && bun run lint && bun run build`.
 
 ## Dev server
 
-- Start it with `nohup bun run dev -- --port <port> --strictPort > /tmp/airtime-<port>.log 2>&1 &`. Background tool tasks are killed when they hit their time limit, which takes the server down with them.
+- Start it with `scripts/dev.sh <port>`. It installs dependencies if they're missing, starts the server with `nohup` (background tool tasks are killed at their time limit, and the server with them), waits until it answers and prints the URL. The log is `/tmp/airtime-<port>.log`.
+- Stop your servers when you're done with them: `kill $(lsof -tiTCP:<port> -sTCP:LISTEN)`. Leave other agents' servers alone.
 - When handing back UI work, list one `http://localhost:<port>` link per branch, labelled with what it shows, and check that each server is still running.
-- For testing on a phone, add `--host` and give the LAN address.
+- For testing on a phone, add `--host`; the script also prints the LAN address.
 
 ## Browser checks
 
 - Never take focus from the user, who keeps working on this Mac while agents test. Don't launch Chrome with `chromium.launch({headless: false})` or call `page.bringToFront()` / `context.newPage()`; each one brings a window to the front.
-- Run automated checks with `scripts/background-chrome.mjs`. It opens a real Chrome window behind the user's apps, and rAF and rVFC stay at full rate. Get playwright-core from `/tmp/airtime-limits-pw` (if it's gone, `bun add playwright-core` in that directory):
+- Run automated checks with `scripts/background-chrome.mjs`. It opens a real Chrome window behind the user's apps, and rAF and rVFC stay at full rate. `playwright-core` is a dev dependency; a script outside the repo can load both from the worktree:
 
 ```js
 import { createRequire } from 'node:module';
-import { launchBackground } from './scripts/background-chrome.mjs';
-const { chromium } = createRequire('/tmp/airtime-limits-pw/')('playwright-core');
+const repo = '/path/to/worktree/';
+const { chromium } = createRequire(repo)('playwright-core');
+const { launchBackground } = await import(repo + 'scripts/background-chrome.mjs');
 const { page, close } = await launchBackground(chromium);
+try {
+	// …
+} finally {
+	await close(); // otherwise a failed run leaves Chrome running
+}
 ```
+
+- Don't call `execSync` in a timer while Playwright runs; it blocks Node's event loop and Playwright calls time out.
 
 ## Browser preview (T3 `preview_*` tools)
 
@@ -40,9 +49,15 @@ const { page, close } = await launchBackground(chromium);
 
 - BSD sed needs an explicit suffix: `sed -i '' …`. For multi-line changes, use Python or an edit tool.
 - Search with `git grep` or `rg`. `grep` may be wrapped by ugrep and treat flags differently.
+- The shell is zsh. Use braces before a colon: zsh reads `$sha:refs/…` as `$sha` plus the `:r` modifier and pushes a mangled ref, so write `${sha}:refs/…`. An unmatched glob is an error, so quote patterns such as `--include='*.ts'`.
+- A standalone `sleep` is blocked. Wait with an `until <check>; do sleep 2; done` loop, or start the command with `run_in_background`. Wait on a PID (`kill -0 $pid`) or an output file, not on `pgrep -f <name>`; two waiting shells match each other's command lines and never finish.
+- Python has no Pillow and there's no ImageMagick. Use `uv run --with pillow python3 …`, `sips`, or ffmpeg (`hstack`/`vstack`) for crops and contact sheets.
+- Keep scratch files in `/tmp/airtime-<branch>/`. Don't delete another agent's `/tmp` folder; other agents may still be using it.
 
 ## Git and GitHub
 
+- T3 renames the branch after the first turn (for example from `t3/3edf88bc` to `t3/export-jump-types`), so don't derive it from the worktree's folder name. Push with `git push -u origin HEAD` and open PRs with `gh pr create --head "$(git branch --show-current)"`.
+- Put screenshots in PR descriptions with `scripts/pr-assets.sh <name> <image>...`. It uploads them to the branch `pr-assets/<name>` and prints Markdown image links.
 - Bring branches up to date with merge commits titled "Merge main into <branch>".
 - Commit your work before ending a turn. Never share a checkout with another agent.
 - Stacked PRs: merge from the bottom up, and check that every layer actually reached `main`.
@@ -53,6 +68,11 @@ const { page, close } = await launchBackground(chromium);
 gh pr view 123 --repo andresaclan/airtime
 gh pr edit 123 --repo andresaclan/airtime --title "Updated title"
 ```
+
+## Subagents and councils
+
+- Claude's `Agent` tool with `isolation: "worktree"` refuses shell commands it can't confirm stay in the worktree, such as heredocs and multi-step pipelines. Give those agents edit-tool work, or use T3 `delegate_task` with a worktree.
+- Before a multi-round council, send each judge model a short test task. Usage limits stopped judges partway through earlier councils: a Codex model was locked out for three weeks and Gemini for two days.
 
 ## Agent skills
 
