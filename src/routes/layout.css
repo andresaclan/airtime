@@ -934,7 +934,7 @@ body {
 		align-self: center;
 		justify-self: start;
 		translate: 0 10px;
-		font-size: 11px;
+		font-size: 12px;
 	}
 	.control-bar-inner:has(.time-fps.clean) .time-current {
 		translate: 0 -9px;

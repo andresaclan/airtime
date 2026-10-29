@@ -1538,6 +1538,10 @@
 			inset: -6px 0;
 		}
 
+		.mp-mark-actions {
+			gap: 8px;
+		}
+
 		.mp-remove {
 			background: transparent;
 		}
