@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { KEYBIND_GROUPS, platformKeys } from '$lib/keybinds';
+	import { KEYBIND_GROUPS, platformKeys, type KeybindGroup } from '$lib/keybinds';
 	import { dialogFocus, trapTab } from '$lib/dialogFocus';
 
 	interface Props {
@@ -8,9 +8,16 @@
 		/** The marking guide was hidden; it can be brought back from here. */
 		guideHidden?: boolean;
 		onShowGuide?: () => void;
+		groups?: KeybindGroup[];
 	}
 
-	let { isOpen, onClose, guideHidden = false, onShowGuide }: Props = $props();
+	let {
+		isOpen,
+		onClose,
+		guideHidden = false,
+		onShowGuide,
+		groups = KEYBIND_GROUPS
+	}: Props = $props();
 
 	let card: HTMLElement | null = $state(null);
 
@@ -46,11 +53,12 @@
 		}
 	}
 
-	// Playback and Timeline on the left; Marks and General on the right.
-	const columns = [
-		KEYBIND_GROUPS.filter((group) => group.title === 'Playback' || group.title === 'Timeline'),
-		KEYBIND_GROUPS.filter((group) => group.title === 'Marks' || group.title === 'General')
-	];
+	// Playback and Timeline on the left; the rest on the right.
+	const LEFT = ['Playback', 'Timeline'];
+	let columns = $derived([
+		groups.filter((group) => LEFT.includes(group.title)),
+		groups.filter((group) => !LEFT.includes(group.title))
+	]);
 
 	// "Ctrl / ⌘ + Z" → keys with the separators between them, so each key gets its own cap.
 	function keyTokens(keys: string): { text: string; key: boolean }[] {

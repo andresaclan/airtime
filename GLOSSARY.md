@@ -111,6 +111,20 @@ _Avoid_: Assumed frame rate, default frame rate
 **Frame times**:
 When each frame of a video is shown, read from the file. When a video has them, stepping, marks and timings follow them, so a video whose frames aren't evenly spaced (a **variable frame rate**, such as slow motion with dropped frames) is still stepped one real frame at a time. Videos without them (WebM) are treated as evenly spaced at the frame rate.
 
+### Time tool
+
+**Time tool**:
+The page at `/`: one video, an in point and an out point, and the time between them. It knows nothing about jumps and saves nothing. The full app lives at `/alpha`.
+
+**In point**:
+The frame the time tool starts timing from. Underneath it is stored as a takeoff mark, so the timeline can draw it; the page never says so.
+
+**Out point**:
+The frame the time tool stops timing at. Stored as a landing mark, the same way.
+
+**Elapsed time**:
+The real time between the in point's frame and the out point's frame, with the frame count between them.
+
 ### Keeping data
 
 **Save**:
