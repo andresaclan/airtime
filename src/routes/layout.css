@@ -891,7 +891,9 @@ body {
    rate only when it needs a look. */
 @container control-bar (max-width: 700px) {
 	.control-bar-inner {
-		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+		/* Centred while it fits; when speed and mute need more room (a ¼× chip on a
+		   small phone) the transport slides over rather than under them. */
+		grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
 		grid-template-areas:
 			'scrub scrub scrub'
 			'status status status'
