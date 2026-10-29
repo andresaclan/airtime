@@ -19,6 +19,18 @@ export const COARSE_PX_PER_SECOND = 160;
 export const SLOW_PX_PER_MS = 0.15;
 export const FAST_PX_PER_MS = 0.8;
 
+/**
+ * Marking from the timeline: once the finger has scrubbed to a moment, sliding it up
+ * by `PRECISE_ENTER_PX` from the lowest point it scrubbed at (on the bar, or below it
+ * where the bar can be seen) fine-tunes at the rates above. Coming back down to within
+ * `PRECISE_LEAVE_PX` of that point scrubs the whole clip again.
+ */
+export const PRECISE_ENTER_PX = 40;
+export const PRECISE_LEAVE_PX = 16;
+/** While fine-tuning, a pause this long sets a point; it shows filling after `HOLD_SHOW_MS`. */
+export const HOLD_MS = 800;
+export const HOLD_SHOW_MS = 250;
+
 /** How quickly the speed estimate forgets, in ms: a pause leaves none of a swipe's speed. */
 const SPEED_MEMORY_MS = 32;
 

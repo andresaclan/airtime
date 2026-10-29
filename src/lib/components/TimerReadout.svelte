@@ -108,18 +108,8 @@
 				{#if inMark}<div class="tr-points">{@render chip('in', inMark)}</div>{/if}
 				{#if outMark}<div class="tr-points">{@render chip('out', outMark)}</div>{/if}
 				<p class="tr-text">
-					{#if inMark}
-						<strong>Scrub to the end</strong>, then slide up and pause to set {@render press(
-							'out'
-						)}.
-					{:else if outMark}
-						<strong>Scrub to the start</strong>, then slide up and pause to set {@render press(
-							'in'
-						)}.
-					{:else}
-						<strong>Scrub to the start</strong>, then slide up above the bar to fine-tune, and pause
-						to set {@render press('in')}.
-					{/if}
+					<strong>Scrub to the {inMark ? 'end' : 'start'}</strong>, slide up, then pause to set
+					{@render press(inMark ? 'out' : 'in')}.
 				</p>
 			{:else if inMark}
 				<div class="tr-points">{@render chip('in', inMark)}</div>
@@ -434,7 +424,8 @@
 			order: 1;
 			flex-wrap: wrap;
 			gap: 10px 8px;
-			min-height: 64px;
+			/* As tall as the result, so the controls above don't shift when it appears. */
+			min-height: 72px;
 			margin-top: auto;
 			padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
 			border: 1px solid hsl(var(--at-border));

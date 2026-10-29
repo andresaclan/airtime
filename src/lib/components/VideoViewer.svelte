@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { estimatePlaybackFrameRate } from '$lib/video/frameRate';
 	import { frameAt, frameOfPresentedTime, type FrameTiming } from '$lib/video/frames';
 	import { trackPresentedFrames } from '$lib/video/presentedFrame';
@@ -39,6 +40,8 @@
 		onDurationChange?: (duration: number) => void;
 		onFrameRateDetected?: (fps: number) => void;
 		onError?: () => void;
+		/** Drawn over the picture (not its letterbox bars), above the scrub preview. */
+		overlay?: Snippet;
 	}
 
 	let {
@@ -58,7 +61,8 @@
 		playbackRate = 1,
 		onDurationChange,
 		onFrameRateDetected,
-		onError
+		onError,
+		overlay
 	}: Props = $props();
 
 	let detectionId = 0;
@@ -686,6 +690,15 @@
 			style="left: {videoBox.left}px; top: {videoBox.top}px; width: {videoBox.width}px; height: {videoBox.height}px; {transformStyle} transform-origin: center center;"
 		></canvas>
 
+		{#if overlay}
+			<div
+				class="picture-overlay"
+				style="left: {videoBox.left}px; top: {videoBox.top}px; width: {videoBox.width}px; height: {videoBox.height}px;"
+			>
+				{@render overlay()}
+			</div>
+		{/if}
+
 		<!-- Zoom indicator -->
 		{#if zoomLevel > 1}
 			<div class="zoom-pill">
@@ -731,6 +744,12 @@
 
 	.scrub-preview.visible {
 		visibility: visible;
+	}
+
+	.picture-overlay {
+		position: absolute;
+		z-index: 5;
+		pointer-events: none;
 	}
 
 	.zoom-pill {

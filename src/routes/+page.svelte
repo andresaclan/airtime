@@ -7,11 +7,13 @@
 	import VideoControls from '$lib/components/VideoControls.svelte';
 	import KeybindsDialog from '$lib/components/KeybindsDialog.svelte';
 	import TimerReadout from '$lib/components/TimerReadout.svelte';
+	import HoldCue, { type ScrubCue } from '$lib/components/HoldCue.svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 	import { resolve } from '$app/paths';
 	import { TIMER_KEYBIND_GROUPS } from '$lib/keybinds';
 	import { detectSourceTimingFromFile } from '$lib/video/frameRate';
+	import { HOLD_MS, HOLD_SHOW_MS } from '$lib/video/fineScrub';
 	import { formatFrameClock } from '$lib/video/timecode';
 	import {
 		clampFrame,
@@ -87,6 +89,7 @@
 	// frame, slide up above the bar to fine-tune, and pause there. The first pause sets
 	// the in point and the next the out point; after that their pins drag and drop.
 	const touchScreen = new MediaQuery('(pointer: coarse)');
+	let scrubCue: ScrubCue | null = $state(null);
 
 	function handleHold(frame: number): boolean {
 		if (!nextPoint) return false;
@@ -511,7 +514,11 @@
 						onFrameRateDetected={() => (frameRateSettled = true)}
 						onDurationChange={handleVideoMetadata}
 						onError={handleMediaError}
-					/>
+					>
+						{#snippet overlay()}
+							<HoldCue cue={scrubCue} fillMs={HOLD_MS - HOLD_SHOW_MS} />
+						{/snippet}
+					</VideoViewer>
 
 					{#if mediaError}
 						<div class="viewer-overlay z-10">
@@ -576,6 +583,7 @@
 								holdMark={nextPoint && POINT_MARK[nextPoint]}
 								onHold={handleHold}
 								onMoveMark={handleMoveMark}
+								bind:cue={scrubCue}
 							/>
 
 							<div class="control-toolbar">
