@@ -4,6 +4,11 @@
 
 Airtime turns a clip of a jump into flight time, contact time and jump height. Open a local video, step to the frame the feet leave the ground and the frame they touch down, and Airtime does the math (h = g·t²/8), including for slow-motion footage.
 
+Airtime has two pages:
+
+- **`/`** is a time tool for a clip you just took: mark an in point and an out point and read the time and frame count between them. It saves nothing.
+- **`/alpha`** is the full app described below: jump marking, analysis, saved sessions and trends. It's still in alpha.
+
 > **Privacy first:** videos are loaded from your device into the browser using local object URLs. Airtime does not include an upload API or application backend.
 
 ## What it does
@@ -151,7 +156,8 @@ src/
 │   ├── session/          # Saved sessions (IndexedDB), fingerprinting, export/import
 │   └── video/            # Frame-rate detection, timecode, marks and jump analysis
 └── routes/
-    ├── +page.svelte     # Main application screen and local file lifecycle
+    ├── +page.svelte     # The time tool: in and out points, nothing saved
+    ├── alpha/+page.svelte  # The full app and its local file lifecycle
     └── layout.css       # Application theme and shared styles
 ```
 

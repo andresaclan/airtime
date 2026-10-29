@@ -203,20 +203,17 @@
 
 {#snippet peek()}
 	{#if bestJump?.flight}
+		<!-- Flight time is what the athlete glances for; height follows, and contact
+		     only once the jump type says it counts. -->
 		<span class="mp-peek-stat mp-peek-primary">
-			<span class="mp-peek-label">{completedJumps > 1 ? 'Best height' : 'Height'}</span>
-			<span class="mp-peek-value">{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span>
-		</span>
-		<span class="mp-peek-stat">
-			<span class="mp-peek-label">Best flight</span>
+			<span class="mp-peek-label">{completedJumps > 1 ? 'Best flight' : 'Flight'}</span>
 			<span class="mp-peek-value">{formatMs(bestJump.flight.realSeconds)}<small>ms</small></span>
 		</span>
-		{#if !contactMatters && averageHeight !== null}
-			<span class="mp-peek-stat">
-				<span class="mp-peek-label">Average</span>
-				<span class="mp-peek-value">{averageHeight.toFixed(1)}<small>cm</small></span>
-			</span>
-		{:else}
+		<span class="mp-peek-stat">
+			<span class="mp-peek-label">Height</span>
+			<span class="mp-peek-value">{bestJump.flight.heightCm?.toFixed(1)}<small>cm</small></span>
+		</span>
+		{#if contactMatters}
 			<span class="mp-peek-stat">
 				<span class="mp-peek-label">Contact</span>
 				<span class="mp-peek-value"
@@ -358,7 +355,12 @@
 				>
 			</button>
 		</div>
-		{#if showDetails && tab === 'analysis'}<div class="mp-peek">{@render peek()}</div>{/if}
+		<!-- With one jump its own row below says the same, so the summary steps aside. -->
+		{#if showDetails && tab === 'analysis' && !(completedJumps === 1 && grouped.jumps.length === 1)}<div
+				class="mp-peek"
+			>
+				{@render peek()}
+			</div>{/if}
 	{:else}
 		<div class="mp-head">
 			<h2 class="sr-only">Analysis</h2>
@@ -1536,6 +1538,10 @@
 			inset: -6px 0;
 		}
 
+		.mp-mark-actions {
+			gap: 8px;
+		}
+
 		.mp-remove {
 			background: transparent;
 		}
@@ -1622,7 +1628,7 @@
 	.marks-panel.sheet.fill {
 		flex: 1 1 auto;
 		max-height: none;
-		margin: 0 -8px -8px;
+		margin: 0 calc(-1 * var(--stage-pad)) calc(-1 * var(--stage-pad));
 		border-width: 1px 0 0;
 		border-radius: 14px 14px 0 0;
 	}
@@ -1630,7 +1636,7 @@
 	/* Collapsed, the sheet rests on the bottom edge like a pulled-down sheet,
 	   instead of floating under the controls. */
 	.marks-panel.sheet.collapsed {
-		margin: auto -8px -8px;
+		margin: auto calc(-1 * var(--stage-pad)) calc(-1 * var(--stage-pad));
 		border-width: 1px 0 0;
 		border-radius: 14px 14px 0 0;
 		padding-bottom: env(safe-area-inset-bottom);
@@ -1771,7 +1777,7 @@
 	}
 
 	.mp-peek-primary .mp-peek-value {
-		font-size: 18px;
+		font-size: 22px;
 	}
 
 	.mp-peek-value small {

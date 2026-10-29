@@ -18,7 +18,7 @@ export const KEYBIND_GROUPS: KeybindGroup[] = [
 		title: 'Timeline',
 		binds: [
 			{ keys: '← / →', action: 'Scrub back / forward' },
-			{ keys: 'Home / End', action: 'Jump to start / end' }
+			{ keys: 'Home / End', action: 'Go to start / end' }
 		]
 	},
 	{
@@ -37,6 +37,27 @@ export const KEYBIND_GROUPS: KeybindGroup[] = [
 		title: 'General',
 		binds: [
 			{ keys: 'Ctrl / ⌘ + S', action: 'Save session to this browser' },
+			{ keys: '?', action: 'Show / hide keyboard shortcuts' },
+			{ keys: 'Esc', action: 'Close this overlay' }
+		]
+	}
+];
+
+/** The time tool at `/`: playback is shared; its marks are an in and an out point. */
+export const TIMER_KEYBIND_GROUPS: KeybindGroup[] = [
+	...KEYBIND_GROUPS.filter((group) => group.title === 'Playback' || group.title === 'Timeline'),
+	{
+		title: 'Points',
+		binds: [
+			{ keys: 'I', action: 'Set in point' },
+			{ keys: 'O', action: 'Set out point' },
+			{ keys: '[ / ]', action: 'Previous / next point' },
+			{ keys: 'Backspace / Delete', action: 'Clear point at playhead' }
+		]
+	},
+	{
+		title: 'General',
+		binds: [
 			{ keys: '?', action: 'Show / hide keyboard shortcuts' },
 			{ keys: 'Esc', action: 'Close this overlay' }
 		]

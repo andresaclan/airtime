@@ -6,7 +6,7 @@
 		lastFrameIndex,
 		type FrameTiming
 	} from '$lib/video/frames';
-	import { frameOf, type Interval, type Mark } from '$lib/video/marks';
+	import { frameOf, type Interval, type Mark, type MarkType } from '$lib/video/marks';
 	import { isWatching, seek, targetTime } from '$lib/video/seek';
 
 	interface Props {
@@ -17,6 +17,8 @@
 		marks?: Mark[];
 		intervals?: Interval[];
 		activeMarkId?: string | null;
+		/** What each mark type is called in the flags' labels. */
+		markLabels?: Record<MarkType, string>;
 	}
 
 	let {
@@ -26,7 +28,8 @@
 		videoElement,
 		marks = [],
 		intervals = [],
-		activeMarkId = null
+		activeMarkId = null,
+		markLabels = { takeoff: 'takeoff', landing: 'landing' }
 	}: Props = $props();
 
 	let wasPlayingBeforeScrub = $state(false);
@@ -234,8 +237,8 @@
 			class:active={mark.id === activeMarkId}
 			style="left: {percentOf(mark.time)}%;"
 			onclick={() => seekToFrame(frameOf(mark.time, timing))}
-			aria-label="Go to {mark.type}"
-			title="Go to {mark.type}"
+			aria-label="Go to {markLabels[mark.type]}"
+			title="Go to {markLabels[mark.type]}"
 		></button>
 	{/each}
 </div>
