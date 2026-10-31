@@ -11,11 +11,21 @@
 		/** Points wait for the frame rate; `failed` means they never can be set. */
 		frameRate: 'detecting' | 'known' | 'failed';
 		timeScale: number;
+		/** Points are set by a hold on the timeline (a touchscreen), so say that instead. */
+		holdToMark?: boolean;
 		onSeek: (time: number) => void;
 		onClear: () => void;
 	}
 
-	let { marks, timing, frameRate, timeScale = $bindable(), onSeek, onClear }: Props = $props();
+	let {
+		marks,
+		timing,
+		frameRate,
+		timeScale = $bindable(),
+		holdToMark = false,
+		onSeek,
+		onClear
+	}: Props = $props();
 
 	let inMark = $derived(findPoint(marks, 'in'));
 	let outMark = $derived(findPoint(marks, 'out'));
@@ -93,6 +103,14 @@
 					<span class="tr-arrow" aria-hidden="true">{result.reversed ? '←' : '→'}</span>
 					{#if outMark}{@render chip('out', outMark)}{/if}
 				</div>
+			{:else if holdToMark}
+				<!-- The bar sets the points: scrub to a frame, slide up to fine-tune, pause. -->
+				{#if inMark}<div class="tr-points">{@render chip('in', inMark)}</div>{/if}
+				{#if outMark}<div class="tr-points">{@render chip('out', outMark)}</div>{/if}
+				<p class="tr-text">
+					<strong>Scrub to the {inMark ? 'end' : 'start'}</strong>, slide up, then pause to set
+					{@render press(inMark ? 'out' : 'in')}.
+				</p>
 			{:else if inMark}
 				<div class="tr-points">{@render chip('in', inMark)}</div>
 				<p class="tr-text">
@@ -406,7 +424,8 @@
 			order: 1;
 			flex-wrap: wrap;
 			gap: 10px 8px;
-			min-height: 64px;
+			/* As tall as the result, so the controls above don't shift when it appears. */
+			min-height: 72px;
 			margin-top: auto;
 			padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
 			border: 1px solid hsl(var(--at-border));

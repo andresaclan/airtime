@@ -37,6 +37,21 @@ export function setPoint(marks: Mark[], point: TimerPoint, time: number, timing:
 	return sortMarks([...rest, { id: newId(), type, time: frameStartTime(frame, timing) }]);
 }
 
+/**
+ * Sets `point` on `frame` from a hold on the timeline (see VideoScrubber). A hold
+ * only ever places a point: on the frame the point already has, or the other
+ * point's frame, it changes nothing and returns null, where `setPoint` would clear.
+ */
+export function holdPoint(
+	marks: Mark[],
+	point: TimerPoint,
+	frame: number,
+	timing: Timing
+): Mark[] | null {
+	if (marks.some((mark) => frameOf(mark.time, timing) === frame)) return null;
+	return setPoint(marks, point, frameStartTime(frame, timing), timing);
+}
+
 export type Elapsed = {
 	/** Real-world seconds between the two points' frames (see `timeScale` in marks.ts). */
 	seconds: number;
