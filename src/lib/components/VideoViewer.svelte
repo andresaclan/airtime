@@ -135,26 +135,54 @@
 		return !!videoElement && !seekPending(videoElement) && videoFrame === frame;
 	}
 
+	// Cached frames go through a canvas, which renders colour differently from the
+	// video (Chrome draws BT.709 mid-tones darker). Swapping between the two on every
+	// frame of a drag looks like flicker, so while seeks keep coming the preview stays
+	// up, and only hands back to the video once they stop. Frame steps skip the
+	// preview altogether (see seek.ts).
+	const RUN_GAP_MS = 200;
+	let lastSeekAt = -Infinity;
+	/** True when the latest seek came within RUN_GAP_MS of the one before. */
+	let inRun = false;
+	let handBackTimer: ReturnType<typeof setTimeout> | undefined;
+
 	function hidePreview() {
+		clearTimeout(handBackTimer);
 		previewFrame = null;
 		scrubCache?.cancel();
 	}
 
+	/** Hides the preview once the video shows its frame, waiting out a run of seeks. */
+	function handBackWhenCaughtUp() {
+		clearTimeout(handBackTimer);
+		if (previewFrame === null || !videoShows(previewFrame)) return;
+		const wait = inRun ? lastSeekAt + RUN_GAP_MS - performance.now() : 0;
+		if (wait > 0) handBackTimer = setTimeout(handBackWhenCaughtUp, wait);
+		else hidePreview();
+	}
+
 	function showPreview(frame: number) {
+		const now = performance.now();
+		inRun = now - lastSeekAt < RUN_GAP_MS;
+		lastSeekAt = now;
 		if (!scrubCache || !previewTiming()) return;
 		scrubCache.focus(frame);
-		if (!scrubCache.has(frame) || videoShows(frame)) hidePreview();
+		if (!scrubCache.has(frame) || (previewFrame === null && videoShows(frame))) hidePreview();
 		else scrubCache.request(frame);
 	}
 
 	function drawPreview(frame: number, image: VideoFrame) {
-		if (!previewCanvas || !videoElement || !videoElement.paused || videoShows(frame)) return;
+		if (!previewCanvas || !videoElement || !videoElement.paused) return;
+		// Once up, the preview keeps drawing even where the video got there first.
+		if (previewFrame === null && videoShows(frame)) return;
 		const context = previewCanvas.getContext('2d');
 		if (!context) return;
 		if (previewCanvas.width !== image.displayWidth) previewCanvas.width = image.displayWidth;
 		if (previewCanvas.height !== image.displayHeight) previewCanvas.height = image.displayHeight;
 		context.drawImage(image, 0, 0);
 		previewFrame = frame;
+		// A frame the video already shows gets no later event to hand back on.
+		handBackWhenCaughtUp();
 	}
 
 	$effect(() => {
@@ -179,7 +207,7 @@
 	$effect(() => {
 		const video = videoElement;
 		if (!video) return;
-		const unregister = registerSeekPreview(video, { show: showPreview });
+		const unregister = registerSeekPreview(video, { show: showPreview, hide: hidePreview });
 		const sync = () => handleTimeUpdate();
 		const emptied = () => {
 			clearSeeks(video);
@@ -194,7 +222,7 @@
 			const timing = previewTiming();
 			if (!timing || video.seeking) return;
 			videoFrame = frameOfPresentedTime(metadata.mediaTime, timing);
-			if (previewFrame !== null && videoShows(previewFrame)) hidePreview();
+			handBackWhenCaughtUp();
 		};
 		// A seek to the frame already on screen may present nothing new.
 		let seekedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -205,7 +233,7 @@
 				if (!timing || previewFrame === null || seekPending(video)) return;
 				if (frameAt(video.currentTime, timing) === previewFrame) {
 					videoFrame = previewFrame;
-					hidePreview();
+					handBackWhenCaughtUp();
 				}
 			}, 150);
 		};
@@ -236,6 +264,7 @@
 			unregister();
 			resize.disconnect();
 			clearTimeout(seekedTimer);
+			clearTimeout(handBackTimer);
 			if (handle) video.cancelVideoFrameCallback(handle);
 			video.removeEventListener(SEEK_EVENT, sync);
 			video.removeEventListener('emptied', emptied);

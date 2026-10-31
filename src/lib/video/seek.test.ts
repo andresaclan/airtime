@@ -72,7 +72,10 @@ describe('seek', () => {
 	test('shows each target on the preview at once, by frame', () => {
 		const { fake, element } = video();
 		const shown: number[] = [];
-		const unregister = registerSeekPreview(element, { show: (frame) => shown.push(frame) });
+		const unregister = registerSeekPreview(element, {
+			show: (frame) => shown.push(frame),
+			hide: () => {}
+		});
 		seek(element, 0.15, timing);
 		seek(element, 0.35, timing);
 		expect(shown).toEqual([1, 3]);
@@ -80,6 +83,18 @@ describe('seek', () => {
 		fake.land();
 		seek(element, 0.55, timing);
 		expect(shown).toEqual([1, 3]);
+	});
+
+	test('hides the preview instead of showing it when asked for none', () => {
+		const { element } = video();
+		const calls: string[] = [];
+		registerSeekPreview(element, {
+			show: (frame) => calls.push(`show ${frame}`),
+			hide: () => calls.push('hide')
+		});
+		seek(element, 0.15, timing);
+		seek(element, 0.35, timing, { preview: false });
+		expect(calls).toEqual(['show 1', 'hide']);
 	});
 
 	test('tells listeners the target moved', () => {
