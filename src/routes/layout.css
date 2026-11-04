@@ -1355,6 +1355,62 @@ body {
 	color: hsl(var(--at-error));
 }
 
+/* Unsaved marks a reload interrupted, waiting for their video to be opened again. */
+.empty-drafts {
+	display: flex;
+	flex-direction: column;
+	margin: 0;
+	padding: 0;
+	border-top: 1px solid hsl(var(--at-border));
+	list-style: none;
+}
+
+.empty-draft {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	padding: 12px 20px;
+	background: hsl(var(--at-warning) / 0.08);
+}
+
+.empty-draft + .empty-draft {
+	border-top: 1px solid hsl(var(--at-border));
+}
+
+.empty-draft-dot {
+	flex: 0 0 auto;
+	width: 7px;
+	height: 7px;
+	margin-top: 6px;
+	border-radius: 50%;
+	background: hsl(var(--at-warning));
+}
+
+.empty-draft-text {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+	color: hsl(var(--at-fg-muted));
+	font-size: 12px;
+	line-height: 1.45;
+}
+
+.empty-draft-text strong {
+	overflow: hidden;
+	color: hsl(var(--at-fg));
+	font-size: 13px;
+	font-weight: 500;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.empty-draft .link-btn {
+	flex: 0 0 auto;
+	font-size: 12px;
+}
+
 /* ========================================
    Responsive
    ======================================== */
@@ -1518,6 +1574,9 @@ body {
 	}
 	.empty-result {
 		padding: 10px 16px 12px;
+	}
+	.empty-draft {
+		padding: 12px 16px;
 	}
 	/* Phones: each step's description under its title, its button beside the title. */
 	.empty-steps li {

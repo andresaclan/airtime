@@ -1,10 +1,13 @@
-/** IndexedDB persistence for saved sessions. */
+/** IndexedDB persistence for saved sessions, and drafts of unsaved work (draft.ts). */
+import type { Draft } from './draft';
 import { migrateSession } from './migrate';
 import type { Session } from './schema';
 
 const DB_NAME = 'airtime';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = 'sessions';
+/** Unsaved work, one record per video, keyed by its fingerprint. */
+const DRAFTS = 'drafts';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -18,6 +21,9 @@ function openDb(): Promise<IDBDatabase> {
 			if (event.oldVersion < 1) {
 				const store = db.createObjectStore(STORE, { keyPath: 'id' });
 				store.createIndex('fingerprint', 'media.fingerprint');
+			}
+			if (event.oldVersion < 2) {
+				db.createObjectStore(DRAFTS, { keyPath: 'fingerprint' });
 			}
 		};
 		request.onsuccess = () => {
@@ -39,12 +45,13 @@ function openDb(): Promise<IDBDatabase> {
 
 async function run<T>(
 	mode: IDBTransactionMode,
-	work: (store: IDBObjectStore) => IDBRequest<T> | void
+	work: (store: IDBObjectStore) => IDBRequest<T> | void,
+	storeName: string = STORE
 ): Promise<T> {
 	const db = await openDb();
 	return new Promise((resolve, reject) => {
-		const tx = db.transaction(STORE, mode);
-		const request = work(tx.objectStore(STORE));
+		const tx = db.transaction(storeName, mode);
+		const request = work(tx.objectStore(storeName));
 		tx.oncomplete = () => resolve(request?.result as T);
 		tx.onerror = () => reject(tx.error);
 		tx.onabort = () => reject(tx.error);
@@ -103,6 +110,24 @@ export async function findSessionByFingerprint(fingerprint: string): Promise<Ses
 		await run('readonly', (store) => store.index('fingerprint').getAll(fingerprint))
 	);
 	return matches.sessions[0];
+}
+
+/** Drafts must be plain objects: build them from `$state.snapshot(...)`. */
+export function putDraft(draft: Draft): Promise<IDBValidKey> {
+	return run('readwrite', (store) => store.put(draft), DRAFTS);
+}
+
+export function deleteDraft(fingerprint: string): Promise<undefined> {
+	return run('readwrite', (store) => store.delete(fingerprint), DRAFTS);
+}
+
+/** The stored record, unread: pass it through `readDraft`. */
+export function getDraft(fingerprint: string): Promise<unknown> {
+	return run('readonly', (store) => store.get(fingerprint), DRAFTS);
+}
+
+export function readDraftRecords(): Promise<unknown[]> {
+	return run('readonly', (store) => store.getAll(), DRAFTS);
 }
 
 let persistRequested = false;

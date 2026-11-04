@@ -10,8 +10,44 @@ import type { WorkerRequest, WorkerResponse } from './scrubCache.worker';
  * `onUnsupported` fires and seeking works as before.
  */
 
-/** Memory the cached frames may take. Longer videos get smaller frames. */
-const MAX_BYTES = 160 * 1024 * 1024;
+const MB = 1024 * 1024;
+
+export type ScrubBudget = {
+	/** Memory the cached frames may take. Longer videos get smaller frames. */
+	maxBytes: number;
+	/** Build with fewer frames in flight: one encoder and shorter queues. */
+	lowMemory: boolean;
+};
+
+/**
+ * How much memory the cache may use on this device. iOS Safari kills a tab's web
+ * process once it passes a per-device memory limit far below a desktop's, and reloads
+ * the page; a backgrounded tab is killed sooner, largest first. So phones and tablets
+ * get a third of the desktop budget, built with fewer full-size frames in flight.
+ */
+export function scrubBudget(device: {
+	/** The primary pointer is a finger: phones and most tablets. */
+	coarsePointer: boolean;
+	/** iPadOS reports itself as a Mac; touch points give it away. */
+	touchMac: boolean;
+	/** `navigator.deviceMemory` in GB, where the browser reports it (not Safari). */
+	deviceMemory?: number;
+}): ScrubBudget {
+	const lowMemory =
+		device.coarsePointer ||
+		device.touchMac ||
+		(device.deviceMemory !== undefined && device.deviceMemory <= 4);
+	return { maxBytes: (lowMemory ? 48 : 160) * MB, lowMemory };
+}
+
+function deviceBudget(): ScrubBudget {
+	const nav = navigator as Navigator & { deviceMemory?: number };
+	return scrubBudget({
+		coarsePointer: matchMedia('(pointer: coarse)').matches,
+		touchMac: /Macintosh/.test(nav.userAgent) && nav.maxTouchPoints > 1,
+		deviceMemory: nav.deviceMemory
+	});
+}
 
 export class ScrubCache {
 	frameCount = 0;
@@ -35,7 +71,7 @@ export class ScrubCache {
 		});
 		this.worker.onmessage = (event: MessageEvent<WorkerResponse>) => this.receive(event.data);
 		this.worker.onerror = () => this.fail();
-		this.post({ type: 'build', file, maxBytes: MAX_BYTES });
+		this.post({ type: 'build', file, ...deviceBudget() });
 	}
 
 	static supported(): boolean {
