@@ -6,12 +6,14 @@
 	import KeybindsDialog from '$lib/components/KeybindsDialog.svelte';
 	import SessionsDialog from '$lib/components/SessionsDialog.svelte';
 	import MarkingGuide from '$lib/components/MarkingGuide.svelte';
+	import HoldCue, { type ScrubCue } from '$lib/components/HoldCue.svelte';
 	import { onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 	import { resolve } from '$app/paths';
 	import { isApplePlatform } from '$lib/keybinds';
 	import { detectSourceTimingFromFile } from '$lib/video/frameRate';
+	import { HOLD_MS, HOLD_SHOW_MS } from '$lib/video/fineScrub';
 	import { formatFrameClock } from '$lib/video/timecode';
 	import {
 		clampFrame,
@@ -23,7 +25,13 @@
 	} from '$lib/video/frames';
 	import { displayedFrame, settledDisplayedFrame } from '$lib/video/presentedFrame';
 	import { seek } from '$lib/video/seek';
-	import { STEP_MARK, guideStep, isGuideHidden, setGuideHidden } from '$lib/video/guide';
+	import {
+		STEP_MARK,
+		guideStep,
+		isGuideHidden,
+		plantLabel,
+		setGuideHidden
+	} from '$lib/video/guide';
 	import {
 		analyzeMarks,
 		frameOf,
@@ -184,6 +192,43 @@
 		const step = guideStep(marks);
 		return step === 'done' ? null : STEP_MARK[step];
 	});
+
+	// On a touchscreen the bar also marks, as on the time tool: scrub to a frame, slide
+	// up above the bar to fine-tune, and pause there. The pause sets the mark the jump
+	// needs next (the guide's step, shown or not); once a jump has landed, the next
+	// pause starts another from its plant step, or with a takeoff for repeat hops, as
+	// the guide says. Pins drag and drop. The Takeoff and Landing buttons and the frame
+	// steppers stay for marking frame by frame.
+	const touchScreen = new MediaQuery('(pointer: coarse)');
+	let scrubCue: ScrubCue | null = $state(null);
+	let holdStep = $derived(guideStep(marks));
+	let holdMark: MarkType | null = $derived.by(() => {
+		if (!frameRateKnown || mediaError) return null;
+		if (holdStep !== 'done') return STEP_MARK[holdStep];
+		return jumpType === 'repeat-hops' ? 'takeoff' : 'landing';
+	});
+	// The plant step is a landing, but the capsule calls it what the guide does. It's
+	// only the step while nothing is marked, so no landing pin takes the name.
+	let holdLabels: Record<MarkType, string> = $derived({
+		takeoff: 'takeoff',
+		landing: holdStep === 'plant' ? plantLabel(jumpType).toLowerCase() : 'landing'
+	});
+
+	function frameTaken(frame: number, except?: string): boolean {
+		return marks.some((mark) => mark.id !== except && frameOf(mark.time, timing) === frame);
+	}
+
+	function handleHold(frame: number): boolean {
+		if (!holdMark || frameTaken(frame)) return false;
+		commitMarks(placeMark(marks, holdMark, frameStartTime(frame, timing), timing));
+		return true;
+	}
+
+	function handleMoveMark(mark: Mark, frame: number): boolean {
+		if (!frameRateKnown || frameTaken(frame, mark.id)) return false;
+		commitMarks(moveMark(marks, mark.id, frameStartTime(frame, timing)));
+		return true;
+	}
 
 	function setGuide(hidden: boolean) {
 		guideHidden = hidden;
@@ -1208,7 +1253,11 @@
 						onFrameRateDetected={() => (frameRateSettled = true)}
 						onDurationChange={handleVideoMetadata}
 						onError={handleMediaError}
-					/>
+					>
+						{#snippet overlay()}
+							<HoldCue cue={scrubCue} fillMs={HOLD_MS - HOLD_SHOW_MS} />
+						{/snippet}
+					</VideoViewer>
 
 					{#if mediaError}
 						<div class="viewer-overlay z-10">
@@ -1268,6 +1317,12 @@
 								{marks}
 								intervals={analysis.intervals}
 								activeMarkId={activeMark?.id ?? null}
+								markLabels={holdLabels}
+								fineTouch={touchScreen.current}
+								holdMark={touchScreen.current ? holdMark : null}
+								onHold={handleHold}
+								onMoveMark={handleMoveMark}
+								bind:cue={scrubCue}
 							/>
 
 							<div class="control-toolbar">
