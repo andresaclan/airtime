@@ -130,6 +130,10 @@ The real time between the in point's frame and the out point's frame, with the f
 **Save**:
 Store a session in this browser.
 
+**Draft**:
+Unsaved changes to one video's session, kept in this browser as they're made so a reload doesn't lose them. Reopening the video brings them back. A draft is not a saved session; saving or discarding the changes deletes it.
+_Avoid_: Autosave
+
 **Export**:
 A file containing one or more sessions, which can be read back in on any browser.
 

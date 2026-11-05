@@ -8,7 +8,7 @@
 import { readVideoTrack, type VideoSample, type VideoTrack } from './demux';
 
 export type WorkerRequest =
-	| { type: 'build'; file: Blob; maxBytes: number }
+	| { type: 'build'; file: Blob; maxBytes: number; lowMemory: boolean }
 	/** Builds the frames around this one first. */
 	| { type: 'focus'; frame: number };
 
@@ -37,10 +37,15 @@ const MAX_BYTES_PER_FRAME = 64_000;
 const MAX_FRAMES = 36_000;
 /** Bytes read from the file at a time. */
 const READ_WINDOW = 8 * 1024 * 1024;
+/**
+ * Samples or frames waiting in each decoder and encoder. A waiting frame is a full-size
+ * decoded picture or a proxy-size bitmap: megabytes each. Low-memory builds keep fewer.
+ */
 const QUEUE_LIMIT = 12;
+const LOW_MEMORY_QUEUE_LIMIT = 4;
 /** The encoder's nominal frame rate; frame timestamps are spaced to match. */
 const PROXY_FPS = 30;
-/** Encoders sharing the work; past two the build stops getting faster. */
+/** Encoders sharing the work; past two the build stops getting faster. Low-memory builds use one. */
 const ENCODERS = 2;
 
 let focus = 0;
@@ -49,7 +54,7 @@ scope.onmessage = (event: MessageEvent<WorkerRequest>) => {
 	const message = event.data;
 	if (message.type === 'focus') focus = message.frame;
 	else
-		void build(message.file, message.maxBytes).catch((error: unknown) => {
+		void build(message.file, message.maxBytes, message.lowMemory).catch((error: unknown) => {
 			post({ type: 'unsupported', reason: String(error) });
 		});
 };
@@ -68,11 +73,15 @@ function groups(track: VideoTrack): Gop[] {
 	return gops;
 }
 
-function waitForQueue(codec: VideoDecoder | VideoEncoder, size: () => number): Promise<void> {
-	if (size() <= QUEUE_LIMIT) return Promise.resolve();
+function waitForQueue(
+	codec: VideoDecoder | VideoEncoder,
+	size: () => number,
+	limit: number
+): Promise<void> {
+	if (size() <= limit) return Promise.resolve();
 	return new Promise((resolve) => {
 		const check = () => {
-			if (size() > QUEUE_LIMIT) return;
+			if (size() > limit) return;
 			codec.removeEventListener('dequeue', check);
 			resolve();
 		};
@@ -107,7 +116,7 @@ function proxySize(track: VideoTrack, maxBytes: number) {
 	return { width: even(width), height: even(height), frameBytes };
 }
 
-async function build(file: Blob, maxBytes: number) {
+async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 	if (typeof VideoDecoder === 'undefined' || typeof VideoEncoder === 'undefined') {
 		return post({ type: 'unsupported', reason: 'WebCodecs unavailable' });
 	}
@@ -165,8 +174,9 @@ async function build(file: Blob, maxBytes: number) {
 		chunk.copyTo(data);
 		post({ type: 'frame', frame, data }, [data]);
 	};
+	const queueLimit = lowMemory ? LOW_MEMORY_QUEUE_LIMIT : QUEUE_LIMIT;
 	// Each frame encodes on its own, so encoders can share the work.
-	const encoders = Array.from({ length: ENCODERS }, () => {
+	const encoders = Array.from({ length: lowMemory ? 1 : ENCODERS }, () => {
 		const encoder = new VideoEncoder({
 			output,
 			error: (error) => post({ type: 'unsupported', reason: String(error) })
@@ -194,7 +204,7 @@ async function build(file: Blob, maxBytes: number) {
 			context.restore();
 			decoded.close();
 			const proxy = new VideoFrame(canvas, { timestamp: (frame * 1_000_000) / PROXY_FPS });
-			encoders[encoded++ % ENCODERS].encode(proxy, { keyFrame: true });
+			encoders[encoded++ % encoders.length].encode(proxy, { keyFrame: true });
 			proxy.close();
 		},
 		error: (error) => post({ type: 'unsupported', reason: String(error) })
@@ -215,9 +225,9 @@ async function build(file: Blob, maxBytes: number) {
 		for (let i = gop.start; i < gop.end; i += 1) {
 			const sample = track.samples[i];
 			const data = await read(sample);
-			await waitForQueue(decoder, () => decoder.decodeQueueSize);
+			await waitForQueue(decoder, () => decoder.decodeQueueSize, queueLimit);
 			for (const encoder of encoders) {
-				await waitForQueue(encoder, () => encoder.encodeQueueSize);
+				await waitForQueue(encoder, () => encoder.encodeQueueSize, queueLimit);
 			}
 			decoder.decode(
 				new EncodedVideoChunk({

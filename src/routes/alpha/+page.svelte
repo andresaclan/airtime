@@ -45,7 +45,20 @@
 	} from '$lib/session/schema';
 	import { fingerprintFile } from '$lib/session/fingerprint';
 	import {
+		DraftWriter,
+		makeDraft,
+		pickRestore,
+		readDraft,
+		sessionSignature,
+		waitingDrafts,
+		type Draft
+	} from '$lib/session/draft';
+	import {
+		deleteDraft,
 		findSessionByFingerprint,
+		getDraft,
+		putDraft,
+		readDraftRecords,
 		readSessions,
 		requestPersistentStorage,
 		saveSession
@@ -129,7 +142,7 @@
 	let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 	let defaultTitle = $derived(videoFileName.replace(/\.[^.]+$/, '') || 'Untitled');
 	let signature = $derived(
-		JSON.stringify({
+		sessionSignature({
 			marks,
 			title: sessionTitle,
 			notes: sessionNotes,
@@ -139,6 +152,18 @@
 		})
 	);
 	let isDirty = $derived(videoSrc !== null && signature !== savedSignature);
+
+	// Unsaved work is kept as a draft (draft.ts) while it's dirty, so a reload doesn't lose
+	// it: iOS Safari reloads a tab it killed for memory without the beforeunload prompt.
+	// Set once this video's saved session and draft have been looked up, so the draft
+	// isn't overwritten before it's read.
+	let videoFingerprint: string | null = $state(null);
+	// Whether this video has a draft in storage, so a clean video doesn't delete a draft
+	// it never wrote (one from a newer version of Airtime, say).
+	let draftStored = false;
+	const drafts = new DraftWriter({ put: putDraft, delete: deleteDraft });
+	// Unsaved work on other videos, offered back on the start screen.
+	let pendingDrafts: Draft[] = $state([]);
 	let frameRateSource: FrameRateSource = $derived(
 		sourceFrameRate ? 'container' : 'playback-estimate'
 	);
@@ -227,6 +252,9 @@
 		if (isDirty && !confirm(`Discard unsaved changes to "${sessionTitle || defaultTitle}"?`)) {
 			return;
 		}
+		if (videoFingerprint && draftStored) void drafts.set(videoFingerprint, null);
+		videoFingerprint = null;
+		draftStored = false;
 		activeVideoLoadId += 1;
 		const loadId = activeVideoLoadId;
 
@@ -302,11 +330,57 @@
 		});
 	}
 
-	/** Restores the saved session for this file, unless the user has already started editing. */
+	/** Puts a stored session's edited fields on screen, with a fresh undo history. */
+	function applySession(session: Session) {
+		sessionTitle = session.title;
+		sessionNotes = session.notes;
+		jumpType = session.jumpType;
+		sessionRecordedAt = session.recordedAt;
+		timeScale = session.timeScale;
+		marks = sortMarks(session.marks);
+		markHistory = [];
+		markFuture = [];
+	}
+
+	const countMarks = (count: number) => `${count} mark${count === 1 ? '' : 's'}`;
+
+	/**
+	 * Restores the saved session for this file, and any unsaved draft on top of it, unless
+	 * the user has already started editing.
+	 */
 	async function restoreSession(loadId: number, fingerprint: Promise<string>, expected?: Session) {
+		let resolved: string | null = null;
 		try {
-			const saved = await findSessionByFingerprint(await fingerprint);
+			resolved = await fingerprint;
+			const [saved, draftRecord] = await Promise.all([
+				findSessionByFingerprint(resolved),
+				getDraft(resolved).catch(() => undefined)
+			]);
 			if (loadId !== activeVideoLoadId || isDirty) return;
+			const restore = pickRestore(saved, readDraft(draftRecord));
+			if (restore.staleDraft) void drafts.set(resolved, null);
+			if (saved) {
+				sessionId = saved.id;
+				sessionCreatedAt = saved.createdAt;
+				applySession(saved);
+				savedSignature = signature;
+			}
+			if (restore.kind === 'draft') {
+				const { draft } = restore;
+				applySession(draft.session);
+				if (!draft.isNew) {
+					sessionId = draft.session.id;
+					sessionCreatedAt = draft.session.createdAt;
+					// Its saved session is gone, so all of it is unsaved (as after deleting it).
+					if (!saved) savedSignature = null;
+				}
+				draftStored = true;
+				showNotice(
+					`Recovered ${countMarks(draft.session.marks.length)} you hadn't saved, from ` +
+						`${formatSavedAt(draft.updatedAt)} — save to keep them`
+				);
+				return;
+			}
 			if (!saved) {
 				if (expected) {
 					showNotice(
@@ -315,27 +389,17 @@
 				}
 				return;
 			}
-			sessionId = saved.id;
-			sessionCreatedAt = saved.createdAt;
-			sessionTitle = saved.title;
-			sessionNotes = saved.notes;
-			jumpType = saved.jumpType;
-			sessionRecordedAt = saved.recordedAt;
-			timeScale = saved.timeScale;
-			marks = sortMarks(saved.marks);
-			markHistory = [];
-			markFuture = [];
-			savedSignature = signature;
-			const count = saved.marks.length;
 			if (expected && expected.id !== saved.id) {
 				showNotice(`This video belongs to "${saved.title}", not "${expected.title}"`);
 				return;
 			}
 			showNotice(
-				`Restored ${count} mark${count === 1 ? '' : 's'} · saved ${formatSavedAt(saved.updatedAt)}`
+				`Restored ${countMarks(saved.marks.length)} · saved ${formatSavedAt(saved.updatedAt)}`
 			);
 		} catch {
 			// No storage available (e.g. private browsing); the video still works unsaved.
+		} finally {
+			if (resolved && loadId === activeVideoLoadId) videoFingerprint = resolved;
 		}
 	}
 
@@ -418,6 +482,88 @@
 		return false;
 	}
 
+	/** The session as saving now would write it. */
+	function buildSession(file: File, fingerprint: string, now: string): Session {
+		return {
+			schemaVersion: SCHEMA_VERSION,
+			id: sessionId ?? newId(),
+			title: sessionTitle.trim() || defaultTitle,
+			notes: sessionNotes,
+			jumpType,
+			createdAt: sessionCreatedAt ?? now,
+			updatedAt: now,
+			recordedAt: sessionRecordedAt,
+			media: {
+				fileName: file.name,
+				mimeType: file.type,
+				sizeBytes: file.size,
+				lastModified: new Date(file.lastModified).toISOString(),
+				durationSeconds: duration,
+				width: videoElement?.videoWidth ?? 0,
+				height: videoElement?.videoHeight ?? 0,
+				fingerprint
+			},
+			frameRate: { value: frameRate, source: frameRateSource },
+			timeScale,
+			marks: $state.snapshot(marks)
+		};
+	}
+
+	/**
+	 * Keeps this video's draft in step with the screen: written while there's unsaved
+	 * work, deleted once it's saved or undone back to the saved state.
+	 */
+	function syncDraft() {
+		const fingerprint = videoFingerprint;
+		if (!fingerprint || !videoFile) return;
+		if (isDirty) {
+			const now = new Date().toISOString();
+			// The title as typed, so an emptied title doesn't come back as the default.
+			const session = { ...buildSession(videoFile, fingerprint, now), title: sessionTitle };
+			void drafts.set(fingerprint, makeDraft(session, sessionId === null, now));
+			draftStored = true;
+		} else if (draftStored) {
+			void drafts.set(fingerprint, null);
+			draftStored = false;
+		}
+	}
+
+	// Every edit (a mark, undo, a typed note) writes the draft straight away: a tab killed
+	// for memory gets no warning, so there's no later moment to rely on.
+	$effect(syncDraft);
+
+	onMount(() => {
+		// Belt and braces: on the way out, write whatever the effect hasn't yet.
+		const leaving = () => {
+			if (document.visibilityState === 'hidden') syncDraft();
+		};
+		document.addEventListener('visibilitychange', leaving);
+		window.addEventListener('pagehide', syncDraft);
+		void refreshPendingDrafts();
+		return () => {
+			document.removeEventListener('visibilitychange', leaving);
+			window.removeEventListener('pagehide', syncDraft);
+		};
+	});
+
+	async function refreshPendingDrafts() {
+		try {
+			const records = await readDraftRecords();
+			pendingDrafts = waitingDrafts(
+				records.map(readDraft).filter((draft): draft is Draft => draft !== null)
+			);
+		} catch {
+			pendingDrafts = [];
+		}
+	}
+
+	async function discardPendingDraft(draft: Draft) {
+		const count = countMarks(draft.session.marks.length);
+		if (!confirm(`Discard ${count} you hadn't saved on ${draft.session.media.fileName}?`)) return;
+		await drafts.set(draft.fingerprint, null);
+		await refreshPendingDrafts();
+	}
+
 	async function save() {
 		if (!videoFile || !fingerprintPromise || !isDirty || isSaving) return;
 		if (!canMark()) return;
@@ -426,29 +572,7 @@
 		const now = new Date().toISOString();
 		isSaving = true;
 		try {
-			const session: Session = {
-				schemaVersion: SCHEMA_VERSION,
-				id: sessionId ?? newId(),
-				title: sessionTitle.trim() || defaultTitle,
-				notes: sessionNotes,
-				jumpType,
-				createdAt: sessionCreatedAt ?? now,
-				updatedAt: now,
-				recordedAt: sessionRecordedAt,
-				media: {
-					fileName: videoFile.name,
-					mimeType: videoFile.type,
-					sizeBytes: videoFile.size,
-					lastModified: new Date(videoFile.lastModified).toISOString(),
-					durationSeconds: duration,
-					width: videoElement?.videoWidth ?? 0,
-					height: videoElement?.videoHeight ?? 0,
-					fingerprint: await fingerprintPromise
-				},
-				frameRate: { value: frameRate, source: frameRateSource },
-				timeScale,
-				marks: $state.snapshot(marks)
-			};
+			const session = buildSession(videoFile, await fingerprintPromise, now);
 			await saveSession(session);
 			requestPersistentStorage();
 			if (loadId !== activeVideoLoadId) return;
@@ -927,6 +1051,26 @@
 							Open a clip of your approach jump and mark three frames. Airtime does the math.
 						</p>
 					</div>
+					{#if pendingDrafts.length}
+						<!-- Unsaved work a reload interrupted; reopening the video brings it back. -->
+						<ul class="empty-drafts" aria-label="Unsaved marks">
+							{#each pendingDrafts.slice(0, 3) as draft (draft.fingerprint)}
+								<li class="empty-draft">
+									<span class="empty-draft-dot" aria-hidden="true"></span>
+									<span class="empty-draft-text">
+										<strong>Unsaved marks on {draft.session.media.fileName}</strong>
+										<span
+											>{countMarks(draft.session.marks.length)} · {formatSavedAt(draft.updatedAt)}.
+											Open this video again to pick up where you left off.</span
+										>
+									</span>
+									<button class="link-btn" onclick={() => discardPendingDraft(draft)}
+										>Discard</button
+									>
+								</li>
+							{/each}
+						</ul>
+					{/if}
 					<button onclick={openFilePicker} class="dropzone" class:dragging={isDragging}>
 						<span class="dropzone-icon" aria-hidden="true">
 							<svg
