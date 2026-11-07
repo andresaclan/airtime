@@ -23,6 +23,8 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 tmpvids/
+/playwright-report/
+/test-results/
 
 # Agent skills are installed locally, not stored in the repo
 /.agents/

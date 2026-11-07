@@ -46,6 +46,7 @@
 	let sourceFrameRate: number | null = $state(null);
 	// The time of every frame, read from the file (see the full app's page).
 	let frameTimes: number[] | null = $state.raw(null);
+	let editGap = $state(0);
 	let variableFrameRate = $state(false);
 	let playbackFrameRate: number | null = $state(null);
 	let sourceFrameRateChecked = $state(false);
@@ -72,7 +73,8 @@
 
 	let timing: FrameTiming = $derived({
 		fps: frameRate,
-		frameTimes: sourceFrameRate ? frameTimes : null
+		frameTimes: sourceFrameRate ? frameTimes : null,
+		editGap
 	});
 	let intervals = $derived(analyzeMarks(marks, timing, timeScale).intervals);
 	let activeMark = $derived(markAtFrame(marks, currentTime, timing));
@@ -157,6 +159,7 @@
 		frameRate = 30;
 		sourceFrameRate = null;
 		frameTimes = null;
+		editGap = 0;
 		variableFrameRate = false;
 		playbackFrameRate = null;
 		sourceFrameRateChecked = false;
@@ -172,6 +175,7 @@
 				const detectedFps = detected?.fps ?? null;
 				sourceFrameRate = detectedFps;
 				frameTimes = detected?.frameTimes ?? null;
+				editGap = detected?.editGap ?? 0;
 				variableFrameRate = detected?.variableFrameRate ?? false;
 				sourceFrameRateChecked = true;
 				if (detectedFps) {
@@ -505,6 +509,7 @@
 						bind:duration
 						{sourceFrameRate}
 						frameTimes={timing.frameTimes}
+						{editGap}
 						bind:frameRate
 						bind:playbackFrameRate
 						bind:volume

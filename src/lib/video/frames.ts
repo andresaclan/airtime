@@ -19,6 +19,8 @@
 
 /** Frame timing: a frame rate, plus the time of every frame when the file gave them. */
 export type FrameTiming = {
+	/** Gap removed from a partial-frame edit; native players may retain it. */
+	editGap?: number;
 	/** Frames per second; with a table, the rate of its regularly spaced frames. */
 	fps: number;
 	/** Presentation time in seconds of every frame that plays, ascending. */

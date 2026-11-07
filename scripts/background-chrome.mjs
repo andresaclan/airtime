@@ -5,7 +5,7 @@
 // The throttling flags keep rAF and requestVideoFrameCallback at full rate while
 // the window sits behind other apps.
 //
-// macOS only. Pass playwright-core's `chromium`, which isn't a repo dependency:
+// macOS only. Pass playwright-core's `chromium`:
 //
 //   const { chromium } = createRequire('/tmp/airtime-limits-pw/')('playwright-core');
 //   const { page, close } = await launchBackground(chromium);
@@ -17,8 +17,10 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+/** @param {number} ms */
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** @param {import('playwright-core').BrowserType} chromium */
 export async function launchBackground(chromium, { width = 1400, height = 900 } = {}) {
 	const port = 9300 + Math.floor(Math.random() * 600);
 	const profile = mkdtempSync(join(tmpdir(), 'airtime-chrome-'));

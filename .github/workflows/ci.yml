@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+  merge_group:
   push:
     branches: [main]
 
@@ -10,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  static:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,3 +21,73 @@ jobs:
       - run: bun run test
       - run: bun run lint
       - run: bun run build
+
+  frames:
+    name: frames (${{ matrix.os }}, ${{ matrix.browser }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, browser: chromium }
+          - { os: ubuntu-latest, browser: chrome }
+          - { os: macos-15, browser: chromium }
+          - { os: macos-15, browser: chrome }
+          # AVFoundation/H.264 on macOS; Linux WebKit is not Safari's media stack.
+          - { os: macos-15, browser: webkit }
+          - { os: macos-15, browser: webkit-iphone }
+          - { os: macos-15, browser: safari }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Install browser
+        if: matrix.browser != 'safari'
+        shell: bash
+        run: |
+          browser='${{ matrix.browser }}'
+          if [[ "$browser" == webkit-* ]]; then browser=webkit; fi
+          bunx playwright install --with-deps "$browser" ffmpeg
+      - name: Check decoded frame stepping
+        if: matrix.browser != 'safari'
+        run: bun run test:frames --project=${{ matrix.browser }}
+      - name: Check shipping Safari
+        if: matrix.browser == 'safari'
+        shell: bash
+        run: |
+          sudo safaridriver --enable
+          bun run preview -- --port 4173 --strictPort > /tmp/airtime-safari-server.log 2>&1 &
+          server=$!
+          trap 'kill "$server"' EXIT
+          for attempt in {1..100}; do
+            if curl --fail --silent http://localhost:4173/ > /dev/null; then break; fi
+            if ! kill -0 "$server" 2>/dev/null; then cat /tmp/airtime-safari-server.log; exit 1; fi
+            sleep 0.3
+          done
+          bun run test:frames:safari
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frames-${{ matrix.os }}-${{ matrix.browser }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
+  # Branch protection already requires `verify`. Keep that stable name, and fail
+  # closed when any dependency failed, was cancelled, or was skipped.
+  verify:
+    if: always()
+    needs: [static, frames]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every check
+        env:
+          STATIC_RESULT: ${{ needs.static.result }}
+          FRAMES_RESULT: ${{ needs.frames.result }}
+        run: test "$STATIC_RESULT" = success && test "$FRAMES_RESULT" = success

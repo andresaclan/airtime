@@ -7,6 +7,11 @@ These rules apply to every agent working in this repo, whatever the provider.
 - The package manager is **bun** (`bun.lock`). Don't use npm, npx or yarn, and don't create `package-lock.json`.
 - In a new worktree, run `bun install --frozen-lockfile` before anything else. T3's install-on-create script doesn't always run, so check for `node_modules` rather than assuming it's there. Don't symlink `node_modules` from another checkout; Vite refuses to serve files from outside the worktree.
 - Before any commit or PR, run `bun run check && bun run test && bun run lint && bun run build`.
+- Before a PR, also run the decoded-frame regression suite in `docs/frame-stepping.md`.
+  On this Mac use `FRAME_BACKGROUND_CHROME=1 bun run test:frames --project=chrome`
+  and `bun run test:frames --project=webkit --project=webkit-iphone` after building.
+  CI's required `verify` includes the full browser matrix, including shipping Safari.
+  Do not call the iPhone WebKit profile an iOS Simulator or physical-device pass.
 
 ## Dev server
 

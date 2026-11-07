@@ -1,5 +1,6 @@
 import { frameAt, frameOfPresentedTime, frameSeekTime, type FrameTiming } from './frames';
-import { seekPending, targetTime } from './seek';
+import { SEEK_EVENT, seekPending, targetTime } from './seek';
+import { mediaTime as canonicalTime, nativeTime, observeMediaTimeline } from './mediaTime';
 
 /**
  * Which frame is actually on screen. `currentTime` only says where the playhead
@@ -76,15 +77,27 @@ export function trackPresentedFrames(
 	// True from our own correcting seek until the next seek or play that isn't ours.
 	let corrected = false;
 	let correcting = false;
+	// `seeked` can precede presentation. WebKit can then deliver a callback from
+	// an older seek after a newer one has landed. Keep the explicit target until
+	// its picture arrives, rather than correcting back to that stale callback.
+	let requestedTime: number | null = null;
+	const onRequest = () => {
+		requestedTime = targetTime(video);
+		presented.set(video, null);
+	};
 	const reconcile = () => {
 		const timing = getTiming();
 		const mediaTime = presented.get(video);
-		if (corrected || !video.paused || video.seeking || mediaTime == null) return;
+		if (corrected || !video.paused || video.seeking || seekPending(video) || mediaTime == null)
+			return;
 		if (!timing || !(timing.fps > 0)) return;
 		const frame = frameOfPresentedTime(mediaTime, timing);
-		if (frameAt(video.currentTime, timing) !== frame) {
+		if (frameAt(canonicalTime(video), timing) !== frame) {
 			correcting = true;
-			video.currentTime = frameSeekTime(frame, timing, video.duration);
+			video.currentTime = nativeTime(
+				video,
+				frameSeekTime(frame, timing, canonicalTime(video, video.duration))
+			);
 		}
 	};
 	const onSeeking = () => {
@@ -92,23 +105,38 @@ export function trackPresentedFrames(
 		corrected = correcting;
 		correcting = false;
 	};
-	const onPlay = () => (corrected = false);
+	const onPlay = () => {
+		corrected = false;
+		requestedTime = null;
+	};
 	const onFrame = (_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
-		presented.set(video, metadata.mediaTime);
 		presentedAt.set(video, performance.now());
 		handle = video.requestVideoFrameCallback(onFrame);
+		const timing = getTiming();
+		if (timing) observeMediaTimeline(video, metadata.mediaTime, timing);
+		const time = canonicalTime(video, metadata.mediaTime);
+		if (requestedTime !== null && timing) {
+			if (frameOfPresentedTime(time, timing) !== frameAt(requestedTime, timing)) return;
+			requestedTime = null;
+		}
+		presented.set(video, time);
 		reconcile();
 	};
-	const forget = () => presented.set(video, null);
+	const forget = () => {
+		requestedTime = null;
+		presented.set(video, null);
+	};
 
 	let handle = video.requestVideoFrameCallback(onFrame);
 	video.addEventListener('seeking', onSeeking);
+	video.addEventListener(SEEK_EVENT, onRequest);
 	video.addEventListener('emptied', forget);
 	video.addEventListener('play', onPlay);
 	video.addEventListener('pause', reconcile);
 	return () => {
 		video.cancelVideoFrameCallback(handle);
 		video.removeEventListener('seeking', onSeeking);
+		video.removeEventListener(SEEK_EVENT, onRequest);
 		video.removeEventListener('emptied', forget);
 		video.removeEventListener('play', onPlay);
 		video.removeEventListener('pause', reconcile);

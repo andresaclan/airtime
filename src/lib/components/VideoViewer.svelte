@@ -1,13 +1,20 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { estimatePlaybackFrameRate } from '$lib/video/frameRate';
-	import { frameAt, frameOfPresentedTime, type FrameTiming } from '$lib/video/frames';
-	import { trackPresentedFrames } from '$lib/video/presentedFrame';
+	import {
+		frameAt,
+		frameOfPresentedTime,
+		frameSeekTime,
+		type FrameTiming
+	} from '$lib/video/frames';
+	import { settledDisplayedFrame, trackPresentedFrames } from '$lib/video/presentedFrame';
+	import { mediaTime, MEDIA_TIMELINE_EVENT } from '$lib/video/mediaTime';
 	import { ScrubCache } from '$lib/video/scrubCache';
 	import {
 		clearSeeks,
 		isProbing,
 		registerSeekPreview,
+		seek,
 		setProbing,
 		SEEK_EVENT,
 		seekPending,
@@ -31,6 +38,7 @@
 		sourceFrameRate?: number | null;
 		/** Time of every frame, from the file; see frames.ts. */
 		frameTimes?: readonly number[] | null;
+		editGap?: number;
 		frameRate: number;
 		playbackFrameRate?: number | null;
 		volume: number;
@@ -53,6 +61,7 @@
 		duration = $bindable(0),
 		sourceFrameRate = null,
 		frameTimes = null,
+		editGap = 0,
 		frameRate = $bindable(30),
 		playbackFrameRate = $bindable(null),
 		volume = $bindable(1),
@@ -125,7 +134,7 @@
 		if (!frameTimes?.length || !scrubCache || frameTimes.length !== scrubCache.frameCount) {
 			return null;
 		}
-		return { fps: frameRate, frameTimes };
+		return { fps: frameRate, frameTimes, editGap };
 	}
 
 	/** Frame the video itself has on screen, once its seeks have landed. */
@@ -223,7 +232,7 @@
 			handle = video.requestVideoFrameCallback(onFrame);
 			const timing = previewTiming();
 			if (!timing) return;
-			videoPresented = frameOfPresentedTime(metadata.mediaTime, timing);
+			videoPresented = frameOfPresentedTime(mediaTime(video, metadata.mediaTime), timing);
 			if (!video.seeking) videoFrame = videoPresented;
 			if (previewFrame === null || previewTarget === null) return;
 			if (videoShows(previewTarget)) hidePreview();
@@ -237,7 +246,7 @@
 				const timing = previewTiming();
 				if (!timing || previewFrame === null || previewTarget === null) return;
 				if (seekPending(video)) return;
-				if (frameAt(video.currentTime, timing) === previewTarget) {
+				if (frameAt(mediaTime(video), timing) === previewTarget) {
 					videoFrame = videoPresented = previewTarget;
 					hidePreview();
 				}
@@ -262,6 +271,11 @@
 		if (video.parentElement) resize.observe(video.parentElement);
 		if ('requestVideoFrameCallback' in video) handle = video.requestVideoFrameCallback(onFrame);
 		video.addEventListener(SEEK_EVENT, sync);
+		const timelineChanged = () => {
+			handleDurationChange();
+			sync();
+		};
+		video.addEventListener(MEDIA_TIMELINE_EVENT, timelineChanged);
 		video.addEventListener('emptied', emptied);
 		video.addEventListener('seeking', seeking);
 		video.addEventListener('seeked', seeked);
@@ -272,6 +286,7 @@
 			clearTimeout(seekedTimer);
 			if (handle) video.cancelVideoFrameCallback(handle);
 			video.removeEventListener(SEEK_EVENT, sync);
+			video.removeEventListener(MEDIA_TIMELINE_EVENT, timelineChanged);
 			video.removeEventListener('emptied', emptied);
 			video.removeEventListener('seeking', seeking);
 			video.removeEventListener('seeked', seeked);
@@ -281,7 +296,7 @@
 
 	function handleDurationChange() {
 		if (videoElement) {
-			duration = videoElement.duration;
+			duration = mediaTime(videoElement, videoElement.duration);
 			onDurationChange?.(duration);
 		}
 	}
@@ -305,8 +320,8 @@
 	function handleLoadedMetadata() {
 		if (videoElement) {
 			enforceInAppPlayback();
-			duration = videoElement.duration;
-			currentTime = videoElement.currentTime;
+			duration = mediaTime(videoElement, videoElement.duration);
+			currentTime = mediaTime(videoElement);
 			onDurationChange?.(duration);
 			detectFrameRate();
 			// Reset zoom on new video
@@ -355,7 +370,7 @@
 	$effect(() => {
 		if (!videoElement) return;
 		return trackPresentedFrames(videoElement, () =>
-			sourceFrameRate || playbackFrameRate ? { fps: frameRate, frameTimes } : null
+			sourceFrameRate || playbackFrameRate ? { fps: frameRate, frameTimes, editGap } : null
 		);
 	});
 
@@ -618,7 +633,7 @@
 		}
 
 		const wasPlaying = !video.paused;
-		const originalTime = video.currentTime;
+		const originalTime = mediaTime(video);
 
 		if (!wasPlaying) {
 			mutedBeforeProbe ??= video.muted;
@@ -653,7 +668,24 @@
 		if (id !== detectionId) return;
 		if (!wasPlaying && isProbing(video)) {
 			video.pause();
-			video.currentTime = originalTime;
+			const timing = {
+				fps: sourceFrameRate ?? rate ?? frameRate,
+				frameTimes: sourceFrameRate ? frameTimes : null,
+				editGap
+			};
+			// WebKit may finish presenting probe playback after pause/seeked. Let
+			// that picture settle before restoring, or it can overwrite the seek.
+			await settledDisplayedFrame(video, timing);
+			if (id !== detectionId) return;
+			// Probe playback can present a final frame after pause. Restore through
+			// the same queue as user input so that callback cannot undo the reset.
+			if (isProbing(video)) {
+				seek(
+					video,
+					frameSeekTime(frameAt(originalTime, timing), timing, mediaTime(video, video.duration)),
+					timing
+				);
+			}
 		}
 		setProbing(video, false);
 		endProbeMute(video);

@@ -1,4 +1,5 @@
-import { frameAt, type FrameTiming } from './frames';
+import { frameAt, frameOfPresentedTime, frameStartTime, type FrameTiming } from './frames';
+import { clearMediaTimeline, mediaTime, nativeTime, observeMediaTimeline } from './mediaTime';
 
 /**
  * Seeking that keeps up with a finger or a mouse. Every seek in the app goes
@@ -21,9 +22,9 @@ export const SEEK_EVENT = 'airtime:seek';
 
 const previews = new WeakMap<HTMLVideoElement, SeekPreview>();
 /** Latest target, while it hasn't been handed to the video yet. */
-const pending = new WeakMap<HTMLVideoElement, number>();
-/** Latest target handed to the video, until that seek lands. */
-const inFlight = new WeakMap<HTMLVideoElement, number>();
+const pending = new WeakMap<HTMLVideoElement, { time: number; timing: FrameTiming }>();
+/** Completion listener for the current seek; its identity survives equal target times. */
+const inFlight = new WeakMap<HTMLVideoElement, () => void>();
 
 export function registerSeekPreview(video: HTMLVideoElement, preview: SeekPreview): () => void {
 	previews.set(video, preview);
@@ -32,20 +33,68 @@ export function registerSeekPreview(video: HTMLVideoElement, preview: SeekPrevie
 	};
 }
 
-function start(video: HTMLVideoElement, time: number) {
-	inFlight.set(video, time);
-	video.currentTime = time;
-	video.addEventListener(
-		'seeked',
-		() => {
-			if (inFlight.get(video) === time) inFlight.delete(video);
-			const next = pending.get(video);
-			if (next === undefined) return;
-			pending.delete(video);
-			start(video, next);
-		},
-		{ once: true }
-	);
+function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
+	const previous = inFlight.get(video);
+	previous?.();
+	let seeked = false;
+	const callbacks = typeof video.requestVideoFrameCallback === 'function';
+	// Seeking within the picture already on screen need not present a new frame.
+	let presented = !callbacks || frameAt(mediaTime(video), timing) === frameAt(time, timing);
+	let handle: number | undefined;
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	let retried = false;
+	const cleanup = () => {
+		video.removeEventListener('seeked', landed);
+		if (handle !== undefined) video.cancelVideoFrameCallback(handle);
+		clearTimeout(timeout);
+	};
+	const finish = () => {
+		if (!seeked || !presented || inFlight.get(video) !== cleanup) return;
+		cleanup();
+		inFlight.delete(video);
+		const next = pending.get(video);
+		if (next === undefined) return;
+		pending.delete(video);
+		start(video, next.time, next.timing);
+	};
+	const landed = () => {
+		seeked = true;
+		finish();
+		// Missing callbacks (e.g. a no-op seek, background media, or a truncated
+		// final frame) must not hold the queue forever. Normal seeks wait for the
+		// picture: WebKit's seeked can arrive well before it is presented.
+		if (!presented)
+			timeout = setTimeout(() => {
+				if (!retried) {
+					// A final playback picture can overwrite a paused WebKit seek.
+					// Retry once inside the same frame after the decoder has settled.
+					retried = true;
+					seeked = false;
+					video.addEventListener('seeked', landed, { once: true });
+					video.currentTime = nativeTime(
+						video,
+						(frameStartTime(frameAt(time, timing), timing) + time) / 2
+					);
+					return;
+				}
+				presented = true;
+				finish();
+			}, 500);
+	};
+	const onFrame: VideoFrameRequestCallback = (_now, metadata) => {
+		if (inFlight.get(video) !== cleanup) return;
+		observeMediaTimeline(video, metadata.mediaTime, timing);
+		if (
+			frameOfPresentedTime(mediaTime(video, metadata.mediaTime), timing) === frameAt(time, timing)
+		) {
+			presented = true;
+			finish();
+		} else handle = video.requestVideoFrameCallback(onFrame);
+	};
+	inFlight.set(video, cleanup);
+	video.addEventListener('seeked', landed, { once: true });
+	if (callbacks && !presented) handle = video.requestVideoFrameCallback(onFrame);
+	video.currentTime = nativeTime(video, time);
 }
 
 /** Videos playing only so VideoViewer can measure the frame rate, not for the athlete. */
@@ -72,26 +121,28 @@ export function seek(video: HTMLVideoElement, time: number, timing: FrameTiming)
 	// probe's playback, and the probe then leaves the playhead where the seek put it.
 	if (probing.delete(video)) video.pause();
 	previews.get(video)?.show(frameAt(time, timing));
-	if (video.seeking && inFlight.has(video)) pending.set(video, time);
+	if (inFlight.has(video)) pending.set(video, { time, timing });
 	else {
 		pending.delete(video);
-		start(video, time);
+		start(video, time, timing);
 	}
 	video.dispatchEvent(new Event(SEEK_EVENT));
 }
 
 /** Where the playhead is headed: the latest seek target until it lands, else `currentTime`. */
 export function targetTime(video: HTMLVideoElement): number {
-	return pending.get(video) ?? video.currentTime;
+	return pending.get(video)?.time ?? mediaTime(video);
 }
 
 /** Forgets queued seeks, when the video is emptied for a new file. */
 export function clearSeeks(video: HTMLVideoElement) {
 	pending.delete(video);
+	inFlight.get(video)?.();
 	inFlight.delete(video);
+	clearMediaTimeline(video);
 }
 
 /** True while a seek from `seek` hasn't landed yet. */
 export function seekPending(video: HTMLVideoElement): boolean {
-	return pending.has(video) || (inFlight.has(video) && video.seeking);
+	return pending.has(video) || inFlight.has(video);
 }

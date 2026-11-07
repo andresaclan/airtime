@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
 	clearSeeks,
 	isProbing,
@@ -33,6 +33,7 @@ class FakeVideo extends EventTarget {
 }
 
 const timing = { fps: 10 };
+afterEach(() => vi.useRealTimers());
 
 function video() {
 	const fake = new FakeVideo();
@@ -104,6 +105,96 @@ describe('seek', () => {
 		seek(element, 0.25, timing);
 		clearSeeks(element);
 		fake.land();
+		expect(fake.assigned).toEqual([0.15]);
+		expect(seekPending(element)).toBe(false);
+	});
+
+	test("a cleared seek cannot drain a new video's queued steps", () => {
+		const { fake, element } = video();
+		seek(element, 0.15, timing);
+		clearSeeks(element);
+		// Reuse the same video element for a new file before the old seeked arrives.
+		fake.seeking = false;
+		seek(element, 0.35, timing);
+		seek(element, 0.45, timing);
+		fake.land();
+		expect(fake.assigned).toEqual([0.15, 0.35, 0.45]);
+		expect(seekPending(element)).toBe(true);
+		seek(element, 0.55, timing);
+		// No stale listener may clear the new in-flight seek and restart its decode.
+		expect(fake.assigned).toEqual([0.15, 0.35, 0.45]);
+		fake.land();
+		expect(fake.assigned).toEqual([0.15, 0.35, 0.45, 0.55]);
+	});
+});
+
+describe('seek completion with frame callbacks', () => {
+	class PresentingVideo extends FakeVideo {
+		private serial = 0;
+		callbacks = new Map<number, VideoFrameRequestCallback>();
+		requestVideoFrameCallback(callback: VideoFrameRequestCallback) {
+			this.callbacks.set(++this.serial, callback);
+			return this.serial;
+		}
+		cancelVideoFrameCallback(handle: number) {
+			this.callbacks.delete(handle);
+		}
+		present(mediaTime: number) {
+			const callbacks = [...this.callbacks.values()];
+			this.callbacks.clear();
+			for (const callback of callbacks) callback(0, { mediaTime } as VideoFrameCallbackMetadata);
+		}
+	}
+
+	test('seeked alone does not release a decode before its picture arrives', () => {
+		const fake = new PresentingVideo();
+		const element = fake as unknown as HTMLVideoElement;
+		seek(element, 0.15, timing);
+		fake.land();
+		seek(element, 0.25, timing);
+		seek(element, 0.35, timing);
+		expect(fake.assigned).toEqual([0.15]);
+		expect(targetTime(element)).toBe(0.35);
+		expect(seekPending(element)).toBe(true);
+		fake.present(0); // A stale callback cannot release it either.
+		expect(fake.assigned).toEqual([0.15]);
+		fake.present(0.1);
+		expect(fake.assigned).toEqual([0.15, 0.35]);
+		fake.present(0.3); // Presentation can also precede seeked.
+		expect(seekPending(element)).toBe(true);
+		fake.land();
+		expect(seekPending(element)).toBe(false);
+		expect(fake.callbacks.size).toBe(0);
+	});
+
+	test('a missing picture retries once within the same frame, then releases the queue', () => {
+		vi.useFakeTimers();
+		const fake = new PresentingVideo();
+		const element = fake as unknown as HTMLVideoElement;
+		seek(element, 0.15, timing);
+		fake.land();
+		seek(element, 0.25, timing);
+		vi.advanceTimersByTime(499);
+		expect(fake.assigned).toEqual([0.15]);
+		vi.advanceTimersByTime(1);
+		expect(fake.assigned).toEqual([0.15, 0.125]);
+		fake.land();
+		vi.advanceTimersByTime(500);
+		expect(fake.assigned).toEqual([0.15, 0.125, 0.25]);
+		clearSeeks(element);
+		expect(fake.callbacks.size).toBe(0);
+	});
+
+	test('replacing a file cancels presentation callbacks and the fallback timer', () => {
+		vi.useFakeTimers();
+		const fake = new PresentingVideo();
+		const element = fake as unknown as HTMLVideoElement;
+		seek(element, 0.15, timing);
+		fake.land();
+		seek(element, 0.25, timing);
+		clearSeeks(element);
+		expect(fake.callbacks.size).toBe(0);
+		vi.advanceTimersByTime(1000);
 		expect(fake.assigned).toEqual([0.15]);
 		expect(seekPending(element)).toBe(false);
 	});
