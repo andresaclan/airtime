@@ -6,6 +6,7 @@
  * in the original decodes from the last keyframe, up to hundreds of frames back.
  */
 import { readVideoTrack, type VideoSample, type VideoTrack } from './demux';
+import { createScaler } from './scrubScaler';
 
 export type WorkerRequest =
 	| { type: 'build'; file: Blob; maxBytes: number; lowMemory: boolean }
@@ -169,8 +170,7 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 		if (sample.frame >= 0) frameOfTimestamp.set(timestampOf(sample), sample.frame);
 	}
 
-	const canvas = new OffscreenCanvas(width, height);
-	const context = canvas.getContext('2d', { alpha: false })!;
+	const scale = createScaler(width, height, track.rotation);
 	let started = false;
 
 	const output = (chunk: EncodedVideoChunk, metadata?: EncodedVideoChunkMetadata) => {
@@ -210,16 +210,8 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 				return;
 			}
 			built[frame] = 1;
-			context.save();
-			context.translate(width / 2, height / 2);
-			context.rotate((track.rotation * Math.PI) / 180);
-			const quarterTurn = track.rotation === 90 || track.rotation === 270;
-			const w = quarterTurn ? height : width;
-			const h = quarterTurn ? width : height;
-			context.drawImage(decoded, -w / 2, -h / 2, w, h);
-			context.restore();
+			const proxy = scale(decoded, (frame * 1_000_000) / PROXY_FPS);
 			decoded.close();
-			const proxy = new VideoFrame(canvas, { timestamp: (frame * 1_000_000) / PROXY_FPS });
 			encoders[encoded++ % encoders.length].encode(proxy, { keyFrame: true });
 			proxy.close();
 		},

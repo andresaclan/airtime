@@ -52,8 +52,10 @@
 			cache.startedAt = performance.now();
 			this.addEventListener('message', (e) => {
 				const m = e.data;
-				if (m?.type === 'start') cache.total = m.frameCount;
-				else if (m?.type === 'frame') {
+				if (m?.type === 'start') {
+					cache.total = m.frameCount;
+					cache.config = { ...m.config, description: undefined };
+				} else if (m?.type === 'frame') {
 					cache.frames += 1;
 					cache.firstMs ??= Math.round(performance.now() - cache.startedAt);
 				} else if (m?.type === 'done') {
@@ -277,6 +279,23 @@
 			phases: results
 		};
 		summary.score = score(summary);
+		// ?snap=1: the last preview frame drawn beside the video's own frame, to check
+		// the cache's pictures (size, turn, sharpness) by eye.
+		if (params.has('snap') && preview) {
+			const shot = (source, width, height) => {
+				const canvas = document.createElement('canvas');
+				canvas.width = 480;
+				canvas.height = Math.round((480 * height) / width);
+				canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+				return canvas.toDataURL('image/jpeg', 0.85);
+			};
+			summary.snap = {
+				previewFrame: previewDrawn,
+				preview: shot(preview, preview.width, preview.height),
+				videoFrame: videoShown,
+				video: shot(video, video.videoWidth, video.videoHeight)
+			};
+		}
 		say(JSON.stringify(summary, null, 1));
 		await fetch('/__bench/result', { method: 'POST', body: JSON.stringify(summary) });
 		nextInSuite();
