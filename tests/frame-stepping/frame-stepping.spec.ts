@@ -2,10 +2,9 @@ import { test as base, type BrowserContext, type Page } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import {
 	fixtures,
+	browserContractScript,
 	load,
-	markAndReturn,
-	pauseThenStep,
-	rapidAndHold,
+	interact,
 	walkEveryFrame,
 	replace,
 	expectFrame,
@@ -130,9 +129,7 @@ for (const route of ['/', '/alpha']) {
 	}) => {
 		const fixture = fixtures[0];
 		await load(framePage, route, fixture);
-		await rapidAndHold(framePage, fixture);
-		await pauseThenStep(framePage, fixture);
-		await markAndReturn(framePage, fixture);
+		await interact(framePage, fixture);
 		// Replacing a marked file must discard its old frame/seek/cache state.
 		await replace(framePage, fixtures[3]);
 		await framePage.press('.');
@@ -177,4 +174,31 @@ test('unparsed video keeps every frame when playback callbacks are throttled', a
 	);
 	if (rate !== 1) throw new Error(`Playback probe left the user at ${rate} speed`);
 	await walkEveryFrame(framePage, fixture);
+});
+
+// Exercise the exact serialized source used by native iOS, including rejection
+// of a wrong barcode. This catches serializer/transport mistakes independently.
+test('native iOS browser batch keeps the decoded-frame oracle strict', async ({ framePage }) => {
+	const fixture = fixtures[3];
+	await load(framePage, '/', fixture, false);
+	await framePage.click('[aria-label="Mute"]');
+	const batch = async (operation: string, expected: typeof fixture) =>
+		framePage.evaluate(
+			({ script, operation, fixture }) =>
+				new Promise<{ ok: boolean; error?: string }>((resolve) => {
+					new Function(script)(operation, fixture, resolve);
+				}),
+			{ script: browserContractScript(), operation, fixture: expected }
+		);
+	for (const operation of ['ready', 'walk', 'interaction']) {
+		const result = await batch(operation, fixture);
+		if (!result.ok) throw new Error(`${operation}: ${result.error}`);
+	}
+	const wrong = { ...fixture, ids: fixture.ids.map(() => 255) };
+	const rejected = await batch('ready', wrong);
+	if (rejected.ok || !rejected.error?.includes('expected decoded frame 0 (barcode 255)')) {
+		throw new Error(
+			`Browser batch must reject the wrong decoded picture: ${JSON.stringify(rejected)}`
+		);
+	}
 });

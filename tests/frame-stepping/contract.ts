@@ -1,11 +1,28 @@
-import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import manifest from './fixtures/manifest.json' with { type: 'json' };
+
+// Small assertions work unchanged in Node and inside a browser-side batch.
+function createAssertions() {
+	return {
+		equal(actual: unknown, expected: unknown, label = '') {
+			if (!Object.is(actual, expected))
+				throw new Error(`${label}: expected ${expected}, got ${actual}`);
+		},
+		ok(value: unknown, label = 'Assertion failed') {
+			if (!value) throw new Error(label);
+		},
+		fail(label: string): never {
+			throw new Error(label);
+		}
+	};
+}
+const assert = createAssertions();
 
 // The same contract runs through Playwright and shipping Safari's WebDriver.
 // No imports from Airtime: expected frames come from ffmpeg, not app calculations.
 export interface FramePage {
 	engine: 'webkit' | 'chromium';
+	batch?(operation: 'ready' | 'walk' | 'interaction' | 'next', fixture: Fixture): Promise<void>;
 	goto(path: string, expectedPath?: string): Promise<void>;
 	evaluate<R, A>(fn: (arg: A) => R, arg: A): Promise<R>;
 	click(selector: string): Promise<void>;
@@ -35,7 +52,7 @@ export async function waitFor<T>(
 		if (accepts(value)) return value;
 		await pause(25);
 	} while (Date.now() < deadline);
-	assert.fail(`${label}: ${JSON.stringify(value)}`);
+	return assert.fail(`${label}: ${JSON.stringify(value)}`);
 }
 
 export function readFrame(page: FramePage) {
@@ -158,6 +175,11 @@ export async function load(page: FramePage, route: string, fixture: Fixture, pre
 
 export async function replace(page: FramePage, fixture: Fixture) {
 	await page.upload(fileURLToPath(new URL(`./fixtures/${fixture.file}`, import.meta.url)));
+	await waitUntilReady(page, fixture);
+}
+
+async function waitUntilReady(page: FramePage, fixture: Fixture) {
+	if (page.batch) return page.batch('ready', fixture);
 	await waitFor(
 		() => readFrame(page),
 		(s) =>
@@ -169,6 +191,7 @@ export async function replace(page: FramePage, fixture: Fixture) {
 }
 
 export async function walkEveryFrame(page: FramePage, fixture: Fixture) {
+	if (page.batch) return page.batch('walk', fixture);
 	assert.equal((await readFrame(page)).previousDisabled, true);
 	await page.press(',');
 	await expectFrame(page, fixture, 0);
@@ -291,4 +314,110 @@ export async function markAndReturn(page: FramePage, fixture: Fixture) {
 	await page.focus(pin);
 	await page.press('Enter');
 	await expectFrame(page, fixture, 4);
+}
+
+export async function interact(page: FramePage, fixture: Fixture) {
+	if (page.batch) return page.batch('interaction', fixture);
+	await rapidAndHold(page, fixture);
+	await pauseThenStep(page, fixture);
+	await markAndReturn(page, fixture);
+}
+
+// This factory has no external references, so WebDriver can run it in iOS's page.
+// DOM input avoids the native pointer-actions bug; all picture checks stay shared.
+function createDOMFramePage(): FramePage {
+	let held: HTMLElement | null = null;
+	return {
+		engine: 'webkit',
+		goto: async () => {
+			throw new Error('Navigation belongs outside a browser batch');
+		},
+		upload: async () => {
+			throw new Error('Upload belongs outside a browser batch');
+		},
+		evaluate: async <R, A>(fn: (arg: A) => R, arg: A): Promise<R> => fn(arg),
+		click: async (selector) => {
+			document.querySelector<HTMLElement>(selector)!.click();
+		},
+		focus: async (selector) => {
+			document.querySelector<HTMLElement>(selector)!.focus();
+		},
+		press: async (shortcut) => {
+			const target = document.activeElement as HTMLElement;
+			if (shortcut === 'Enter') {
+				target.click();
+				return;
+			}
+			target.dispatchEvent(
+				new KeyboardEvent('keydown', {
+					key: shortcut.replace('Shift+', ''),
+					shiftKey: shortcut.startsWith('Shift+'),
+					bubbles: true,
+					cancelable: true
+				})
+			);
+		},
+		down: async (selector) => {
+			held = document.querySelector<HTMLElement>(selector)!;
+			held.dispatchEvent(
+				new PointerEvent('pointerdown', {
+					bubbles: true,
+					button: 0,
+					pointerType: 'touch',
+					pointerId: 1,
+					isPrimary: true
+				})
+			);
+		},
+		up: async () => {
+			if (!held) throw new Error('No held frame button');
+			held.dispatchEvent(
+				new PointerEvent('pointerup', {
+					bubbles: true,
+					button: 0,
+					pointerType: 'touch',
+					pointerId: 1,
+					isPrimary: true
+				})
+			);
+			held.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			held = null;
+		}
+	};
+}
+
+/** The identical oracle and scenarios, with polling beside the native decoder. */
+export function browserContractScript(): string {
+	const helpers = {
+		waitFor,
+		readFrame,
+		expectFrame,
+		home,
+		waitUntilReady,
+		walkEveryFrame,
+		rapidAndHold,
+		pauseThenStep,
+		markAndReturn,
+		interact
+	};
+	return `
+		const assert = (${createAssertions.toString()})();
+		const previous = ${JSON.stringify(previous)};
+		const next = ${JSON.stringify(next)};
+		const timeline = ${JSON.stringify(timeline)};
+		const pause = ${pause.toString()};
+		${Object.entries(helpers)
+			.map(([name, fn]) => `const ${name} = ${fn.toString()};`)
+			.join('\n')}
+		const page = (${createDOMFramePage.toString()})();
+		const [operation, fixture, done] = arguments;
+		const run = async () => {
+			if (operation === 'ready') await waitUntilReady(page, fixture);
+			else if (operation === 'walk') await walkEveryFrame(page, fixture);
+			else if (operation === 'interaction') await interact(page, fixture);
+			else if (operation === 'next') { await page.press('.'); await expectFrame(page, fixture, 1); }
+			else throw new Error('Unknown browser contract operation: ' + operation);
+		};
+		run().then(() => done({ ok: true }), error => done({ ok: false, error: String(error.message || error) + '\\n' + String(error.stack || '') }));
+	`;
 }

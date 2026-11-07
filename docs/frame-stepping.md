@@ -10,7 +10,10 @@ whose frames are not evenly spaced. A time readout changing by 1/fps is not proo
 - `seek.ts` owns the seek queue. Keep one decode in flight, accumulate repeated
   input against the latest target, and discard old listeners when a file changes.
   On browsers with frame callbacks, completion waits for both `seeked` and the
-  matching picture. If that callback is absent for 500 ms after `seeked`, retry
+  matching picture. A no-op seek may skip that wait only when the last presented
+  picture matches; matching `currentTime` is insufficient after a late pause frame.
+  If the playhead already names the target but a different picture is known, decode
+  an adjacent frame and return, keeping the user's logical target stable. If that callback is absent for 500 ms after `seeked`, retry
   once inside the same frame. Another 500 ms without a matching picture releases
   the queue so an unsupported or truncated frame cannot trap later input. Browsers without that API use `seeked` alone.
 - `mediaTime.ts` translates only at the native video boundary. Safari retains the
@@ -88,7 +91,11 @@ pointer holds use DOM activation/events, then verify the real native decoded
 picture. This avoids [WebKit bug 322937](https://bugs.webkit.org/show_bug.cgi?id=322937),
 where pointer actions can wedge the iOS remote automation connection. Autoplay is
 allowed in the iOS automation session so synthetic controls can exercise playback.
-This tests the app's real control handlers and native iOS decoding, but does not
+Native iOS executes the shared contract functions in a browser-side batch.
+Pixel sampling still requires three consecutive matching reads 25 ms apart, with
+the same per-frame deadline. Slow WebDriver round trips cannot consume that
+sampling budget. A local browser test runs the serialized batch and confirms it
+rejects a wrong barcode. This tests the app's real control handlers and native iOS decoding, but does not
 test the Photos picker, physical keyboard delivery, or OS touch gesture delivery.
 The desktop jobs exercise native keyboard and pointer input; the mobile WebKit
 profile uses actual emulated taps.

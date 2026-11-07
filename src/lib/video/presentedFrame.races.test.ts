@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { displayedFrame, settledDisplayedFrame, trackPresentedFrames } from './presentedFrame';
 import { frameSeekTime, type FrameTiming } from './frames';
-import { clearSeeks, seek, setProbing } from './seek';
+import { clearSeeks, seek, seekPending, setProbing } from './seek';
 
 class Video extends EventTarget {
 	paused = true;
@@ -62,6 +62,42 @@ afterEach(() => {
 });
 
 describe('the frame on screen', () => {
+	test('a matching playhead cannot complete a seek while a late pause picture is shown', () => {
+		vi.useFakeTimers();
+		const video = new Video();
+		video.paused = false;
+		video.currentTime = 4.4 / 30;
+		video.land();
+		cleanups.push(trackPresentedFrames(video.element, () => timing));
+		video.present(3 / 30);
+		video.pause(); // Reconciliation moves the playhead to frame 3.
+		expect(video.currentTime).toBe(frameSeekTime(3, timing));
+		video.land();
+		video.present(4 / 30); // A final playback picture arrives after that seek.
+		expect(displayedFrame(video.element, timing)).toBe(4);
+		seek(video.element, frameSeekTime(3, timing), timing);
+		// Leave the stale frame's logical interval, then return to force a decode.
+		expect(video.currentTime).toBe(frameSeekTime(2, timing));
+		video.land();
+		expect(seekPending(video.element)).toBe(true);
+		video.present(2 / 30);
+		expect(video.currentTime).toBe(frameSeekTime(3, timing));
+		video.land();
+		video.present(3 / 30);
+		expect(seekPending(video.element)).toBe(false);
+		expect(displayedFrame(video.element, timing)).toBe(3);
+	});
+
+	test('a known matching picture still completes a no-op seek without a fresh callback', () => {
+		const { video } = tracked();
+		video.currentTime = frameSeekTime(3, timing);
+		video.land();
+		video.present(3 / 30);
+		seek(video.element, frameSeekTime(3, timing), timing);
+		video.land();
+		expect(seekPending(video.element)).toBe(false);
+	});
+
 	test('a final probe frame cannot undo the seek restoring the original picture', () => {
 		const { video } = tracked();
 		video.paused = false;

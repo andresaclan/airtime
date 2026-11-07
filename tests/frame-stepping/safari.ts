@@ -6,11 +6,10 @@ import { basename } from 'node:path';
 import assert from 'node:assert/strict';
 import {
 	fixtures,
+	browserContractScript,
 	load,
 	walkEveryFrame,
-	rapidAndHold,
-	pauseThenStep,
-	markAndReturn,
+	interact,
 	replace,
 	expectFrame,
 	type FramePage
@@ -26,6 +25,24 @@ mkdirSync(output, { recursive: true });
 function adapter(driver: WebDriver): FramePage {
 	return {
 		engine: 'webkit',
+		...(ios
+			? {
+					batch: async (
+						operation: 'ready' | 'walk' | 'interaction' | 'next',
+						fixture: (typeof fixtures)[number]
+					) => {
+						const result = await driver.executeAsyncScript<{ ok: boolean; error?: string }>(
+							browserContractScript(),
+							operation,
+							fixture
+						);
+						assert.ok(
+							result?.ok === true,
+							result?.error ?? 'Native browser contract did not complete'
+						);
+					}
+				}
+			: {}),
 		goto: async (path, expectedPath = path) => {
 			await driver.get(new URL(path, baseURL).href);
 			const expected = new URL(expectedPath, baseURL).href;
@@ -159,7 +176,9 @@ async function run(name: string, scenario: (page: FramePage) => Promise<void>) {
 		.forBrowser('safari')
 		.build();
 	try {
-		await driver.manage().setTimeouts({ implicit: 0, pageLoad: 30_000, script: 15_000 });
+		await driver
+			.manage()
+			.setTimeouts({ implicit: 0, pageLoad: 30_000, script: ios ? 120_000 : 15_000 });
 		if (!ios) await driver.manage().window().setRect({ width: 1400, height: 1000 });
 		const capabilities = await driver.getCapabilities();
 		assert.match(String(capabilities.get('platformName')), ios ? /^ios$/i : /^mac(?:os)?$/i);
@@ -212,11 +231,12 @@ for (const route of ['/', '/alpha']) {
 	await run(`${name}-interaction`, async (page) => {
 		const fixture = fixtures[0];
 		await load(page, route, fixture);
-		await rapidAndHold(page, fixture);
-		await pauseThenStep(page, fixture);
-		await markAndReturn(page, fixture);
+		await interact(page, fixture);
 		await replace(page, fixtures[3]);
-		await page.press('.');
-		await expectFrame(page, fixtures[3], 1);
+		if (page.batch) await page.batch('next', fixtures[3]);
+		else {
+			await page.press('.');
+			await expectFrame(page, fixtures[3], 1);
+		}
 	});
 }

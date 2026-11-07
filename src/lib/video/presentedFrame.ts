@@ -1,5 +1,6 @@
 import { frameAt, frameOfPresentedTime, frameSeekTime, type FrameTiming } from './frames';
 import { SEEK_EVENT, seekPending, targetTime } from './seek';
+import { clearPresentedTime, lastPresentedTime, setPresentedTime } from './presentationState';
 import { mediaTime as canonicalTime, nativeTime, observeMediaTimeline } from './mediaTime';
 
 /**
@@ -16,8 +17,6 @@ type FrameCallbackVideo = HTMLVideoElement & {
 	cancelVideoFrameCallback(handle: number): void;
 };
 
-/** Media time of the frame last presented; null while a seek is pending or nothing is known. */
-const presented = new WeakMap<HTMLVideoElement, number | null>();
 /** `performance.now()` when the last frame was presented. */
 const presentedAt = new WeakMap<HTMLVideoElement, number>();
 
@@ -34,7 +33,7 @@ function supportsFrameCallbacks(video: HTMLVideoElement): video is FrameCallback
  * While a seek is landing that's its target, which the scrub preview already shows.
  */
 export function displayedFrame(video: HTMLVideoElement, timing: FrameTiming): number {
-	const mediaTime = presented.get(video);
+	const mediaTime = lastPresentedTime(video);
 	if (video.paused && !video.seeking && !seekPending(video) && mediaTime != null) {
 		return frameOfPresentedTime(mediaTime, timing);
 	}
@@ -83,7 +82,7 @@ export function trackPresentedFrames(
 	let requestedTime: number | null = null;
 	const onRequest = () => {
 		requestedTime = targetTime(video);
-		presented.set(video, null);
+		setPresentedTime(video, null);
 	};
 	// WebKit (iPhones especially) can present a paused seek's frame only once the next
 	// seek has landed, as if it answered that one. Such a late frame isn't what's on
@@ -99,7 +98,7 @@ export function trackPresentedFrames(
 	};
 	const reconcile = () => {
 		const timing = getTiming();
-		const mediaTime = presented.get(video);
+		const mediaTime = lastPresentedTime(video);
 		if (corrected || !video.paused || video.seeking || seekPending(video) || mediaTime == null)
 			return;
 		if (!timing || !(timing.fps > 0)) return;
@@ -115,7 +114,7 @@ export function trackPresentedFrames(
 	const onSeeking = () => {
 		previousSeekTime = seekTime;
 		seekTime = canonicalTime(video);
-		presented.set(video, null);
+		setPresentedTime(video, null);
 		corrected = correcting;
 		correcting = false;
 	};
@@ -137,13 +136,13 @@ export function trackPresentedFrames(
 			requestedTime = null;
 		}
 		previousSeekTime = null;
-		presented.set(video, time);
+		setPresentedTime(video, time);
 		reconcile();
 	};
 	const forget = () => {
 		seekTime = previousSeekTime = null;
 		requestedTime = null;
-		presented.set(video, null);
+		setPresentedTime(video, null);
 	};
 
 	let handle = video.requestVideoFrameCallback(onFrame);
@@ -159,7 +158,7 @@ export function trackPresentedFrames(
 		video.removeEventListener('emptied', forget);
 		video.removeEventListener('play', onPlay);
 		video.removeEventListener('pause', reconcile);
-		presented.delete(video);
+		clearPresentedTime(video);
 		presentedAt.delete(video);
 	};
 }

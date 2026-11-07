@@ -38,7 +38,8 @@ jobs:
           - { os: macos-15, browser: safari }
           - { os: macos-15, browser: safari-ios }
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # iOS includes first boot and fresh native Safari sessions for every case.
+    timeout-minutes: ${{ matrix.browser == 'safari-ios' && 40 || 20 }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

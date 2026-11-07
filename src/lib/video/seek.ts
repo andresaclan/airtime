@@ -1,5 +1,18 @@
-import { frameAt, frameOfPresentedTime, frameStartTime, type FrameTiming } from './frames';
-import { clearMediaTimeline, mediaTime, nativeTime, observeMediaTimeline } from './mediaTime';
+import {
+	frameAt,
+	frameOfPresentedTime,
+	frameSeekTime,
+	frameStartTime,
+	type FrameTiming
+} from './frames';
+import {
+	clearMediaTimeline,
+	mediaTime,
+	mediaTimelineKnown,
+	nativeTime,
+	observeMediaTimeline
+} from './mediaTime';
+import { clearPresentedTime, lastPresentedTime } from './presentationState';
 
 /**
  * Seeking that keeps up with a finger or a mouse. Every seek in the app goes
@@ -38,9 +51,24 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 	previous?.dispose();
 	let seeked = false;
 	const callbacks = typeof video.requestVideoFrameCallback === 'function' && video.paused;
-	// Seeking within the picture already on screen need not present a new frame.
+	const picture = lastPresentedTime(video);
+	const targetFrame = frameAt(time, timing);
+	// WebKit can retain a late pause picture while currentTime already names the
+	// requested frame. Moving within that same frame does not force a decode.
+	let detouring =
+		callbacks &&
+		picture !== null &&
+		frameAt(mediaTime(video), timing) === targetFrame &&
+		frameOfPresentedTime(picture, timing) !== targetFrame;
+	const duration = Number.isFinite(video.duration) ? mediaTime(video, video.duration) : Infinity;
+	let nativeTarget = detouring
+		? frameSeekTime(targetFrame > 0 ? targetFrame - 1 : targetFrame + 1, timing, duration)
+		: time;
 	let presented =
-		!callbacks || (!timing.editGap && frameAt(mediaTime(video), timing) === frameAt(time, timing));
+		!callbacks ||
+		(mediaTimelineKnown(video, timing) &&
+			picture !== null &&
+			frameOfPresentedTime(picture, timing) === frameAt(nativeTarget, timing));
 	let assignedOffset = nativeTime(video, 0);
 	let handle: number | undefined;
 	let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -51,8 +79,20 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 		if (handle !== undefined) video.cancelVideoFrameCallback(handle);
 		clearTimeout(timeout);
 	};
+	const restoreTarget = () => {
+		detouring = false;
+		nativeTarget = time;
+		seeked = false;
+		presented = !callbacks || !video.paused;
+		clearTimeout(timeout);
+		if (handle !== undefined) video.cancelVideoFrameCallback(handle);
+		video.addEventListener('seeked', landed, { once: true });
+		if (!presented) handle = video.requestVideoFrameCallback(onFrame);
+		video.currentTime = nativeTime(video, nativeTarget);
+	};
 	const finish = () => {
 		if (!seeked || !presented || inFlight.get(video)?.dispose !== cleanup) return;
+		if (detouring) return restoreTarget();
 		cleanup();
 		inFlight.delete(video);
 		const next = pending.get(video);
@@ -81,18 +121,20 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 		video.removeEventListener('seeked', landed);
 		video.addEventListener('seeked', landed, { once: true });
 		handle = video.requestVideoFrameCallback(onFrame);
-		video.currentTime = nativeTime(video, time);
+		video.currentTime = nativeTime(video, nativeTarget);
 		return true;
 	};
 	const landed = () => {
 		if (rebase()) return;
 		seeked = true;
 		finish();
+		if (!seeked) return; // A completed detour just assigned the real target.
 		// Missing callbacks (e.g. a no-op seek, background media, or a truncated
 		// final frame) must not hold the queue forever. Normal seeks wait for the
 		// picture: WebKit's seeked can arrive well before it is presented.
 		if (!presented)
 			timeout = setTimeout(() => {
+				if (detouring) return restoreTarget();
 				if (!retried) {
 					// A final playback picture can overwrite a paused WebKit seek.
 					// Retry once inside the same frame after the decoder has settled.
@@ -116,7 +158,7 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 		const actual = mediaTime(video, metadata.mediaTime);
 		if (
 			actual >= (timing.frameTimes?.[0] ?? 0) - 1e-5 &&
-			frameOfPresentedTime(actual, timing) === frameAt(time, timing)
+			frameOfPresentedTime(actual, timing) === frameAt(nativeTarget, timing)
 		) {
 			presented = true;
 			finish();
@@ -126,7 +168,7 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 	video.addEventListener('seeked', landed, { once: true });
 	video.addEventListener('play', onPlay, { once: true });
 	if (callbacks && !presented) handle = video.requestVideoFrameCallback(onFrame);
-	video.currentTime = nativeTime(video, time);
+	video.currentTime = nativeTime(video, nativeTarget);
 }
 
 /** Videos playing only so VideoViewer can measure the frame rate, not for the athlete. */
@@ -172,6 +214,7 @@ export function clearSeeks(video: HTMLVideoElement) {
 	inFlight.get(video)?.dispose();
 	inFlight.delete(video);
 	clearMediaTimeline(video);
+	clearPresentedTime(video);
 }
 
 /** True while a seek from `seek` hasn't landed yet. */
