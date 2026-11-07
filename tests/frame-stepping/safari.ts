@@ -100,31 +100,22 @@ function adapter(driver: WebDriver): FramePage {
 			await driver.actions({ async: true }).release().perform();
 		},
 		upload: async (path) => {
-			if (ios) {
-				// The Mac's fixture path is not in the simulator's file system. Transfer
-				// bytes through the real file-input handler; video decoding stays native.
-				await driver.executeScript(
-					`
-					const bytes = Uint8Array.from(atob(arguments[0]), c => c.charCodeAt(0));
-					const transfer = new DataTransfer();
-					transfer.items.add(new File([bytes], arguments[1], { type: arguments[2] }));
-					const input = document.getElementById('video-file-input');
-					input.files = transfer.files;
-					input.dispatchEvent(new Event('change', { bubbles: true }));
-				`,
-					readFileSync(path).toString('base64'),
-					basename(path),
-					path.endsWith('.webm') ? 'video/webm' : 'video/mp4'
-				);
-				return;
-			}
-			await driver.findElement(By.id('video-file-input')).sendKeys(path);
-			// SafariDriver can populate FileList without dispatching change.
-			// A handled change clears the input, so this never loads a file twice.
-			await driver.executeScript(`
+			// SafariDriver's path upload can expose the filename without readable
+			// sandboxed bytes. The Mac path also does not exist inside iOS. Transfer
+			// the fixture through the real input handler; decoding stays in Safari.
+			await driver.executeScript(
+				`
+				const bytes = Uint8Array.from(atob(arguments[0]), c => c.charCodeAt(0));
+				const transfer = new DataTransfer();
+				transfer.items.add(new File([bytes], arguments[1], { type: arguments[2] }));
 				const input = document.getElementById('video-file-input');
-				if (input.files.length) input.dispatchEvent(new Event('change', { bubbles: true }));
-			`);
+				input.files = transfer.files;
+				input.dispatchEvent(new Event('change', { bubbles: true }));
+			`,
+				readFileSync(path).toString('base64'),
+				basename(path),
+				path.endsWith('.webm') ? 'video/webm' : 'video/mp4'
+			);
 		}
 	};
 }
@@ -161,7 +152,17 @@ async function run(name: string, scenario: (page: FramePage) => Promise<void>) {
 	} catch (error) {
 		writeFileSync(`${output}/${name}.png`, await driver.takeScreenshot(), 'base64');
 		writeFileSync(`${output}/${name}.txt`, String(error));
-		const events = await driver.executeScript('return window.__frameLog || []');
+		const events = await driver.executeScript(`
+			const video = document.querySelector('video');
+			return {
+				events: window.__frameLog || [],
+				media: video && {
+					readyState: video.readyState, networkState: video.networkState,
+					error: video.error && { code: video.error.code, message: video.error.message },
+					src: video.currentSrc
+				}
+			};
+		`);
 		writeFileSync(`${output}/${name}-events.json`, JSON.stringify(events, null, 2));
 		throw error;
 	} finally {

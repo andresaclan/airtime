@@ -78,8 +78,9 @@ agree after settling. Browser logs/traces and failed screenshots are retained as
 CI artifacts for 14 days. Safari retains capabilities, frame events, a screenshot
 and error text on failure.
 
-On native iOS, fixtures are transferred as `File` bytes through the real input's
-change handler because the Mac fixture path is not in the simulator. Buttons use
+Safari fixtures are transferred as `File` bytes through the real input's change
+handler: SafariDriver's path upload can expose filenames without readable sandboxed
+bytes, and Mac fixture paths do not exist in the iOS simulator. Buttons use
 WebDriver clicks. Keyboard shortcuts and sustained pointer holds use DOM events
 on iOS, then verify the real decoded picture. This does not test the Photos picker,
 physical keyboard delivery, or the operating system's touch gesture recognition.
