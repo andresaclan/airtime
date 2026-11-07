@@ -39,7 +39,9 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 	let seeked = false;
 	const callbacks = typeof video.requestVideoFrameCallback === 'function';
 	// Seeking within the picture already on screen need not present a new frame.
-	let presented = !callbacks || frameAt(mediaTime(video), timing) === frameAt(time, timing);
+	let presented =
+		!callbacks || (!timing.editGap && frameAt(mediaTime(video), timing) === frameAt(time, timing));
+	let assignedOffset = nativeTime(video, 0);
 	let handle: number | undefined;
 	let timeout: ReturnType<typeof setTimeout> | undefined;
 	let retried = false;
@@ -57,7 +59,24 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 		pending.delete(video);
 		start(video, next.time, next.timing);
 	};
+	const rebase = () => {
+		const offset = nativeTime(video, 0);
+		if (offset === assignedOffset) return false;
+		// The first presentation can establish an edit offset after this seek
+		// was assigned. Reissue on the calibrated timeline before acknowledging it.
+		assignedOffset = offset;
+		seeked = false;
+		presented = false;
+		clearTimeout(timeout);
+		if (handle !== undefined) video.cancelVideoFrameCallback(handle);
+		video.removeEventListener('seeked', landed);
+		video.addEventListener('seeked', landed, { once: true });
+		handle = video.requestVideoFrameCallback(onFrame);
+		video.currentTime = nativeTime(video, time);
+		return true;
+	};
 	const landed = () => {
+		if (rebase()) return;
 		seeked = true;
 		finish();
 		// Missing callbacks (e.g. a no-op seek, background media, or a truncated
@@ -84,8 +103,11 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 	const onFrame: VideoFrameRequestCallback = (_now, metadata) => {
 		if (inFlight.get(video) !== cleanup) return;
 		observeMediaTimeline(video, metadata.mediaTime, timing);
+		if (rebase()) return;
+		const actual = mediaTime(video, metadata.mediaTime);
 		if (
-			frameOfPresentedTime(mediaTime(video, metadata.mediaTime), timing) === frameAt(time, timing)
+			actual >= (timing.frameTimes?.[0] ?? 0) - 1e-5 &&
+			frameOfPresentedTime(actual, timing) === frameAt(time, timing)
 		) {
 			presented = true;
 			finish();

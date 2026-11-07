@@ -116,6 +116,7 @@ export function trackPresentedFrames(
 		if (timing) observeMediaTimeline(video, metadata.mediaTime, timing);
 		const time = canonicalTime(video, metadata.mediaTime);
 		if (requestedTime !== null && timing) {
+			if (time < (timing.frameTimes?.[0] ?? 0) - 1e-5) return;
 			if (frameOfPresentedTime(time, timing) !== frameAt(requestedTime, timing)) return;
 			requestedTime = null;
 		}

@@ -146,6 +146,23 @@ describe('seek completion with frame callbacks', () => {
 		}
 	}
 
+	test('an edit offset learned after assignment rebases the seek before it completes', () => {
+		const fake = new PresentingVideo();
+		const element = fake as unknown as HTMLVideoElement;
+		const edited = { fps: 10, frameTimes: [0, 0.1, 0.2], editGap: 0.02 };
+		seek(element, 0.05, edited);
+		fake.land();
+		fake.present(0.02);
+		expect(fake.assigned).toEqual([0.05, 0.07]);
+		expect(seekPending(element)).toBe(true);
+		fake.land();
+		fake.present(0); // WebKit's partial frame before the first complete sample.
+		expect(seekPending(element)).toBe(true);
+		fake.present(0.02);
+		expect(seekPending(element)).toBe(false);
+		expect(targetTime(element)).toBeCloseTo(0.05, 9);
+	});
+
 	test('seeked alone does not release a decode before its picture arrives', () => {
 		const fake = new PresentingVideo();
 		const element = fake as unknown as HTMLVideoElement;
