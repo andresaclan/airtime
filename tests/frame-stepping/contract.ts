@@ -6,7 +6,7 @@ import manifest from './fixtures/manifest.json' with { type: 'json' };
 // No imports from Airtime: expected frames come from ffmpeg, not app calculations.
 export interface FramePage {
 	engine: 'webkit' | 'chromium';
-	goto(path: string): Promise<void>;
+	goto(path: string, expectedPath?: string): Promise<void>;
 	evaluate<R, A>(fn: (arg: A) => R, arg: A): Promise<R>;
 	click(selector: string): Promise<void>;
 	focus(selector: string): Promise<void>;
@@ -100,7 +100,7 @@ export async function home(page: FramePage) {
 }
 
 export async function load(page: FramePage, route: string, fixture: Fixture, preview = true) {
-	await page.goto(route);
+	await page.goto(route, route === '/alpha' ? '/' : route);
 	await waitFor(
 		() => page.evaluate(() => document.documentElement.dataset.airtimeReady === 'true', undefined),
 		Boolean,

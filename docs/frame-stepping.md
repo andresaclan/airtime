@@ -83,10 +83,15 @@ and error text on failure.
 Safari fixtures are transferred as `File` bytes through the real input's change
 handler: SafariDriver's path upload can expose filenames without readable sandboxed
 bytes, and Mac fixture paths do not exist in the iOS simulator. Buttons use
-WebDriver clicks. Keyboard shortcuts and sustained pointer holds use DOM events
-on iOS, then verify the real decoded picture. This does not test the Photos picker,
-physical keyboard delivery, or the operating system's touch gesture recognition.
-The desktop jobs exercise native keyboard and pointer input.
+WebDriver clicks on macOS. On iOS, buttons, keyboard shortcuts, and sustained
+pointer holds use DOM activation/events, then verify the real native decoded
+picture. This avoids [WebKit bug 322937](https://bugs.webkit.org/show_bug.cgi?id=322937),
+where pointer actions can wedge the iOS remote automation connection. Autoplay is
+allowed in the iOS automation session so synthetic controls can exercise playback.
+This tests the app's real control handlers and native iOS decoding, but does not
+test the Photos picker, physical keyboard delivery, or OS touch gesture delivery.
+The desktop jobs exercise native keyboard and pointer input; the mobile WebKit
+profile uses actual emulated taps.
 
 For parsed files, the authoritative container timing avoids an unnecessary
 playback probe. Files without readable timing retain the playback probe. It samples again at quarter

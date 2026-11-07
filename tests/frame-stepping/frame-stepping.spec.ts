@@ -59,8 +59,11 @@ const test = base.extend<{ framePage: FramePage }>({
 			page.on('pageerror', (error) => errors.push(error.message));
 			await use({
 				engine: info.project.name.startsWith('webkit') ? 'webkit' : 'chromium',
-				goto: async (path) => {
+				goto: async (path, expectedPath = path) => {
 					await page.goto(new URL(path, info.project.use.baseURL).href, {
+						waitUntil: 'domcontentloaded'
+					});
+					await page.waitForURL(new URL(expectedPath, info.project.use.baseURL).href, {
 						waitUntil: 'domcontentloaded'
 					});
 				},

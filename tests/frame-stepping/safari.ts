@@ -26,12 +26,25 @@ mkdirSync(output, { recursive: true });
 function adapter(driver: WebDriver): FramePage {
 	return {
 		engine: 'webkit',
-		goto: async (path) => {
+		goto: async (path, expectedPath = path) => {
 			await driver.get(new URL(path, baseURL).href);
+			const expected = new URL(expectedPath, baseURL).href;
+			await driver.wait(
+				async () => (await driver.getCurrentUrl()) === expected,
+				15_000,
+				'Entry redirect must finish'
+			);
 		},
 		evaluate: async <R, A>(fn: (arg: A) => R, arg: A): Promise<R> =>
 			driver.executeScript(`return (${fn.toString()})(arguments[0]);`, arg ?? null),
 		click: async (selector) => {
+			if (ios) {
+				// iOS 26/27 pointer actions can wedge the remote automation channel:
+				// https://bugs.webkit.org/show_bug.cgi?id=322937
+				// Exercise the real button handler; never mutate player/seek state.
+				await driver.executeScript('document.querySelector(arguments[0]).click()', selector);
+				return;
+			}
 			await driver.findElement(By.css(selector)).click();
 		},
 		focus: async (selector) => {
@@ -39,7 +52,7 @@ function adapter(driver: WebDriver): FramePage {
 		},
 		press: async (key) => {
 			// Mobile Safari has no hardware keyboard in CI. Exercise the same key
-			// handlers with DOM events; native WebDriver taps exercise the buttons.
+			// handlers with DOM events; DOM activation exercises the buttons.
 			if (ios) {
 				await driver.executeScript(
 					`
@@ -135,7 +148,12 @@ async function run(name: string, scenario: (page: FramePage) => Promise<void>) {
 			pageLoadStrategy: 'eager',
 			'safari:diagnose': true,
 			...(ios
-				? { platformName: 'iOS', 'safari:useSimulator': true, 'safari:deviceUDID': udid }
+				? {
+						platformName: 'iOS',
+						'safari:useSimulator': true,
+						'safari:deviceUDID': udid,
+						'webkit:alwaysAllowAutoplay': true
+					}
 				: {})
 		})
 		.forBrowser('safari')
