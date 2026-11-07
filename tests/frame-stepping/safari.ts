@@ -53,6 +53,12 @@ function adapter(driver: WebDriver): FramePage {
 		},
 		upload: async (path) => {
 			await driver.findElement(By.id('video-file-input')).sendKeys(path);
+			// SafariDriver can populate FileList without dispatching change.
+			// A handled change clears the input, so this never loads a file twice.
+			await driver.executeScript(`
+				const input = document.getElementById('video-file-input');
+				if (input.files.length) input.dispatchEvent(new Event('change', { bubbles: true }));
+			`);
 		}
 	};
 }

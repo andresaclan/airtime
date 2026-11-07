@@ -30,7 +30,15 @@ const test = base.extend<{ framePage: FramePage }>({
 		} else {
 			const browser = await playwright[browserName].launch({
 				channel: info.project.use.channel,
-				headless: true
+				headless: true,
+				args:
+					browserName === 'chromium'
+						? [
+								'--disable-background-timer-throttling',
+								'--disable-renderer-backgrounding',
+								'--disable-backgrounding-occluded-windows'
+							]
+						: []
 			});
 			close = () => browser.close();
 			const { viewport, userAgent, hasTouch, isMobile, deviceScaleFactor } = info.project.use;

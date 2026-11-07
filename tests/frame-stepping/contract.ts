@@ -99,6 +99,11 @@ export async function home(page: FramePage) {
 
 export async function load(page: FramePage, route: string, fixture: Fixture, preview = true) {
 	await page.goto(route);
+	await waitFor(
+		() => page.evaluate(() => document.documentElement.dataset.airtimeReady === 'true', undefined),
+		Boolean,
+		'The app must hydrate before uploading a file'
+	);
 	if (!preview)
 		await page.evaluate(() => Reflect.deleteProperty(window, 'VideoEncoder'), undefined);
 	await page.evaluate(() => {

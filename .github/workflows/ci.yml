@@ -55,6 +55,10 @@ jobs:
           bunx playwright install --with-deps "$browser" ffmpeg
       - name: Check decoded frame stepping
         if: matrix.browser != 'safari'
+        env:
+          # Stable Chrome's headless macOS compositor can throttle video frame
+          # callbacks. Use the repository's real, focus-safe Chrome launcher.
+          FRAME_BACKGROUND_CHROME: ${{ matrix.os == 'macos-15' && matrix.browser == 'chrome' && '1' || '0' }}
         run: bun run test:frames --project=${{ matrix.browser }}
       - name: Check shipping Safari
         if: matrix.browser == 'safari'
