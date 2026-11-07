@@ -313,7 +313,11 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 	const coarse = track.frameCount / gops.length >= 2 * COARSE_STRIDE;
 	//    A playhead that stays in one group (fine-tuning, not sweeping) gets that group
 	//    whole first.
-	const homeGroup = () => Math.max(0, gops.findIndex((_, i) => lastFrames[i] >= focus));
+	const homeGroup = () =>
+		Math.max(
+			0,
+			gops.findIndex((_, i) => lastFrames[i] >= focus)
+		);
 	for (const pass of coarse ? [COARSE_STRIDE, 1] : [1]) {
 		stride = pass;
 		fed.clear();
