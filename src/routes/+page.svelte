@@ -8,6 +8,7 @@
 	import KeybindsDialog from '$lib/components/KeybindsDialog.svelte';
 	import TimerReadout from '$lib/components/TimerReadout.svelte';
 	import HoldCue, { type ScrubCue } from '$lib/components/HoldCue.svelte';
+	import { singleTap } from '$lib/components/singleTap';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 	import { resolve } from '$app/paths';
@@ -89,6 +90,18 @@
 	// frame, slide up above the bar to fine-tune, and pause there. The first pause sets
 	// the in point and the next the out point; after that their pins drag and drop.
 	const touchScreen = new MediaQuery('(pointer: coarse)');
+
+	// On a phone held upright the player is laid out after iOS Photos (layout.css): a tap
+	// on the picture hides the controls and another brings them back.
+	const phonePlayer = new MediaQuery(
+		'(max-width: 900px) and (min-height: 501px) and (pointer: coarse)'
+	);
+	let chromeHidden = $state(false);
+	const CHROME_TAP_IGNORE = '.player-dock, .zoom-pill, .viewer-overlay, button, a, input, select';
+
+	function toggleChrome() {
+		chromeHidden = phonePlayer.current && !chromeHidden;
+	}
 	let scrubCue: ScrubCue | null = $state(null);
 
 	function handleHold(frame: number): boolean {
@@ -152,6 +165,7 @@
 		videoFileName = file.name;
 		isPlaying = false;
 		mediaError = false;
+		chromeHidden = false;
 		currentTime = 0;
 		duration = 0;
 		frameRate = 30;
@@ -495,7 +509,12 @@
 			</div>
 		{:else}
 			<div class="viewer-column">
-				<div class="viewer-frame" class:landscape={fitLandscape}>
+				<div
+					class="viewer-frame"
+					class:landscape={fitLandscape}
+					class:chrome-hidden={chromeHidden}
+					{@attach singleTap(toggleChrome, CHROME_TAP_IGNORE)}
+				>
 					<VideoViewer
 						bind:videoElement
 						{videoSrc}
@@ -557,97 +576,101 @@
 							<p class="viewer-overlay-title">Drop to replace video</p>
 						</div>
 					{/if}
-					{#if !mediaError}
-						<TimerReadout
-							{marks}
-							{timing}
-							frameRate={frameRateKnown ? 'known' : frameRateFailed ? 'failed' : 'detecting'}
-							bind:timeScale
-							onSeek={seekToMark}
-							holdToMark={touchScreen.current}
-							onClear={() => (marks = [])}
-						/>
-					{/if}
-					<div class="control-bar" class:hold-marking={touchScreen.current}>
-						<div class="control-bar-inner">
-							<VideoScrubber
-								{currentTime}
-								{duration}
-								{timing}
-								{videoElement}
+					<!-- On a phone the dock rests at the bottom under the centred picture, and a tap
+					     on the picture hides and shows it, as in iOS Photos (see layout.css). -->
+					<div class="player-dock">
+						{#if !mediaError}
+							<TimerReadout
 								{marks}
-								{intervals}
-								activeMarkId={activeMark?.id ?? null}
-								markLabels={POINT_LABELS}
-								fineTouch={touchScreen.current}
-								holdMark={nextPoint && POINT_MARK[nextPoint]}
-								onHold={handleHold}
-								onMoveMark={handleMoveMark}
-								bind:cue={scrubCue}
+								{timing}
+								frameRate={frameRateKnown ? 'known' : frameRateFailed ? 'failed' : 'detecting'}
+								bind:timeScale
+								onSeek={seekToMark}
+								holdToMark={touchScreen.current}
+								onClear={() => (marks = [])}
 							/>
-
-							<div class="control-toolbar">
-								<span class="transport-dock" aria-hidden="true"></span>
-								<span class="context-strip" aria-hidden="true"></span>
-								<div class="time-readout">
-									<span class="time-current">{formatFrameClock(playheadLabel, timing)}</span>
-									<span class="time-separator">/</span>
-									<span class="time-duration">{formatDuration()}</span>
-									<span class="time-frame">frame {playheadLabel + 1}</span>
-									{#if !mediaError}<span
-											class="time-fps"
-											class:clean={sourceFrameRate && !variableFrameRate}
-											><span class="fps-dot" class:uncertain={!sourceFrameRate}
-											></span>{#if sourceFrameRate && variableFrameRate}
-												<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps · variable</span>
-											{:else if sourceFrameRate}
-												{sourceFrameRate} fps
-											{:else if playbackFrameRate}
-												<span
-													title="Couldn't read the frame rate from the file; estimated from playback"
-												>
-													~{playbackFrameRate} fps · estimated
-												</span>
-											{:else if frameRateFailed}
-												<span title={FRAME_RATE_FAILED}>Frame rate unknown</span>
-											{:else}
-												Detecting fps…
-											{/if}</span
-										>{/if}
-								</div>
-
-								<VideoControls
-									{isPlaying}
+						{/if}
+						<div class="control-bar" class:hold-marking={touchScreen.current}>
+							<div class="control-bar-inner">
+								<VideoScrubber
 									{currentTime}
 									{duration}
 									{timing}
 									{videoElement}
-									bind:volume
-									bind:isMuted
-									{playbackRate}
-									onCyclePlaybackRate={cyclePlaybackRate}
+									{marks}
+									{intervals}
+									activeMarkId={activeMark?.id ?? null}
+									markLabels={POINT_LABELS}
+									fineTouch={touchScreen.current}
+									holdMark={nextPoint && POINT_MARK[nextPoint]}
+									onHold={handleHold}
+									onMoveMark={handleMoveMark}
+									bind:cue={scrubCue}
 								/>
 
-								<!-- The in point takes the left slot and the out point the right. -->
-								<div class="mark-actions">
-									<button
-										class="mark-action mark-action-takeoff"
-										class:on-frame={activePoint === 'in'}
-										class:next={nextPoint === 'in'}
-										onclick={() => markPoint('in')}
-										title="Set the in point on this frame (I)"
-									>
-										<span class="mark-action-dot"></span>In<kbd>I</kbd>
-									</button>
-									<button
-										class="mark-action mark-action-landing"
-										class:on-frame={activePoint === 'out'}
-										class:next={nextPoint === 'out'}
-										onclick={() => markPoint('out')}
-										title="Set the out point on this frame (O)"
-									>
-										<span class="mark-action-dot"></span>Out<kbd>O</kbd>
-									</button>
+								<div class="control-toolbar">
+									<span class="transport-dock" aria-hidden="true"></span>
+									<span class="context-strip" aria-hidden="true"></span>
+									<div class="time-readout">
+										<span class="time-current">{formatFrameClock(playheadLabel, timing)}</span>
+										<span class="time-separator">/</span>
+										<span class="time-duration">{formatDuration()}</span>
+										<span class="time-frame">frame {playheadLabel + 1}</span>
+										{#if !mediaError}<span
+												class="time-fps"
+												class:clean={sourceFrameRate && !variableFrameRate}
+												><span class="fps-dot" class:uncertain={!sourceFrameRate}
+												></span>{#if sourceFrameRate && variableFrameRate}
+													<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps · variable</span>
+												{:else if sourceFrameRate}
+													{sourceFrameRate} fps
+												{:else if playbackFrameRate}
+													<span
+														title="Couldn't read the frame rate from the file; estimated from playback"
+													>
+														~{playbackFrameRate} fps · estimated
+													</span>
+												{:else if frameRateFailed}
+													<span title={FRAME_RATE_FAILED}>Frame rate unknown</span>
+												{:else}
+													Detecting fps…
+												{/if}</span
+											>{/if}
+									</div>
+
+									<VideoControls
+										{isPlaying}
+										{currentTime}
+										{duration}
+										{timing}
+										{videoElement}
+										bind:volume
+										bind:isMuted
+										{playbackRate}
+										onCyclePlaybackRate={cyclePlaybackRate}
+									/>
+
+									<!-- The in point takes the left slot and the out point the right. -->
+									<div class="mark-actions">
+										<button
+											class="mark-action mark-action-takeoff"
+											class:on-frame={activePoint === 'in'}
+											class:next={nextPoint === 'in'}
+											onclick={() => markPoint('in')}
+											title="Set the in point on this frame (I)"
+										>
+											<span class="mark-action-dot"></span>In<kbd>I</kbd>
+										</button>
+										<button
+											class="mark-action mark-action-landing"
+											class:on-frame={activePoint === 'out'}
+											class:next={nextPoint === 'out'}
+											onclick={() => markPoint('out')}
+											title="Set the out point on this frame (O)"
+										>
+											<span class="mark-action-dot"></span>Out<kbd>O</kbd>
+										</button>
+									</div>
 								</div>
 							</div>
 						</div>

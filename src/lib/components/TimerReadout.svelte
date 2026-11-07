@@ -416,7 +416,7 @@
 	@media (max-width: 900px) and (min-height: 501px) {
 		/* The frame runs to the bottom so the sheet can rest there, under a landscape
 		   video too. */
-		:global(.viewer-column > .viewer-frame:has(> .timer-readout)) {
+		:global(.viewer-column > .viewer-frame:has(.timer-readout)) {
 			flex: 1 1 auto;
 		}
 

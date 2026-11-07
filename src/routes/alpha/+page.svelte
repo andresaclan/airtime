@@ -7,6 +7,7 @@
 	import SessionsDialog from '$lib/components/SessionsDialog.svelte';
 	import MarkingGuide from '$lib/components/MarkingGuide.svelte';
 	import HoldCue, { type ScrubCue } from '$lib/components/HoldCue.svelte';
+	import { singleTap } from '$lib/components/singleTap';
 	import { onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
@@ -200,6 +201,18 @@
 	// the guide says. Pins drag and drop. The Takeoff and Landing buttons and the frame
 	// steppers stay for marking frame by frame.
 	const touchScreen = new MediaQuery('(pointer: coarse)');
+
+	// On a phone held upright the player is laid out after iOS Photos (layout.css): a tap
+	// on the picture hides the controls and another brings them back.
+	const phonePlayer = new MediaQuery(
+		'(max-width: 900px) and (min-height: 501px) and (pointer: coarse)'
+	);
+	let chromeHidden = $state(false);
+	const CHROME_TAP_IGNORE = '.player-dock, .zoom-pill, .viewer-overlay, button, a, input, select';
+
+	function toggleChrome() {
+		chromeHidden = phonePlayer.current && !chromeHidden;
+	}
 	let scrubCue: ScrubCue | null = $state(null);
 	let holdStep = $derived(guideStep(marks));
 	let holdMark: MarkType | null = $derived.by(() => {
@@ -311,6 +324,7 @@
 		videoFileName = file.name;
 		isPlaying = false;
 		mediaError = false;
+		chromeHidden = false;
 		currentTime = 0;
 		duration = 0;
 		frameRate = 30;
@@ -842,7 +856,8 @@
 		const first = videoAspect === null;
 		videoAspect = video.videoWidth / video.videoHeight;
 		// Below a landscape video the sheet has room, so open it rather than leave a gap.
-		if (first && fitLandscape) panelOpen = true;
+		// The phone player centres the picture instead, with the sheet closed under it.
+		if (first && fitLandscape && !phonePlayer.current) panelOpen = true;
 	}
 
 	function handleMediaError() {
@@ -1234,7 +1249,12 @@
 			</div>
 		{:else}
 			<div class="viewer-column">
-				<div class="viewer-frame" class:landscape={fitLandscape}>
+				<div
+					class="viewer-frame"
+					class:landscape={fitLandscape}
+					class:chrome-hidden={chromeHidden}
+					{@attach singleTap(toggleChrome, CHROME_TAP_IGNORE)}
+				>
 					<VideoViewer
 						bind:videoElement
 						{videoSrc}
@@ -1297,97 +1317,101 @@
 							<p class="viewer-overlay-title">Drop to replace video</p>
 						</div>
 					{/if}
-					{#if showGuide}
-						<MarkingGuide
-							{marks}
-							{analysis}
-							{jumpType}
-							frameRate={frameRateKnown ? 'known' : frameRateFailed ? 'failed' : 'detecting'}
-							{saveShortcut}
-							onHide={() => setGuide(true)}
-						/>
-					{/if}
-					<div class="control-bar">
-						<div class="control-bar-inner">
-							<VideoScrubber
-								{currentTime}
-								{duration}
-								{timing}
-								{videoElement}
+					<!-- On a phone the dock rests at the bottom under the centred picture, and a tap
+					     on the picture hides and shows it, as in iOS Photos (see layout.css). -->
+					<div class="player-dock">
+						{#if showGuide}
+							<MarkingGuide
 								{marks}
-								intervals={analysis.intervals}
-								activeMarkId={activeMark?.id ?? null}
-								markLabels={holdLabels}
-								fineTouch={touchScreen.current}
-								holdMark={touchScreen.current ? holdMark : null}
-								onHold={handleHold}
-								onMoveMark={handleMoveMark}
-								bind:cue={scrubCue}
+								{analysis}
+								{jumpType}
+								frameRate={frameRateKnown ? 'known' : frameRateFailed ? 'failed' : 'detecting'}
+								{saveShortcut}
+								onHide={() => setGuide(true)}
 							/>
-
-							<div class="control-toolbar">
-								<!-- One segmented group behind Takeoff, the frame controls and Landing. -->
-								<span class="transport-dock" aria-hidden="true"></span>
-								<!-- The context strip under the controls: where, how fast, how loud. -->
-								<span class="context-strip" aria-hidden="true"></span>
-								<div class="time-readout">
-									<span class="time-current">{formatFrameClock(playheadLabel, timing)}</span>
-									<span class="time-separator">/</span>
-									<span class="time-duration">{formatDuration()}</span>
-									<span class="time-frame">frame {playheadLabel + 1}</span>
-									{#if !mediaError}<span
-											class="time-fps"
-											class:clean={sourceFrameRate && !variableFrameRate}
-											><span class="fps-dot" class:uncertain={!sourceFrameRate}
-											></span>{#if sourceFrameRate && variableFrameRate}
-												<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps · variable</span>
-											{:else if sourceFrameRate}
-												{sourceFrameRate} fps
-											{:else if playbackFrameRate}
-												<span
-													title="Couldn't read the frame rate from the file; estimated from playback"
-												>
-													~{playbackFrameRate} fps · estimated
-												</span>
-											{:else if frameRateFailed}
-												<span title={FRAME_RATE_FAILED}>Frame rate unknown</span>
-											{:else}
-												Detecting fps…
-											{/if}</span
-										>{/if}
-								</div>
-
-								<VideoControls
-									{isPlaying}
+						{/if}
+						<div class="control-bar">
+							<div class="control-bar-inner">
+								<VideoScrubber
 									{currentTime}
 									{duration}
 									{timing}
 									{videoElement}
-									bind:volume
-									bind:isMuted
-									{playbackRate}
-									onCyclePlaybackRate={cyclePlaybackRate}
+									{marks}
+									intervals={analysis.intervals}
+									activeMarkId={activeMark?.id ?? null}
+									markLabels={holdLabels}
+									fineTouch={touchScreen.current}
+									holdMark={touchScreen.current ? holdMark : null}
+									onHold={handleHold}
+									onMoveMark={handleMoveMark}
+									bind:cue={scrubCue}
 								/>
 
-								<div class="mark-actions">
-									<button
-										class="mark-action mark-action-takeoff"
-										class:on-frame={activeMark?.type === 'takeoff'}
-										class:next={nextMark === 'takeoff'}
-										onclick={() => addMark('takeoff')}
-										title="Mark takeoff on this frame (T)"
-									>
-										<span class="mark-action-dot"></span>Takeoff<kbd>T</kbd>
-									</button>
-									<button
-										class="mark-action mark-action-landing"
-										class:on-frame={activeMark?.type === 'landing'}
-										class:next={nextMark === 'landing'}
-										onclick={() => addMark('landing')}
-										title="Mark landing on this frame (L)"
-									>
-										<span class="mark-action-dot"></span>Landing<kbd>L</kbd>
-									</button>
+								<div class="control-toolbar">
+									<!-- One segmented group behind Takeoff, the frame controls and Landing. -->
+									<span class="transport-dock" aria-hidden="true"></span>
+									<!-- The context strip under the controls: where, how fast, how loud. -->
+									<span class="context-strip" aria-hidden="true"></span>
+									<div class="time-readout">
+										<span class="time-current">{formatFrameClock(playheadLabel, timing)}</span>
+										<span class="time-separator">/</span>
+										<span class="time-duration">{formatDuration()}</span>
+										<span class="time-frame">frame {playheadLabel + 1}</span>
+										{#if !mediaError}<span
+												class="time-fps"
+												class:clean={sourceFrameRate && !variableFrameRate}
+												><span class="fps-dot" class:uncertain={!sourceFrameRate}
+												></span>{#if sourceFrameRate && variableFrameRate}
+													<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps · variable</span>
+												{:else if sourceFrameRate}
+													{sourceFrameRate} fps
+												{:else if playbackFrameRate}
+													<span
+														title="Couldn't read the frame rate from the file; estimated from playback"
+													>
+														~{playbackFrameRate} fps · estimated
+													</span>
+												{:else if frameRateFailed}
+													<span title={FRAME_RATE_FAILED}>Frame rate unknown</span>
+												{:else}
+													Detecting fps…
+												{/if}</span
+											>{/if}
+									</div>
+
+									<VideoControls
+										{isPlaying}
+										{currentTime}
+										{duration}
+										{timing}
+										{videoElement}
+										bind:volume
+										bind:isMuted
+										{playbackRate}
+										onCyclePlaybackRate={cyclePlaybackRate}
+									/>
+
+									<div class="mark-actions">
+										<button
+											class="mark-action mark-action-takeoff"
+											class:on-frame={activeMark?.type === 'takeoff'}
+											class:next={nextMark === 'takeoff'}
+											onclick={() => addMark('takeoff')}
+											title="Mark takeoff on this frame (T)"
+										>
+											<span class="mark-action-dot"></span>Takeoff<kbd>T</kbd>
+										</button>
+										<button
+											class="mark-action mark-action-landing"
+											class:on-frame={activeMark?.type === 'landing'}
+											class:next={nextMark === 'landing'}
+											onclick={() => addMark('landing')}
+											title="Mark landing on this frame (L)"
+										>
+											<span class="mark-action-dot"></span>Landing<kbd>L</kbd>
+										</button>
+									</div>
 								</div>
 							</div>
 						</div>
