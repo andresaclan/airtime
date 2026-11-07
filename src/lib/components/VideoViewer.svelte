@@ -128,6 +128,8 @@
 	/** Frame on the preview canvas while it covers the video; null when hidden. */
 	let previewFrame: number | null = $state(null);
 	let videoBox = $state({ left: 0, top: 0, width: 0, height: 0 });
+	/** The video element's own size, which pan percentages are taken of. */
+	let elementSize = $state({ width: 0, height: 0 });
 	let scrubCache: ScrubCache | null = null;
 
 	function previewTiming(): FrameTiming | null {
@@ -258,21 +260,32 @@
 			}, 150);
 		};
 		// The container centres the video, so its box follows from the two sizes. Computed
-		// sizes keep the fractions that offsetLeft/offsetTop round away.
-		const resize = new ResizeObserver(() => {
+		// sizes keep the fractions that offsetLeft/offsetTop round away. The box is the
+		// picture's, not the element's: Safari can stretch the element across the space
+		// and letterbox the picture inside it (object-fit), and the preview must not.
+		const measure = () => {
 			const container = video.parentElement;
 			if (!container) return;
 			const style = getComputedStyle(video);
-			const width = parseFloat(style.width);
-			const height = parseFloat(style.height);
+			let width = parseFloat(style.width);
+			let height = parseFloat(style.height);
+			elementSize = { width, height };
+			if (video.videoWidth && video.videoHeight) {
+				const scale = Math.min(width / video.videoWidth, height / video.videoHeight);
+				width = video.videoWidth * scale;
+				height = video.videoHeight * scale;
+			}
 			videoBox = {
 				left: (container.clientWidth - width) / 2,
 				top: (container.clientHeight - height) / 2,
 				width,
 				height
 			};
-		});
+		};
+		const resize = new ResizeObserver(measure);
 		resize.observe(video);
+		// The picture's own size arrives with the metadata, and can change mid-stream.
+		video.addEventListener('resize', measure);
 		if (video.parentElement) resize.observe(video.parentElement);
 		if ('requestVideoFrameCallback' in video) handle = video.requestVideoFrameCallback(onFrame);
 		video.addEventListener(SEEK_EVENT, sync);
@@ -288,6 +301,7 @@
 		return () => {
 			unregister();
 			resize.disconnect();
+			video.removeEventListener('resize', measure);
 			clearTimeout(seekedTimer);
 			if (handle) video.cancelVideoFrameCallback(handle);
 			video.removeEventListener(SEEK_EVENT, sync);
@@ -734,12 +748,14 @@
 		});
 	}
 
-	// Computed transform style
-	let transformStyle = $derived(
-		zoomLevel > 1
-			? `transform: scale(${zoomLevel}) translate(${panX / zoomLevel}%, ${panY / zoomLevel}%);`
-			: ''
-	);
+	// Pan is a percentage of the video element. It's turned into pixels so the preview
+	// canvas, which covers only the picture, moves exactly as far as the video does.
+	let transformStyle = $derived.by(() => {
+		if (zoomLevel <= 1) return '';
+		const x = ((panX / zoomLevel) * elementSize.width) / 100;
+		const y = ((panY / zoomLevel) * elementSize.height) / 100;
+		return `transform: scale(${zoomLevel}) translate(${x}px, ${y}px);`;
+	});
 </script>
 
 <svelte:window onmouseup={handleMouseUp} onmousemove={handleMouseMove} />

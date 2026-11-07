@@ -127,7 +127,7 @@ for (const route of ['/', '/alpha']) {
 		await load(framePage, route, fixture);
 		await rapidAndHold(framePage, fixture);
 		await pauseThenStep(framePage, fixture);
-		await markAndReturn(framePage, fixture, route);
+		await markAndReturn(framePage, fixture);
 		// Replacing a marked file must discard its old frame/seek/cache state.
 		await replace(framePage, fixtures[3]);
 		await framePage.press('.');

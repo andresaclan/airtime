@@ -40,7 +40,7 @@ export async function waitFor<T>(
 
 export function readFrame(page: FramePage) {
 	return page.evaluate(() => {
-		const video = document.querySelector('video')!;
+		const video = document.querySelector('video');
 		const copy = document.createElement('canvas');
 		copy.width = 256;
 		copy.height = 1;
@@ -54,16 +54,18 @@ export function readFrame(page: FramePage) {
 		};
 		const overlay = document.querySelector<HTMLCanvasElement>('[data-scrub-surface].visible');
 		return {
-			id: video.readyState >= 2 ? decode(video) : -1,
+			id: video && video.readyState >= 2 ? decode(video) : -1,
 			overlay: overlay ? decode(overlay) : null,
-			time: video.currentTime,
-			duration: video.duration,
-			paused: video.paused,
-			seeking: video.seeking,
+			time: video?.currentTime ?? -1,
+			duration: video?.duration ?? -1,
+			paused: video?.paused ?? false,
+			seeking: video?.seeking ?? true,
 			fps: document.querySelector('.time-fps')?.textContent?.trim() ?? '',
-			previousDisabled: document.querySelector<HTMLButtonElement>('[aria-label="Previous frame"]')!
-				.disabled,
-			nextDisabled: document.querySelector<HTMLButtonElement>('[aria-label="Next frame"]')!.disabled
+			previousDisabled:
+				document.querySelector<HTMLButtonElement>('[aria-label="Previous frame"]')?.disabled ??
+				true,
+			nextDisabled:
+				document.querySelector<HTMLButtonElement>('[aria-label="Next frame"]')?.disabled ?? true
 		};
 	}, undefined);
 }
@@ -113,8 +115,8 @@ export async function load(page: FramePage, route: string, fixture: Fixture, pre
 			log.push({
 				event,
 				at: performance.now(),
-				time: video.currentTime,
-				seeking: video.seeking,
+				time: video?.currentTime ?? -1,
+				seeking: video?.seeking ?? true,
 				extra
 			});
 			if (log.length > 1000) log.shift();
@@ -248,12 +250,12 @@ export async function pauseThenStep(page: FramePage, fixture: Fixture) {
 	await expectFrame(page, fixture, index);
 }
 
-export async function markAndReturn(page: FramePage, fixture: Fixture, route: string) {
+export async function markAndReturn(page: FramePage, fixture: Fixture) {
 	await home(page);
 	for (let k = 0; k < 4; k++) await page.press('.');
 	await expectFrame(page, fixture, 4);
-	await page.press(route === '/' ? 'i' : 't');
-	const pin = route === '/' ? '[aria-label="Go to in point"]' : '[aria-label="Go to takeoff"]';
+	await page.press('t');
+	const pin = '[aria-label="Go to takeoff"]';
 	await waitFor(
 		() => page.evaluate((selector) => !!document.querySelector(selector), pin),
 		Boolean,

@@ -20,7 +20,7 @@ whose frames are not evenly spaced. A time readout changing by 1/fps is not proo
   keep the same canonical meaning in both browsers.
 - `presentedFrame.ts` owns the presented picture. `seeked` is not a presentation
   acknowledgement. A callback from an older seek must not rewind a newer target.
-- Buttons and keyboard shortcuts share `VideoControls`; both `/` and `/alpha`
+- Buttons and keyboard shortcuts share `VideoControls`; the player at `/` and its legacy `/alpha` redirect
   must pass the browser contract. Marks must return to the picture they recorded.
 - A preview canvas can make a pending seek feel immediate, but cannot make an
   incorrect native video frame pass the tests.
@@ -33,15 +33,19 @@ workflow has no changed-path filters or automatic retries. It also runs on main
 and for merge queues. A PR can be opened with failing tests; branch protection
 prevents it from being merged. No local hook can reliably prevent all PR creation.
 
-| Runner          | Browser                            | Coverage                                         |
-| --------------- | ---------------------------------- | ------------------------------------------------ |
-| Linux and macOS | Chromium                           | Bundled browser and decoder behavior             |
-| Linux and macOS | Google Chrome                      | Branded stable channel                           |
-| macOS           | Playwright WebKit                  | WebKit with Apple's media frameworks             |
-| macOS           | Playwright WebKit, iPhone profile  | Mobile viewport, touch taps, and shared controls |
-| macOS           | Shipping Safari via `safaridriver` | Installed Safari and its media pipeline          |
+| Runner          | Browser                                 | Coverage                                         |
+| --------------- | --------------------------------------- | ------------------------------------------------ |
+| Linux and macOS | Chromium                                | Bundled browser and decoder behavior             |
+| Linux and macOS | Google Chrome                           | Branded stable channel                           |
+| macOS           | Playwright WebKit                       | WebKit with Apple's media frameworks             |
+| macOS           | Playwright WebKit, iPhone profile       | Mobile viewport, touch taps, and shared controls |
+| macOS           | Shipping Safari via `safaridriver`      | Installed Safari and its media pipeline          |
+| macOS           | iOS Simulator Safari via `safaridriver` | Native iOS Safari, selected by simulator UDID    |
 
 The iPhone profile is **emulation, not an iOS Simulator or physical iPhone**.
+A separate `safari-ios` job creates an isolated iPhone on the newest installed iOS
+runtime and requires a native iOS Safari session. Missing runtimes or failed device
+startup fail the gate; they never silently skip it. SafariDriver boots that device.
 Simulator testing still does not exercise a phone's hardware decoder. A physical
 iOS gate requires a dedicated runner/device or an external device service; do not
 report mobile WebKit results as a physical iPhone pass.
@@ -66,12 +70,20 @@ application timing functions.
 Cases cover constant frame rate, NTSC timestamps over enough frames to cross the
 600 Hz rounding boundary, WebM playback-rate detection, 240 fps at QuickTime's 600 Hz
 time base, dropped frames, B-frame reordering, slow-motion pre-roll, and an edit
-list trimming partway through a frame. Both pages walk **every** frame in both
+list trimming partway through a frame. Both entry links walk **every** frame in both
 directions using buttons and keyboard shortcuts. Tests also cover boundaries,
 rapid input/reversal, holds and release, playback/pause, mark round trips, and
 replacing a marked video, and stepping with the preview cache disabled. Native video pixels and any visible cache preview must
 agree after settling. Browser logs/traces and failed screenshots are retained as
-CI artifacts for 14 days. Safari retains a screenshot and error text on failure.
+CI artifacts for 14 days. Safari retains capabilities, frame events, a screenshot
+and error text on failure.
+
+On native iOS, fixtures are transferred as `File` bytes through the real input's
+change handler because the Mac fixture path is not in the simulator. Buttons use
+WebDriver clicks. Keyboard shortcuts and sustained pointer holds use DOM events
+on iOS, then verify the real decoded picture. This does not test the Photos picker,
+physical keyboard delivery, or the operating system's touch gesture recognition.
+The desktop jobs exercise native keyboard and pointer input.
 
 For parsed files, the authoritative container timing avoids an unnecessary
 playback probe. Files without readable timing retain the playback probe. A
@@ -114,6 +126,8 @@ On a dedicated Mac (Safari remote automation enabled):
 sudo safaridriver --enable
 # Start a built preview at localhost:4173 in a separate process first.
 bun run test:frames:safari
+# On an isolated, explicitly selected iPhone Simulator:
+FRAME_SAFARI_PLATFORM=ios FRAME_IOS_SIMULATOR_UDID=<uuid> bun run test:frames:safari
 ```
 
 To regenerate fixtures with Python 3, ffmpeg/libx264, and ffprobe installed:

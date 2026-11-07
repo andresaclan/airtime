@@ -36,6 +36,7 @@ jobs:
           - { os: macos-15, browser: webkit }
           - { os: macos-15, browser: webkit-iphone }
           - { os: macos-15, browser: safari }
+          - { os: macos-15, browser: safari-ios }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -47,21 +48,28 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
       - name: Install browser
-        if: matrix.browser != 'safari'
+        if: matrix.browser != 'safari' && matrix.browser != 'safari-ios'
         shell: bash
         run: |
           browser='${{ matrix.browser }}'
           if [[ "$browser" == webkit-* ]]; then browser=webkit; fi
           bunx playwright install --with-deps "$browser" ffmpeg
       - name: Check decoded frame stepping
-        if: matrix.browser != 'safari'
+        if: matrix.browser != 'safari' && matrix.browser != 'safari-ios'
         env:
           # Stable Chrome's headless macOS compositor can throttle video frame
           # callbacks. Use the repository's real, focus-safe Chrome launcher.
           FRAME_BACKGROUND_CHROME: ${{ matrix.os == 'macos-15' && matrix.browser == 'chrome' && '1' || '0' }}
         run: bun run test:frames --project=${{ matrix.browser }}
+      - name: Create isolated iOS Simulator
+        if: matrix.browser == 'safari-ios'
+        id: ios
+        run: python3 scripts/frame-ios-simulator.py
       - name: Check shipping Safari
-        if: matrix.browser == 'safari'
+        if: matrix.browser == 'safari' || matrix.browser == 'safari-ios'
+        env:
+          FRAME_SAFARI_PLATFORM: ${{ matrix.browser == 'safari-ios' && 'ios' || 'mac' }}
+          FRAME_IOS_SIMULATOR_UDID: ${{ steps.ios.outputs.udid }}
         shell: bash
         run: |
           sudo safaridriver --enable
