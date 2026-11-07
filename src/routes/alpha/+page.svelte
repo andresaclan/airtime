@@ -698,14 +698,22 @@
 		commitMarks(placeMark(marks, type, frameStartTime(frame, timing), timing));
 	}
 
-	/** The Mark button: the step that belongs on the frame left on screen. */
-	async function markNext() {
+	/**
+	 * The Mark button (or M): pauses on the frame on screen, then marks the step that
+	 * belongs there, opens the controls of the mark on it, or offers the choice of type.
+	 */
+	async function pressMark(fromKey = false) {
 		const frame = await frameToMark();
 		if (frame === null) return;
 		const action = markAction(marks, frame, timing, jumpType);
 		if (action.kind === 'add') {
 			commitMarks(placeMark(marks, action.type, frameStartTime(frame, timing), timing));
+			return;
 		}
+		// Brings the playhead onto that frame, so the panel and the button agree on it.
+		seekToFrame(frame);
+		if (action.kind === 'on-frame') await editActiveMark();
+		else markButtons?.openChoice(fromKey);
 	}
 
 	/** Pressing Mark on a marked frame opens that mark's controls in the panel. */
@@ -823,7 +831,7 @@
 		if (event.metaKey || event.ctrlKey) return;
 		if (key === 'm' && !event.shiftKey) {
 			event.preventDefault();
-			markButtons?.press(true);
+			void pressMark(true);
 		} else if (key === 't' || key === 'l') {
 			event.preventDefault();
 			addMark(key === 't' ? 'takeoff' : 'landing');
@@ -1408,9 +1416,8 @@
 									action={nextAction}
 									frameRate={markingStatus}
 									{jumpType}
-									onMarkNext={markNext}
+									onPress={() => pressMark()}
 									onMark={addMark}
-									onEdit={editActiveMark}
 								/>
 							</div>
 						</div>

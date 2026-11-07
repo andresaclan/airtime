@@ -13,15 +13,16 @@
 		/** Marking waits for the frame rate; `failed` means it never will. */
 		frameRate: 'detecting' | 'known' | 'failed';
 		jumpType: JumpType | null;
-		/** Marks the step that belongs on the frame left on screen. */
-		onMarkNext: () => void;
+		/**
+		 * The big button (or M): pauses on the frame on screen, then marks its step, opens
+		 * the controls of the mark on it, or calls `openChoice`.
+		 */
+		onPress: () => void;
 		/** Marks this frame as `type`, replacing a mark of the other type on it. */
 		onMark: (type: MarkType) => void;
-		/** Opens the controls for the mark on this frame. */
-		onEdit: () => void;
 	}
 
-	let { action, frameRate, jumpType, onMarkNext, onMark, onEdit }: Props = $props();
+	let { action, frameRate, jumpType, onPress, onMark }: Props = $props();
 
 	let chooseOpen = $state(false);
 	let root: HTMLDivElement | null = $state(null);
@@ -37,23 +38,21 @@
 		action?.kind === 'add' || action?.kind === 'on-frame' ? stepLabel(action.step, jumpType) : ''
 	);
 
+	// The choice is only about a frame where nothing new belongs; anywhere else it closes.
+	let choosing = $derived(action?.kind === 'choose');
 	$effect(() => {
-		// A new frame or a new mark closes the choice; it was about the old one.
-		void action;
-		chooseOpen = false;
+		if (!choosing) chooseOpen = false;
 	});
 
-	/** What pressing the big button (or M) does. */
-	export function press(fromKey = false) {
-		if (!ready || !action) return;
-		if (action.kind === 'add') onMarkNext();
-		else if (action.kind === 'on-frame') onEdit();
-		else {
-			chooseOpen = !chooseOpen;
-			if (chooseOpen && fromKey) {
-				queueMicrotask(() => root?.querySelector<HTMLElement>('[role="menuitem"]')?.focus());
-			}
-		}
+	/** Opens the choice of type; from the keyboard, with focus on its first item. */
+	export function openChoice(focus = false) {
+		chooseOpen = true;
+		if (focus) queueMicrotask(() => root?.querySelector<HTMLElement>('[role="menuitem"]')?.focus());
+	}
+
+	function handlePrimary() {
+		if (chooseOpen) chooseOpen = false;
+		else onPress();
 	}
 
 	function choose(choice: MarkType) {
@@ -67,7 +66,9 @@
 			chooseOpen = false;
 			root?.querySelector<HTMLElement>('.mark-primary')?.focus();
 		} else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+			// Handled here, so the arrows don't also change the volume.
 			event.preventDefault();
+			event.stopPropagation();
 			const items = [...(root?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
 			const at = items.indexOf(document.activeElement as HTMLElement);
 			items[(at + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
@@ -98,7 +99,7 @@
 		class:choose={action?.kind === 'choose'}
 		class:takeoff={type === 'takeoff'}
 		disabled={!ready}
-		onclick={() => press()}
+		onclick={handlePrimary}
 		aria-keyshortcuts={ready ? 'M' : undefined}
 		aria-haspopup={action?.kind === 'choose' ? 'menu' : undefined}
 		aria-expanded={action?.kind === 'choose' ? chooseOpen : undefined}
