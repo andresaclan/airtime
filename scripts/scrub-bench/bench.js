@@ -364,6 +364,14 @@
 	}
 
 	main().catch((error) => {
+		// Chromium defers loading media in a tab that has never been shown, which a
+		// background window's first page is; the page loads it once reloaded.
+		const retryKey = `bench-retried-${suiteIndex}-${clip}-${warm}`;
+		if (/timeout: video/.test(error.message) && !sessionStorage.getItem(retryKey)) {
+			sessionStorage.setItem(retryKey, '1');
+			location.reload();
+			return;
+		}
 		say('bench failed: ' + error.message);
 		fetch('/__bench/result', {
 			method: 'POST',
