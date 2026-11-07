@@ -7,6 +7,7 @@
 		type FrameTiming
 	} from '$lib/video/frames';
 	import { displayedFrame } from '$lib/video/presentedFrame';
+	import { keyboardKey } from '$lib/keybinds';
 	import { seek, targetTime } from '$lib/video/seek';
 
 	interface Props {
@@ -180,18 +181,19 @@
 		}
 		if (event.metaKey || event.ctrlKey || event.altKey) return;
 
-		const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+		const pressed = keyboardKey(event.key);
+		const key = pressed.length === 1 ? pressed.toLowerCase() : pressed;
 		if (key === ' ' || key === 'k') {
 			event.preventDefault();
 			togglePlayPause();
-		} else if ((event.key === 'ArrowLeft' && event.shiftKey) || event.key === ',') {
+		} else if ((pressed === 'ArrowLeft' && event.shiftKey) || pressed === ',') {
 			repeatKeyStep(event, -1);
-		} else if ((event.key === 'ArrowRight' && event.shiftKey) || event.key === '.') {
+		} else if ((pressed === 'ArrowRight' && event.shiftKey) || pressed === '.') {
 			repeatKeyStep(event, 1);
 		} else if (key === 'm') {
 			event.preventDefault();
 			toggleMute();
-		} else if (event.key === 'ArrowUp' && !event.shiftKey) {
+		} else if (pressed === 'ArrowUp' && !event.shiftKey) {
 			event.preventDefault();
 			const newVolume = Math.min(1, volume + 0.1);
 			if (videoElement) {
@@ -202,7 +204,7 @@
 					videoElement.muted = false;
 				}
 			}
-		} else if (event.key === 'ArrowDown' && !event.shiftKey) {
+		} else if (pressed === 'ArrowDown' && !event.shiftKey) {
 			event.preventDefault();
 			const newVolume = Math.max(0, volume - 0.1);
 			if (videoElement) {

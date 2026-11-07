@@ -16,6 +16,7 @@
 		fingerSpeed,
 		framesPerPx
 	} from '$lib/video/fineScrub';
+	import { keyboardKey } from '$lib/keybinds';
 	import type { ScrubCue } from './HoldCue.svelte';
 	import { frameOf, type Interval, type Mark, type MarkType } from '$lib/video/marks';
 	import { isWatching, seek, targetTime } from '$lib/video/seek';
@@ -420,10 +421,14 @@
 	function handleKeyDown(event: KeyboardEvent) {
 		if (duration <= 0) return;
 
+		const key = keyboardKey(event.key);
+		// Shift-arrows belong to the global single-frame handler. Handling them
+		// here as well would scrub and then step again when the event bubbles.
+		if (event.shiftKey && (key === 'ArrowLeft' || key === 'ArrowRight')) return;
 		const frame = frameAt(videoElement ? targetTime(videoElement) : currentTime, timing);
 		const last = lastFrameIndex(duration, timing);
 		const step = Math.max(1, Math.round((last + 1) / 100));
-		switch (event.key) {
+		switch (key) {
 			case 'ArrowLeft':
 				event.preventDefault();
 				seekToFrame(frame - step);

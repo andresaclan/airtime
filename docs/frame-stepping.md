@@ -20,6 +20,8 @@ whose frames are not evenly spaced. A time readout changing by 1/fps is not proo
   keep the same canonical meaning in both browsers.
 - `presentedFrame.ts` owns the presented picture. `seeked` is not a presentation
   acknowledgement. A callback from an older seek must not rewind a newer target.
+- `keyboardKey` normalizes standard and legacy Safari arrow input. Focused timeline
+  Shift-arrows bubble to the single-frame handler without also scrubbing.
 - Buttons and keyboard shortcuts share `VideoControls`; the player at `/` and its legacy `/alpha` redirect
   must pass the browser contract. Marks must return to the picture they recorded.
 - A preview canvas can make a pending seek feel immediate, but cannot make an

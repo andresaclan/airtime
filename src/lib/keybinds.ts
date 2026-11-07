@@ -53,3 +53,16 @@ export function isApplePlatform(): boolean {
 export function platformKeys(keys: string): string {
 	return keys.replace('Ctrl / ⌘', isApplePlatform() ? '⌘' : 'Ctrl');
 }
+
+// Some Safari native input paths expose Cocoa's arrow control characters in
+// KeyboardEvent.key. Normalize once at the input boundary, without UA sniffing.
+const ARROW_KEYS: Readonly<Record<string, string>> = {
+	'\u001c': 'ArrowLeft',
+	'\u001d': 'ArrowRight',
+	'\u001e': 'ArrowUp',
+	'\u001f': 'ArrowDown'
+};
+
+export function keyboardKey(key: string): string {
+	return ARROW_KEYS[key] ?? key;
+}

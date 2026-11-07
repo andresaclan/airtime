@@ -189,6 +189,23 @@ export async function walkEveryFrame(page: FramePage, fixture: Fixture) {
 }
 
 export async function rapidAndHold(page: FramePage, fixture: Fixture) {
+	// A focused timeline must let Shift-arrows step exactly once as they bubble.
+	await page.focus(timeline);
+	await page.press('Shift+ArrowRight');
+	await expectFrame(page, fixture, 1);
+	await page.press('Shift+ArrowLeft');
+	await expectFrame(page, fixture, 0);
+	await page.evaluate(() => (document.activeElement as HTMLElement)?.blur(), undefined);
+	// Safari's native keyboard backend can emit these legacy arrow characters.
+	for (const [key, index] of [
+		['\u001d', 1],
+		['\u001c', 0]
+	] as const) {
+		await page.evaluate((key) => {
+			window.dispatchEvent(new KeyboardEvent('keydown', { key, shiftKey: true, bubbles: true }));
+		}, key);
+		await expectFrame(page, fixture, index);
+	}
 	// One JS turn: later inputs arrive while the first seek is still decoding.
 	await page.evaluate(() => {
 		for (const [key, count] of [
