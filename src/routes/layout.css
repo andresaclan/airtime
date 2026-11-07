@@ -650,6 +650,11 @@ body {
 	isolation: isolate;
 }
 
+/* The Mark… choice opens upwards, over the marking hint. */
+.control-bar:has(.mark-menu) {
+	z-index: 32;
+}
+
 /* The toolbar lays itself out from the bar's own width (see the control-bar
    container query). The bar is docked under the picture, so it never covers the
    feet at takeoff and landing. */
@@ -845,8 +850,8 @@ body {
 	transform: translateY(1px);
 }
 
-/* The marking guide's next step: the button that marks it is outlined in its colour
-   and breathes once in a while, so a new athlete knows what to press. */
+/* The time tool's next point: its button is outlined and breathes once in a while,
+   so it's clear what to press. */
 .mark-action.next:not(.on-frame) {
 	border-color: color-mix(in srgb, var(--mark-color) 70%, transparent);
 	background: color-mix(in srgb, var(--mark-color) 8%, transparent);
@@ -870,19 +875,25 @@ body {
 	}
 }
 
-.mark-action-dot {
+/* The time tool's points are brackets, not the jump marks' colours: an interval knows
+   nothing about takeoffs and landings. */
+.mark-action-bracket {
 	flex: 0 0 auto;
-	width: 7px;
-	height: 7px;
-	border-radius: 50%;
-	background: var(--mark-color);
+	width: 14px;
+	height: 14px;
+	fill: none;
+	stroke: hsl(var(--at-fg-secondary));
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
 }
 
+/* In the UI face, not mono, so O can't be read as a zero. */
 .mark-action kbd {
 	color: hsl(var(--at-fg-muted));
 	font:
-		500 11px/1 var(--at-font-mono),
-		monospace;
+		600 11px/1 var(--at-font-sans),
+		sans-serif;
 }
 
 /* Narrow bar (a phone): a phone player, not an editor strip. The scrubber, one
@@ -1003,9 +1014,9 @@ body {
 		font-size: 16px;
 		font-weight: 600;
 	}
-	.mark-action-dot {
-		width: 9px;
-		height: 9px;
+	.mark-action-bracket {
+		width: 17px;
+		height: 17px;
 	}
 	.mark-action kbd {
 		display: none;
@@ -1016,7 +1027,7 @@ body {
 	.mark-action {
 		padding-inline: 4px;
 	}
-	.mark-action-dot {
+	.mark-action-bracket {
 		display: none;
 	}
 }
@@ -1220,32 +1231,19 @@ body {
 	text-anchor: middle;
 }
 
-/* The button that marks a step, as a small chip in its colour. */
+/* Which way the feet go at each step: down onto the ground or up off it, in the
+   colour the Mark button takes for it. */
 .empty-mark {
 	--mark-color: hsl(var(--at-landing));
-	display: inline-flex;
+	display: inline-grid;
 	justify-self: end;
-	align-items: center;
-	gap: 6px;
+	place-items: center;
+	width: 26px;
 	height: 22px;
-	padding: 0 8px;
 	border: 1px solid color-mix(in srgb, var(--mark-color) 45%, transparent);
 	border-radius: 6px;
-	font-size: 12px;
-	line-height: 1;
 	background: color-mix(in srgb, var(--mark-color) 10%, transparent);
-	color: hsl(var(--at-fg));
-	font-weight: 500;
-	white-space: nowrap;
-}
-
-.empty-mark::before {
-	content: '';
-	flex: 0 0 auto;
-	width: 7px;
-	height: 7px;
-	border-radius: 50%;
-	background: var(--mark-color);
+	color: var(--mark-color);
 }
 
 .empty-mark.takeoff {

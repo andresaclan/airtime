@@ -80,6 +80,16 @@
 	// Jumps folded to their header row, by takeoff id. All open by default.
 	const foldedJumps = new SvelteSet<string>();
 
+	/** Brings the mark at the playhead into view with its controls, and focuses them. */
+	export async function showMark() {
+		tab = 'analysis';
+		foldedJumps.clear();
+		await tick();
+		const row = document.querySelector<HTMLElement>('.mp-mark.active');
+		row?.scrollIntoView({ block: 'nearest' });
+		row?.querySelector<HTMLElement>('.mp-mark-actions button')?.focus({ preventScroll: true });
+	}
+
 	function toggleJump(id: string) {
 		if (foldedJumps.has(id)) foldedJumps.delete(id);
 		else foldedJumps.add(id);
@@ -435,7 +445,7 @@
 						</p>
 						{#if contactMatters && !bestJump.contact}
 							<p class="mp-caption">
-								Mark the {plantName.toLowerCase()} with Landing to get contact time.
+								Mark the {plantName.toLowerCase()} to get contact time.
 							</p>
 						{/if}
 					</div>
@@ -479,38 +489,21 @@
 							<ol>
 								<li>
 									<span class="mp-empty-num">1</span>
-									<span
-										><strong>{plantName}:</strong> first frame the foot touches down.
-										<span class="mp-nowrap"
-											>Mark it with Landing<span class="pointer-only">&nbsp;(<kbd>L</kbd>)</span
-											>.</span
-										></span
-									>
+									<span><strong>{plantName}:</strong> first frame the foot touches down.</span>
 								</li>
 								<li>
 									<span class="mp-empty-num">2</span>
-									<span
-										><strong>Takeoff:</strong> first frame both feet are off the ground.
-										<span class="mp-nowrap"
-											>Mark it with Takeoff<span class="pointer-only">&nbsp;(<kbd>T</kbd>)</span
-											>.</span
-										></span
-									>
+									<span><strong>Takeoff:</strong> first frame both feet are off the ground.</span>
 								</li>
 								<li>
 									<span class="mp-empty-num">3</span>
-									<span
-										><strong>Landing:</strong> first frame the feet touch back down.
-										<span class="mp-nowrap"
-											>Mark it with Landing<span class="pointer-only">&nbsp;(<kbd>L</kbd>)</span
-											>.</span
-										></span
-									>
+									<span><strong>Landing:</strong> first frame the feet touch back down.</span>
 								</li>
 							</ol>
 							<p class="mp-empty-hint">
 								<span class="pointer-only"
-									>Step frames with <kbd>,</kbd> <kbd>.</kbd>&nbsp;·&nbsp;</span
+									>Step frames with <kbd>,</kbd> <kbd>.</kbd>, then press <kbd>M</kbd>
+									to mark.&nbsp;</span
 								>Each jump appears here as you mark it.
 							</p>
 						</div>
@@ -1115,11 +1108,6 @@
 		font-family: var(--at-font-mono);
 		font-size: 11px;
 		font-weight: 600;
-	}
-
-	/* "Mark it with Landing" stays on one line rather than stranding "Mark". */
-	.mp-nowrap {
-		white-space: nowrap;
 	}
 
 	.mp-empty-hint {
