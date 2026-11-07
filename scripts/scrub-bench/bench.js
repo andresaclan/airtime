@@ -60,6 +60,14 @@
 		}
 	};
 
+	// The last events around the preview and the video, posted with a phase that ends
+	// on the wrong frame.
+	const trace = [];
+	const note = (k, f) => {
+		trace.push([Math.round(performance.now()), k, f]);
+		if (trace.length > 60) trace.shift();
+	};
+
 	// Frames drawn on the preview canvas (VideoFrame timestamps are frame indices).
 	let previewDrawn = -1;
 	const nativeDraw = CanvasRenderingContext2D.prototype.drawImage;
@@ -69,7 +77,7 @@
 			image instanceof VideoFrame &&
 			this.canvas.classList.contains('scrub-preview')
 		)
-			previewDrawn = image.timestamp;
+			note('draw', (previewDrawn = image.timestamp));
 		return nativeDraw.call(this, image, ...rest);
 	};
 
@@ -121,6 +129,7 @@
 		if (hasRvfc) {
 			const onFrame = (_n, meta) => {
 				videoShown = Math.round(meta.mediaTime * fps);
+				note(video.seeking ? 'rvfc-seeking' : 'rvfc', videoShown);
 				video.requestVideoFrameCallback(onFrame);
 			};
 			video.requestVideoFrameCallback(onFrame);
@@ -141,7 +150,20 @@
 		const rect = track.getBoundingClientRect();
 		const y = rect.top + rect.height / 2;
 		const xOf = (p) => rect.left + p * rect.width;
-		const targetOf = (p) => Math.min(lastFrame, Math.floor(p * video.duration * fps + 1e-3));
+		// From the coordinate the event carried: Firefox snaps them to its own grid.
+		let sentX = 0;
+		const targetOf = () => {
+			const at = Math.max(0, Math.min(1, (sentX - rect.left) / rect.width));
+			return Math.min(lastFrame, Math.floor(at * video.duration * fps + 1e-3));
+		};
+		const send = (type, x) => {
+			const event = ev(type, x);
+			sentX = event.clientX;
+			container.dispatchEvent(event);
+			if (type !== 'pointermove') note(type, targetOf());
+		};
+		for (const type of ['seeking', 'seeked'])
+			video.addEventListener(type, () => note(type, Math.floor(video.currentTime * fps + 1e-3)));
 
 		const ev = (type, x) =>
 			new PointerEvent(type, {
@@ -157,6 +179,10 @@
 				clientY: y
 			});
 		const preview = document.querySelector('canvas.scrub-preview');
+		if (preview)
+			new MutationObserver(() =>
+				note('visible', preview.classList.contains('visible') ? 1 : 0)
+			).observe(preview, { attributes: true, attributeFilter: ['class'] });
 		const shownNow = () =>
 			preview && preview.classList.contains('visible')
 				? { f: previewDrawn, src: 'c' }
@@ -177,7 +203,7 @@
 			);
 			const ticks = [];
 			let p = phase.at(0);
-			container.dispatchEvent(ev('pointerdown', xOf(p)));
+			send('pointerdown', xOf(p));
 			const cacheAtStart = cache.frames;
 			const t0 = (await raf(), performance.now());
 			let handlerMs = [];
@@ -185,11 +211,11 @@
 				const now = await raf();
 				const shown = shownNow();
 				const u = Math.min(1, (performance.now() - t0) / phase.ms);
-				ticks.push({ t: now, target: targetOf(p), shown: shown.f, src: shown.src });
+				ticks.push({ t: now, target: targetOf(), shown: shown.f, src: shown.src });
 				if (u >= 1) break;
 				p = phase.at(u);
 				const h0 = performance.now();
-				container.dispatchEvent(ev('pointermove', xOf(p)));
+				send('pointermove', xOf(p));
 				handlerMs.push(performance.now() - h0);
 			}
 			// Hold still until the picture catches up.
@@ -198,21 +224,22 @@
 			for (;;) {
 				const now = await raf();
 				const shown = shownNow();
-				ticks.push({ t: now, target: targetOf(p), shown: shown.f, src: shown.src, hold: true });
-				if (shown.f === targetOf(p) && settledMs === null) settledMs = now - holdStart;
+				ticks.push({ t: now, target: targetOf(), shown: shown.f, src: shown.src, hold: true });
+				if (shown.f === targetOf() && settledMs === null) settledMs = now - holdStart;
 				if (now - holdStart > 1000) break;
 			}
-			container.dispatchEvent(ev('pointerup', xOf(p)));
+			send('pointerup', xOf(p));
 			await wait(250);
 			const finalShown = shownNow();
 			results.push({
 				phase: phase.name,
 				...analyse(ticks),
 				settledMs,
-				finalOk: finalShown.f === targetOf(p) && finalShown.src === 'v',
+				finalOk: finalShown.f === targetOf() && finalShown.src === 'v',
+				trace: finalShown.f === targetOf() && finalShown.src === 'v' ? undefined : [...trace],
 				finalSrc: finalShown.src,
 				finalFrame: finalShown.f,
-				target: targetOf(p),
+				target: targetOf(),
 				currentFrame: Math.floor(video.currentTime * fps + 1e-3),
 				handlerP95: pct(handlerMs, 0.95),
 				cacheCoverage: cache.total ? cacheAtStart / cache.total : 0

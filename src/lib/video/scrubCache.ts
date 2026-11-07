@@ -49,6 +49,23 @@ function deviceBudget(): ScrubBudget {
 	});
 }
 
+/**
+ * The index nearest `frame` that holds a frame, fewer than `within` away (of two equally
+ * near, the earlier); null if none does.
+ */
+export function nearestBuilt(
+	frames: readonly unknown[],
+	frame: number,
+	within = Infinity
+): number | null {
+	const limit = Math.min(within, frames.length + Math.abs(frame));
+	for (let distance = 0; distance < limit; distance += 1) {
+		if (frames[frame - distance] !== undefined) return frame - distance;
+		if (frames[frame + distance] !== undefined) return frame + distance;
+	}
+	return null;
+}
+
 export class ScrubCache {
 	frameCount = 0;
 	private frames: (ArrayBuffer | undefined)[] = [];
@@ -122,17 +139,9 @@ export class ScrubCache {
 		return this.frames[frame] !== undefined;
 	}
 
-	/**
-	 * The built frame nearest `frame`, fewer than `within` frames away (the nearer of
-	 * two equally far is the earlier); null if none is.
-	 */
+	/** The built frame nearest `frame`, fewer than `within` frames away; see `nearestBuilt`. */
 	nearest(frame: number, within = Infinity): number | null {
-		const limit = Math.min(within, this.frameCount);
-		for (let distance = 0; distance < limit; distance += 1) {
-			if (this.has(frame - distance)) return frame - distance;
-			if (this.has(frame + distance)) return frame + distance;
-		}
-		return null;
+		return nearestBuilt(this.frames, frame, within);
 	}
 
 	/** Builds the frames around this one next. */

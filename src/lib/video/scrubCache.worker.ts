@@ -200,11 +200,12 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 	let encoded = 0;
 	/** Only frames on this spacing are built in the current pass; see the passes below. */
 	let stride = 1;
+	let inPass = (frame: number) => frame % stride === 0;
 
 	const decoder = new VideoDecoder({
 		output: (decoded) => {
 			const frame = frameOfTimestamp.get(decoded.timestamp);
-			if (frame === undefined || built[frame] || frame % stride !== 0) {
+			if (frame === undefined || built[frame] || !inPass(frame)) {
 				decoded.close();
 				return;
 			}
@@ -256,6 +257,12 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 		previous = index;
 	};
 
+	const gopOfFrame = new Uint32Array(track.frameCount);
+	gops.forEach((gop, i) => gop.frames.forEach((frame) => (gopOfFrame[frame] = i)));
+	/** Groups built whole in the coarse pass, where the playhead lingered. */
+	const whole = new Set<number>();
+	inPass = (frame) => frame % stride === 0 || whole.has(gopOfFrame[frame]);
+
 	const firstFrames = gops.map((gop) => (gop.frames.length ? Math.min(...gop.frames) : -1));
 	const lastFrames = gops.map((gop) => (gop.frames.length ? Math.max(...gop.frames) : -1));
 	const wanted = (i: number) => {
@@ -304,10 +311,22 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 	//    time even though it decodes every frame. Short groups (an all-keyframe file)
 	//    gain nothing from it.
 	const coarse = track.frameCount / gops.length >= 2 * COARSE_STRIDE;
+	//    A playhead that stays in one group (fine-tuning, not sweeping) gets that group
+	//    whole first.
+	const homeGroup = () => Math.max(0, gops.findIndex((_, i) => lastFrames[i] >= focus));
 	for (const pass of coarse ? [COARSE_STRIDE, 1] : [1]) {
 		stride = pass;
 		fed.clear();
-		for (let index = nextGroup(); index >= 0; index = nextGroup()) await feed(index);
+		let lastHome = -1;
+		for (let index = nextGroup(); index >= 0; index = nextGroup()) {
+			const home = homeGroup();
+			if (stride > 1 && home === lastHome && !whole.has(home)) {
+				whole.add(home);
+				await feed(home);
+			}
+			lastHome = home;
+			await feed(index);
+		}
 		await decoder.flush();
 	}
 	// Leading frames of an open GOP reference the group before, so a group decoded on
