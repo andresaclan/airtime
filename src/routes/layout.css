@@ -1738,12 +1738,14 @@ body {
 		aspect-ratio: var(--video-aspect, 16 / 9);
 	}
 
+	/* The padding keeps a tall picture off the buttons when it fills the space. */
 	.viewer-frame .player-dock {
 		grid-row: 3;
 		align-self: end;
 		display: flex;
 		flex-direction: column;
 		min-width: 0;
+		padding-top: 14px;
 	}
 
 	.viewer-frame .player-dock .control-bar {
