@@ -60,7 +60,9 @@ const test = base.extend<{ framePage: FramePage }>({
 			await use({
 				engine: info.project.name.startsWith('webkit') ? 'webkit' : 'chromium',
 				goto: async (path) => {
-					await page.goto(new URL(path, info.project.use.baseURL).href);
+					await page.goto(new URL(path, info.project.use.baseURL).href, {
+						waitUntil: 'domcontentloaded'
+					});
 				},
 				evaluate: <R, A>(fn: (arg: A) => R, arg: A) =>
 					page.evaluate(fn as (arg: unknown) => R, arg),
@@ -87,7 +89,7 @@ const test = base.extend<{ framePage: FramePage }>({
 						() => (window as typeof window & { __frameLog: unknown[] }).__frameLog
 					);
 					const path = info.outputPath('frame-events.json');
-					writeFileSync(path, JSON.stringify(log, null, 2));
+					writeFileSync(path, JSON.stringify(log ?? [], null, 2));
 					await info.attach('frame-events', { path, contentType: 'application/json' });
 					await page.screenshot({ path: info.outputPath('decoded-picture.png') });
 				}
@@ -134,3 +136,42 @@ for (const route of ['/', '/alpha']) {
 		await expectFrame(framePage, fixtures[3], 1);
 	});
 }
+
+// A busy/background compositor can present only 10 pictures per second. The
+// source is still 30 fps: the probe must slow playback instead of adopting 10 fps.
+test('unparsed video keeps every frame when playback callbacks are throttled', async ({
+	framePage
+}) => {
+	const fixture = fixtures.find((fixture) => fixture.file === 'fallback.webm')!;
+	await load(
+		{
+			...framePage,
+			upload: async (path) => {
+				await framePage.evaluate(() => {
+					const request = HTMLVideoElement.prototype.requestVideoFrameCallback;
+					const last = new WeakMap<VideoFrameRequestCallback, number>();
+					HTMLVideoElement.prototype.requestVideoFrameCallback = function (callback) {
+						const present: VideoFrameRequestCallback = (now, metadata) => {
+							if (!this.paused && now - (last.get(callback) ?? -Infinity) < 90) {
+								request.call(this, present);
+								return;
+							}
+							last.set(callback, now);
+							callback(now, metadata);
+						};
+						return request.call(this, present);
+					};
+				}, undefined);
+				await framePage.upload(path);
+			}
+		},
+		'/',
+		fixture
+	);
+	const rate = await framePage.evaluate(
+		() => document.querySelector('video')!.playbackRate,
+		undefined
+	);
+	if (rate !== 1) throw new Error(`Playback probe left the user at ${rate} speed`);
+	await walkEveryFrame(framePage, fixture);
+});

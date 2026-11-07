@@ -82,6 +82,17 @@ jobs:
             sleep 0.3
           done
           bun run test:frames:safari
+      - name: Collect Safari startup diagnostics
+        if: failure() && (matrix.browser == 'safari' || matrix.browser == 'safari-ios')
+        shell: bash
+        run: |
+          mkdir -p test-results/safari-driver
+          if [[ -d "$HOME/Library/Logs/com.apple.WebDriver" ]]; then
+            cp -R "$HOME/Library/Logs/com.apple.WebDriver/." test-results/safari-driver/
+          fi
+          if [[ -f /tmp/airtime-safari-server.log ]]; then
+            cp /tmp/airtime-safari-server.log test-results/safari-driver/
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -45,7 +45,7 @@ prevents it from being merged. No local hook can reliably prevent all PR creatio
 The iPhone profile is **emulation, not an iOS Simulator or physical iPhone**.
 A separate `safari-ios` job creates an isolated iPhone on the newest installed iOS
 runtime and requires a native iOS Safari session. Missing runtimes or failed device
-startup fail the gate; they never silently skip it. SafariDriver boots that device.
+startup fail the gate; they never silently skip it. CI waits for the isolated device to finish booting before starting SafariDriver.
 Simulator testing still does not exercise a phone's hardware decoder. A physical
 iOS gate requires a dedicated runner/device or an external device service; do not
 report mobile WebKit results as a physical iPhone pass.
@@ -87,7 +87,10 @@ physical keyboard delivery, or the operating system's touch gesture recognition.
 The desktop jobs exercise native keyboard and pointer input.
 
 For parsed files, the authoritative container timing avoids an unnecessary
-playback probe. Files without readable timing retain the playback probe. A
+playback probe. Files without readable timing retain the playback probe. It samples again at quarter
+speed even when the initial estimate is low or absent: compositor throttling can
+otherwise turn a 30 fps file into a false 10 fps estimate. A separate decoded-frame
+case limits playback callbacks to 10 Hz to cover this regression. A
 partial-frame edit actively samples a later picture to disambiguate zero, which
 WebKit can report for a clipped partial frame.
 

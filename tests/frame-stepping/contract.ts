@@ -121,6 +121,13 @@ export async function load(page: FramePage, route: string, fixture: Fixture, pre
 			});
 			if (log.length > 1000) log.shift();
 		};
+		document.addEventListener(
+			'keydown',
+			(event) => {
+				log.push({ event: 'key', key: event.key, shift: event.shiftKey, trusted: event.isTrusted });
+			},
+			true
+		);
 		for (const event of ['seeking', 'seeked', 'play', 'pause', 'emptied', 'airtime:seek']) {
 			document.addEventListener(
 				event,

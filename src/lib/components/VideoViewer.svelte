@@ -598,10 +598,8 @@
 		}
 	}
 
-	// Frame callbacks arrive at most once per display refresh, so a clip faster than the
-	// display (240 fps on a 120 Hz screen) reads as the refresh rate. Fast clips are
-	// sampled again at quarter speed, which tells rates up to 4× the refresh rate apart.
-	const FAST_FRAME_RATE = 50;
+	// A throttled compositor can undercount even a 30 fps clip. Sample every
+	// unparsed file again at quarter speed, so more source pictures reach the display.
 	const SLOW_PROBE_RATE = 0.25;
 	// The mute setting from before a probe muted the video. Kept outside the probe so one
 	// cut short by the next video doesn't leave the video muted.
@@ -622,22 +620,25 @@
 		return new Promise((resolve) => {
 			const times: number[] = [];
 			let done = false;
-			// Low frame-rate clips may not deliver every frame in time; settle with what came.
+			let handle: number;
 			const timeout = setTimeout(() => finish(), timeoutMs);
 			const finish = () => {
 				if (done) return;
 				done = true;
 				clearTimeout(timeout);
+				video.cancelVideoFrameCallback(handle);
+				for (const event of ['pause', 'ended', 'emptied']) video.removeEventListener(event, finish);
 				resolve(times);
 			};
 			const callback = (_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
 				if (done) return;
 				if (id !== detectionId) return finish();
 				times.push(metadata.mediaTime);
-				if (times.length < 13) video.requestVideoFrameCallback(callback);
+				if (times.length < 13) handle = video.requestVideoFrameCallback(callback);
 				else finish();
 			};
-			video.requestVideoFrameCallback(callback);
+			for (const event of ['pause', 'ended', 'emptied']) video.addEventListener(event, finish);
+			handle = video.requestVideoFrameCallback(callback);
 		});
 	}
 
@@ -689,17 +690,11 @@
 
 		let rate = estimatePlaybackFrameRate(await sampleFrameTimes(video, id, 500));
 		// Only while probing: slowing down a video the athlete is watching would be jarring.
-		if (
-			!wasPlaying &&
-			isProbing(video) &&
-			rate !== null &&
-			rate >= FAST_FRAME_RATE &&
-			id === detectionId
-		) {
+		if (!wasPlaying && isProbing(video) && id === detectionId) {
 			video.playbackRate = SLOW_PROBE_RATE;
-			const slowRate = estimatePlaybackFrameRate(await sampleFrameTimes(video, id, 1000));
+			const slowRate = estimatePlaybackFrameRate(await sampleFrameTimes(video, id, 2000));
 			video.playbackRate = playbackRate;
-			if (slowRate !== null && slowRate > rate) rate = slowRate;
+			if (slowRate !== null && (rate === null || slowRate > rate)) rate = slowRate;
 		}
 
 		if (id !== detectionId) return;

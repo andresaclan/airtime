@@ -55,11 +55,18 @@ function adapter(driver: WebDriver): FramePage {
 				);
 				return;
 			}
+			if (key.startsWith('Shift+Arrow')) {
+				await driver
+					.actions({ async: true })
+					.keyDown(Key.SHIFT)
+					.sendKeys(key.endsWith('Right') ? Key.ARROW_RIGHT : Key.ARROW_LEFT)
+					.keyUp(Key.SHIFT)
+					.perform();
+				return;
+			}
 			const keys: Record<string, string> = {
 				Home: Key.HOME,
-				Enter: Key.ENTER,
-				'Shift+ArrowRight': Key.chord(Key.SHIFT, Key.ARROW_RIGHT),
-				'Shift+ArrowLeft': Key.chord(Key.SHIFT, Key.ARROW_LEFT)
+				Enter: Key.ENTER
 			};
 			await driver
 				.switchTo()
@@ -125,6 +132,8 @@ async function run(name: string, scenario: (page: FramePage) => Promise<void>) {
 	const driver = await new Builder()
 		.withCapabilities({
 			unhandledPromptBehavior: 'accept',
+			pageLoadStrategy: 'eager',
+			'safari:diagnose': true,
 			...(ios
 				? { platformName: 'iOS', 'safari:useSimulator': true, 'safari:deviceUDID': udid }
 				: {})
