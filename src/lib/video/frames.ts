@@ -114,7 +114,19 @@ export function frameOfPresentedTime(mediaTime: number, timing: Timing): number 
 	const fps = rateOf(timing);
 	const times = tableOf(timing);
 	if (!Number.isFinite(mediaTime)) return 0;
-	if (times) return lastAtOrBefore(times, mediaTime + (fps > 0 ? PRESENTED_TOLERANCE / fps : 0));
+	if (times) {
+		// A time just short of the next frame's start is that frame, but never by more
+		// than a quarter of this frame's own length: a short frame in a variable-rate
+		// table must keep its middle (Firefox's report) to itself.
+		const frame = lastAtOrBefore(times, mediaTime);
+		const next = times[frame + 1];
+		if (next === undefined) return frame;
+		const tolerance = Math.min(
+			fps > 0 ? PRESENTED_TOLERANCE / fps : Infinity,
+			PRESENTED_TOLERANCE * (next - times[frame])
+		);
+		return next - mediaTime <= tolerance ? frame + 1 : frame;
+	}
 	if (!(mediaTime > 0) || !(fps > 0)) return 0;
 	return Math.floor(mediaTime * fps + PRESENTED_TOLERANCE);
 }

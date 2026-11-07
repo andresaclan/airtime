@@ -91,7 +91,9 @@ export class ScrubCache {
 	constructor(
 		file: Blob,
 		private onDraw: (frame: number, image: VideoFrame) => void,
-		private onUnsupported: () => void = () => {}
+		private onUnsupported: () => void = () => {},
+		/** A frame was built, which may be nearer the target than the one on screen. */
+		private onBuilt: (frame: number) => void = () => {}
 	) {
 		this.worker = new Worker(new URL('./scrubCache.worker.ts', import.meta.url), {
 			type: 'module'
@@ -138,6 +140,7 @@ export class ScrubCache {
 			case 'frame':
 				this.frames[message.frame] = message.data;
 				if (this.wanted === message.frame) this.next();
+				else this.onBuilt(message.frame);
 				break;
 			case 'done':
 				this.worker.terminate();

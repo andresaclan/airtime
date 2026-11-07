@@ -50,6 +50,8 @@ const PROXY_FPS = 30;
 const ENCODERS = 2;
 /** Spacing of the frames the coarse pass builds before the rest. */
 const COARSE_STRIDE = 4;
+/** Decoder failures the build recovers from before it stops. */
+const MAX_DECODER_FAILURES = 3;
 
 let focus = 0;
 
@@ -202,22 +204,36 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 	let stride = 1;
 	let inPass = (frame: number) => frame % stride === 0;
 
-	const decoder = new VideoDecoder({
-		output: (decoded) => {
-			const frame = frameOfTimestamp.get(decoded.timestamp);
-			if (frame === undefined || built[frame] || !inPass(frame)) {
-				decoded.close();
-				return;
-			}
-			built[frame] = 1;
-			const proxy = scale(decoded, (frame * 1_000_000) / PROXY_FPS);
+	const onDecoded = (decoded: VideoFrame) => {
+		const frame = frameOfTimestamp.get(decoded.timestamp);
+		if (frame === undefined || built[frame] || !inPass(frame)) {
 			decoded.close();
-			encoders[encoded++ % encoders.length].encode(proxy, { keyFrame: true });
-			proxy.close();
-		},
-		error: (error) => post({ type: 'unsupported', reason: String(error) })
-	});
-	decoder.configure(decoderConfig);
+			return;
+		}
+		built[frame] = 1;
+		const proxy = scale(decoded, (frame * 1_000_000) / PROXY_FPS);
+		decoded.close();
+		encoders[encoded++ % encoders.length].encode(proxy, { keyFrame: true });
+		proxy.close();
+	};
+	// A decoder that fails (WebKit's, on some HEVC groups decoded on their own) closes;
+	// a new one carries on from the next group, so one bad group doesn't cost the rest.
+	// Past a few failures the build stops and keeps what it has.
+	let failures = 0;
+	const makeDecoder = () => {
+		const fresh = new VideoDecoder({ output: onDecoded, error: () => (failures += 1) });
+		fresh.configure(decoderConfig);
+		return fresh;
+	};
+	let decoder = makeDecoder();
+	const decoderReady = () => {
+		if (decoder.state !== 'closed') return true;
+		if (failures > MAX_DECODER_FAILURES) return false;
+		decoder = makeDecoder();
+		previous = -2;
+		return true;
+	};
+	const flushDecoder = () => decoder.flush().catch(() => {});
 
 	const read = sampleReader(file);
 	const gops = groups(track);
@@ -225,10 +241,13 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 	let previous = -2;
 
 	const feed = async (index: number) => {
+		fed.add(index);
+		if (!decoderReady()) return;
 		if (index !== previous + 1) {
 			// Jumping: decoding has to start again from a keyframe.
-			await decoder.flush();
+			await flushDecoder();
 		}
+		previous = index;
 		const gop = gops[index];
 		for (let i = gop.start; i < gop.end; i += 1) {
 			const sample = track.samples[i];
@@ -237,6 +256,7 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 			for (const encoder of encoders) {
 				await waitForQueue(encoder, () => encoder.encodeQueueSize, queueLimit);
 			}
+			if (decoder.state === 'closed') return;
 			decoder.decode(
 				new EncodedVideoChunk({
 					type: i === gop.start ? 'key' : 'delta',
@@ -245,8 +265,6 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 				})
 			);
 		}
-		fed.add(index);
-		previous = index;
 	};
 
 	const gopOfFrame = new Uint32Array(track.frameCount);
@@ -294,9 +312,10 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 		for (const encoder of encoders) {
 			await waitForQueue(encoder, () => encoder.encodeQueueSize, queueLimit);
 		}
+		if (!decoderReady()) break;
 		decoder.decode(new EncodedVideoChunk({ type: 'key', timestamp: timestampOf(sample), data }));
 	}
-	await decoder.flush();
+	await flushDecoder();
 	previous = -2;
 	// 2. Every fourth frame, then 3. the rest, each from the playhead outwards. Encoding
 	//    is the slow part, so the first pass covers the clip in about a quarter of the
@@ -323,7 +342,7 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 			lastHome = home;
 			await feed(index);
 		}
-		await decoder.flush();
+		await flushDecoder();
 	}
 	// Leading frames of an open GOP reference the group before, so a group decoded on
 	// its own can come out short. Decode those again after their predecessor.
@@ -332,9 +351,9 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 		if (previous !== index - 1) await feed(index - 1);
 		await feed(index);
 	}
-	await decoder.flush();
+	await flushDecoder();
 	await Promise.all(encoders.map((encoder) => encoder.flush()));
-	decoder.close();
+	if (decoder.state !== 'closed') decoder.close();
 	for (const encoder of encoders) encoder.close();
 	post({ type: 'done' });
 }

@@ -412,3 +412,19 @@ describe('without a table', () => {
 		}
 	});
 });
+
+describe('presented frames in a table with a short frame', () => {
+	// Frame 1 lasts 4 ms of a nominal 33 ms.
+	const timing: FrameTiming = { fps: 30, frameTimes: [0, 0.033333, 0.037333, 0.070666] };
+
+	test("a frame's own start and middle stay on it", () => {
+		expect(frameOfPresentedTime(0.033333, timing)).toBe(1);
+		expect(frameOfPresentedTime(frameSeekTime(1, timing), timing)).toBe(1);
+		expect(frameOfPresentedTime(frameSeekTime(2, timing), timing)).toBe(2);
+	});
+
+	test('float error just short of a start still counts as that frame', () => {
+		expect(frameOfPresentedTime(0.033333 - 1e-5, timing)).toBe(1);
+		expect(frameOfPresentedTime(0.037333 - 1e-6, timing)).toBe(2);
+	});
+});

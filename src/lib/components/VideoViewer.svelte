@@ -184,6 +184,11 @@
 			() => {
 				if (scrubCache === cache) scrubCache = null;
 				hidePreview();
+			},
+			(frame) => {
+				// Built while the picture is a nearby stand-in: swap in the nearer frame.
+				if (!videoElement?.paused || previewTarget === null || videoShows(previewTarget)) return;
+				if (offTarget(frame) < offTarget(previewFrame ?? videoPresented)) cache.request(frame);
 			}
 		);
 		scrubCache = cache;
