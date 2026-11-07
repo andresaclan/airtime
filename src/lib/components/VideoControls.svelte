@@ -188,7 +188,8 @@
 			repeatKeyStep(event, -1);
 		} else if ((event.key === 'ArrowRight' && event.shiftKey) || event.key === '.') {
 			repeatKeyStep(event, 1);
-		} else if (key === 'm') {
+		} else if (key === 'm' && event.shiftKey) {
+			// Shift: plain M marks a jump on /alpha.
 			event.preventDefault();
 			toggleMute();
 		} else if (event.key === 'ArrowUp' && !event.shiftKey) {

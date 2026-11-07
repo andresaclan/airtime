@@ -637,7 +637,9 @@
 										onclick={() => markPoint('in')}
 										title="Set the in point on this frame (I)"
 									>
-										<span class="mark-action-dot"></span>In<kbd>I</kbd>
+										<svg class="mark-action-bracket" viewBox="0 0 16 16" aria-hidden="true"
+											><path d="M11 2.5H8.5v11H11" /></svg
+										>In<kbd>I</kbd>
 									</button>
 									<button
 										class="mark-action mark-action-landing"
@@ -646,7 +648,9 @@
 										onclick={() => markPoint('out')}
 										title="Set the out point on this frame (O)"
 									>
-										<span class="mark-action-dot"></span>Out<kbd>O</kbd>
+										<svg class="mark-action-bracket" viewBox="0 0 16 16" aria-hidden="true"
+											><path d="M8 2.5h2.5v11H8" /></svg
+										>Out<kbd>O</kbd>
 									</button>
 								</div>
 							</div>
