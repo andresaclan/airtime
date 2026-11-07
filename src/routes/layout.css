@@ -1892,8 +1892,33 @@ body {
 	.viewer-frame .player-dock .mark-actions {
 		grid-area: tools;
 		align-self: center;
+		display: grid;
+		grid-template-columns: 1fr 1fr;
 		gap: 10px;
 		margin: 0 62px;
+	}
+
+	.viewer-frame .player-dock .mark-action {
+		grid-area: auto;
+		justify-self: stretch;
+		justify-content: center;
+		min-width: 0;
+	}
+
+	/* The editor bar's decorations, ticks and running time have no place here, at
+	   any width up to a tablet held upright. */
+	.viewer-frame .player-dock .transport-dock,
+	.viewer-frame .player-dock .context-strip,
+	.viewer-frame .player-dock .timeline-ticks,
+	.viewer-frame .player-dock .time-separator,
+	.viewer-frame .player-dock .time-duration,
+	.viewer-frame .player-dock .time-frame,
+	.viewer-frame .player-dock .mark-action kbd {
+		display: none;
+	}
+
+	.viewer-frame .player-dock .control-toolbar > .time-readout {
+		display: contents;
 	}
 
 	.viewer-frame .player-dock .mark-action {
