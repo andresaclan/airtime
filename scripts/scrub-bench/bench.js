@@ -44,7 +44,7 @@
 	}
 
 	// Scrub cache progress, through the worker's messages.
-	const cache = { frames: 0, total: 0, startedAt: 0, doneAt: 0, unsupported: '' };
+	const cache = { frames: 0, total: 0, startedAt: 0, firstMs: null, doneAt: 0, unsupported: '' };
 	const NativeWorker = window.Worker;
 	window.Worker = class extends NativeWorker {
 		constructor(...args) {
@@ -53,9 +53,13 @@
 			this.addEventListener('message', (e) => {
 				const m = e.data;
 				if (m?.type === 'start') cache.total = m.frameCount;
-				else if (m?.type === 'frame') cache.frames += 1;
-				else if (m?.type === 'done') cache.doneAt = performance.now();
-				else if (m?.type === 'unsupported') cache.unsupported = m.reason;
+				else if (m?.type === 'frame') {
+					cache.frames += 1;
+					cache.firstMs ??= Math.round(performance.now() - cache.startedAt);
+				} else if (m?.type === 'done') {
+					cache.doneAt = performance.now();
+					if (m.stats) cache.stats = m.stats;
+				} else if (m?.type === 'unsupported') cache.unsupported = m.reason;
 			});
 		}
 	};
