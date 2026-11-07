@@ -249,21 +249,31 @@
 			}, 150);
 		};
 		// The container centres the video, so its box follows from the two sizes. Computed
-		// sizes keep the fractions that offsetLeft/offsetTop round away.
-		const resize = new ResizeObserver(() => {
+		// sizes keep the fractions that offsetLeft/offsetTop round away. The box is the
+		// picture's, not the element's: Safari can stretch the element across the space
+		// and letterbox the picture inside it (object-fit), and the preview must not.
+		const measure = () => {
 			const container = video.parentElement;
 			if (!container) return;
 			const style = getComputedStyle(video);
-			const width = parseFloat(style.width);
-			const height = parseFloat(style.height);
+			let width = parseFloat(style.width);
+			let height = parseFloat(style.height);
+			if (video.videoWidth && video.videoHeight) {
+				const scale = Math.min(width / video.videoWidth, height / video.videoHeight);
+				width = video.videoWidth * scale;
+				height = video.videoHeight * scale;
+			}
 			videoBox = {
 				left: (container.clientWidth - width) / 2,
 				top: (container.clientHeight - height) / 2,
 				width,
 				height
 			};
-		});
+		};
+		const resize = new ResizeObserver(measure);
 		resize.observe(video);
+		// The picture's own size arrives with the metadata, and can change mid-stream.
+		video.addEventListener('resize', measure);
 		if (video.parentElement) resize.observe(video.parentElement);
 		if ('requestVideoFrameCallback' in video) handle = video.requestVideoFrameCallback(onFrame);
 		video.addEventListener(SEEK_EVENT, sync);
@@ -274,6 +284,7 @@
 		return () => {
 			unregister();
 			resize.disconnect();
+			video.removeEventListener('resize', measure);
 			clearTimeout(seekedTimer);
 			if (handle) video.cancelVideoFrameCallback(handle);
 			video.removeEventListener(SEEK_EVENT, sync);
