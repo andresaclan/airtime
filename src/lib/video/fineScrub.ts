@@ -1,5 +1,5 @@
 /**
- * Touch scrubbing on the time tool, after iOS Photos' scrubber: the playhead follows
+ * Touch scrubbing, after iOS Photos' scrubber: the playhead follows
  * how far the finger moves, not where it is, and how fast it moves sets the rate.
  *
  * - A slow drag steps one frame every `FINE_PX_PER_FRAME`, so a thumb can walk a
