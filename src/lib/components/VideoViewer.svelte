@@ -130,9 +130,18 @@
 
 	/** Frame the video itself has on screen, once its seeks have landed. */
 	let videoFrame: number | null = null;
+	/** Frame the video last presented, landed or not: what it shows under the preview. */
+	let videoPresented: number | null = null;
+	/** Frame the latest seek is headed for, which the preview gets as close to as it can. */
+	let previewTarget: number | null = null;
 
 	function videoShows(frame: number): boolean {
 		return !!videoElement && !seekPending(videoElement) && videoFrame === frame;
+	}
+
+	/** How far `frame` is from the seek target, in frames. */
+	function offTarget(frame: number | null): number {
+		return frame === null || previewTarget === null ? Infinity : Math.abs(frame - previewTarget);
 	}
 
 	function hidePreview() {
@@ -140,15 +149,24 @@
 		scrubCache?.cancel();
 	}
 
+	// The cached frame nearest the target, when it's nearer than what's on screen: the
+	// exact frame once it's built, and until then the nearest one (a group's keyframe at
+	// worst), so a scrub ahead of the cache still moves instead of freezing. The video
+	// takes over as soon as it lands on the target.
 	function showPreview(frame: number) {
 		if (!scrubCache || !previewTiming()) return;
 		scrubCache.focus(frame);
-		if (!scrubCache.has(frame) || videoShows(frame)) hidePreview();
-		else scrubCache.request(frame);
+		previewTarget = frame;
+		if (videoShows(frame)) return hidePreview();
+		const nearest = scrubCache.nearest(frame, offTarget(previewFrame ?? videoPresented));
+		if (nearest === null) scrubCache.cancel();
+		else scrubCache.request(nearest);
 	}
 
 	function drawPreview(frame: number, image: VideoFrame) {
-		if (!previewCanvas || !videoElement || !videoElement.paused || videoShows(frame)) return;
+		if (!previewCanvas || !videoElement || !videoElement.paused) return;
+		if (previewTarget === null || videoShows(previewTarget)) return;
+		if (offTarget(frame) > offTarget(previewFrame ?? videoPresented)) return;
 		const context = previewCanvas.getContext('2d');
 		if (!context) return;
 		if (previewCanvas.width !== image.displayWidth) previewCanvas.width = image.displayWidth;
@@ -184,17 +202,23 @@
 		const emptied = () => {
 			clearSeeks(video);
 			videoFrame = null;
+			videoPresented = null;
+			previewTarget = null;
 			hidePreview();
 		};
 		const seeking = () => (videoFrame = null);
-		// The preview stays up until the video presents the same frame.
+		// The preview stays up until the video lands on the target, or presents a frame
+		// at least as near it on the way (a seek landing while the pointer moves on).
 		let handle = 0;
 		const onFrame = (_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
 			handle = video.requestVideoFrameCallback(onFrame);
 			const timing = previewTiming();
-			if (!timing || video.seeking) return;
-			videoFrame = frameOfPresentedTime(metadata.mediaTime, timing);
-			if (previewFrame !== null && videoShows(previewFrame)) hidePreview();
+			if (!timing) return;
+			videoPresented = frameOfPresentedTime(metadata.mediaTime, timing);
+			if (!video.seeking) videoFrame = videoPresented;
+			if (previewFrame === null || previewTarget === null) return;
+			if (videoShows(previewTarget)) hidePreview();
+			else if (offTarget(videoPresented) <= offTarget(previewFrame)) previewFrame = null;
 		};
 		// A seek to the frame already on screen may present nothing new.
 		let seekedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -202,9 +226,10 @@
 			clearTimeout(seekedTimer);
 			seekedTimer = setTimeout(() => {
 				const timing = previewTiming();
-				if (!timing || previewFrame === null || seekPending(video)) return;
-				if (frameAt(video.currentTime, timing) === previewFrame) {
-					videoFrame = previewFrame;
+				if (!timing || previewFrame === null || previewTarget === null) return;
+				if (seekPending(video)) return;
+				if (frameAt(video.currentTime, timing) === previewTarget) {
+					videoFrame = videoPresented = previewTarget;
 					hidePreview();
 				}
 			}, 150);

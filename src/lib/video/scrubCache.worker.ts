@@ -47,6 +47,8 @@ const LOW_MEMORY_QUEUE_LIMIT = 4;
 const PROXY_FPS = 30;
 /** Encoders sharing the work; past two the build stops getting faster. Low-memory builds use one. */
 const ENCODERS = 2;
+/** Spacing of the frames the coarse pass builds before the rest. */
+const COARSE_STRIDE = 4;
 
 let focus = 0;
 
@@ -116,6 +118,16 @@ function proxySize(track: VideoTrack, maxBytes: number) {
 	return { width: even(width), height: even(height), frameBytes };
 }
 
+async function supportedDecoderConfig(
+	config: VideoDecoderConfig
+): Promise<VideoDecoderConfig | null> {
+	for (const hardwareAcceleration of ['prefer-hardware', 'no-preference'] as const) {
+		const candidate = { ...config, hardwareAcceleration };
+		if ((await VideoDecoder.isConfigSupported(candidate)).supported) return candidate;
+	}
+	return null;
+}
+
 async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 	if (typeof VideoDecoder === 'undefined' || typeof VideoEncoder === 'undefined') {
 		return post({ type: 'unsupported', reason: 'WebCodecs unavailable' });
@@ -124,14 +136,15 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 	if (!track) return post({ type: 'unsupported', reason: 'Not an MP4/MOV with H.264 or HEVC' });
 	if (track.frameCount > MAX_FRAMES) return post({ type: 'unsupported', reason: 'Too long' });
 
-	const decoderConfig: VideoDecoderConfig = {
+	// Hardware where there is some; software otherwise (hardware acceleration turned
+	// off, a virtual machine), which still builds the cache faster than seeks land.
+	const decoderConfig = await supportedDecoderConfig({
 		codec: track.codec,
 		description: track.description,
 		codedWidth: track.codedWidth,
-		codedHeight: track.codedHeight,
-		hardwareAcceleration: 'prefer-hardware'
-	};
-	if (!(await VideoDecoder.isConfigSupported(decoderConfig)).supported) {
+		codedHeight: track.codedHeight
+	});
+	if (!decoderConfig) {
 		return post({ type: 'unsupported', reason: `Can't decode ${track.codec}` });
 	}
 	const { width, height, frameBytes } = proxySize(track, maxBytes);
@@ -185,11 +198,13 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 		return encoder;
 	});
 	let encoded = 0;
+	/** Only frames on this spacing are built in the current pass; see the passes below. */
+	let stride = 1;
 
 	const decoder = new VideoDecoder({
 		output: (decoded) => {
 			const frame = frameOfTimestamp.get(decoded.timestamp);
-			if (frame === undefined || built[frame]) {
+			if (frame === undefined || built[frame] || frame % stride !== 0) {
 				decoded.close();
 				return;
 			}
@@ -243,7 +258,13 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 
 	const firstFrames = gops.map((gop) => (gop.frames.length ? Math.min(...gop.frames) : -1));
 	const lastFrames = gops.map((gop) => (gop.frames.length ? Math.max(...gop.frames) : -1));
-	const wanted = (i: number) => !fed.has(i) && firstFrames[i] >= 0;
+	const wanted = (i: number) => {
+		if (fed.has(i) || firstFrames[i] < 0) return false;
+		if (gops[i].frames.some((frame) => !built[frame] && frame % stride === 0)) return true;
+		// Built already (a group of one keyframe); passed over from now on.
+		fed.add(i);
+		return false;
+	};
 	// The unfed group nearest the focus frame, searching outwards from the group that
 	// holds it. Behind counts double, since scrubbing usually carries on forwards.
 	const nextGroup = (): number => {
@@ -259,8 +280,36 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 		return aheadDistance <= behindDistance ? ahead : behind;
 	};
 
-	for (let index = nextGroup(); index >= 0; index = nextGroup()) await feed(index);
+	// Coarse to fine, so a scrub that runs ahead of the frames built around the playhead
+	// always has a frame nearby to show (VideoViewer shows the nearest one built):
+	// 1. Each group's keyframe, which decodes on its own: within moments the whole clip
+	//    has a frame every group (about a second apart). Read one at a time, since
+	//    they're spread through the file.
+	for (const gop of gops) {
+		const sample = track.samples[gop.start];
+		if (!sample.key || sample.frame < 0) continue;
+		const data = new Uint8Array(
+			await file.slice(sample.offset, sample.offset + sample.size).arrayBuffer()
+		);
+		await waitForQueue(decoder, () => decoder.decodeQueueSize, queueLimit);
+		for (const encoder of encoders) {
+			await waitForQueue(encoder, () => encoder.encodeQueueSize, queueLimit);
+		}
+		decoder.decode(new EncodedVideoChunk({ type: 'key', timestamp: timestampOf(sample), data }));
+	}
 	await decoder.flush();
+	previous = -2;
+	// 2. Every fourth frame, then 3. the rest, each from the playhead outwards. Encoding
+	//    is the slow part, so the first pass covers the clip in about a quarter of the
+	//    time even though it decodes every frame. Short groups (an all-keyframe file)
+	//    gain nothing from it.
+	const coarse = track.frameCount / gops.length >= 2 * COARSE_STRIDE;
+	for (const pass of coarse ? [COARSE_STRIDE, 1] : [1]) {
+		stride = pass;
+		fed.clear();
+		for (let index = nextGroup(); index >= 0; index = nextGroup()) await feed(index);
+		await decoder.flush();
+	}
 	// Leading frames of an open GOP reference the group before, so a group decoded on
 	// its own can come out short. Decode those again after their predecessor.
 	for (let index = 1; index < gops.length; index += 1) {

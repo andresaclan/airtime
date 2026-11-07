@@ -122,6 +122,19 @@ export class ScrubCache {
 		return this.frames[frame] !== undefined;
 	}
 
+	/**
+	 * The built frame nearest `frame`, fewer than `within` frames away (the nearer of
+	 * two equally far is the earlier); null if none is.
+	 */
+	nearest(frame: number, within = Infinity): number | null {
+		const limit = Math.min(within, this.frameCount);
+		for (let distance = 0; distance < limit; distance += 1) {
+			if (this.has(frame - distance)) return frame - distance;
+			if (this.has(frame + distance)) return frame + distance;
+		}
+		return null;
+	}
+
 	/** Builds the frames around this one next. */
 	focus(frame: number) {
 		if (!this.disposed) this.post({ type: 'focus', frame });

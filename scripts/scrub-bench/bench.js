@@ -6,7 +6,8 @@
 // or the video itself), and posts the metrics to /__bench/result. Cold runs start once the
 // frame rate is known; warm runs wait for the scrub cache to finish building.
 //
-// Per phase: latP50/latP95 = how long ago the pointer was on the frame now shown (ms);
+// Per phase: latP50/latP95 = how long ago the pointer was on the frame now shown, or for
+// a frame ahead of it how soon it gets there (ms); errP50/errP95 = frames off the pointer;
 // freezeMax = longest stretch the pointer moved while the picture didn't (ms); freshPct =
 // share of pointer moves answered by a new frame on the next refresh; settledMs = time
 // from the pointer stopping to the exact frame; finalOk = the video itself (not the
@@ -88,6 +89,7 @@
 		'position:fixed;z-index:99999;right:8px;top:8px;margin:0;padding:8px;max-width:46vw;max-height:90vh;overflow:auto;font:11px/1.35 monospace;background:#000c;color:#0f0;pointer-events:none;white-space:pre-wrap';
 	const say = (text) => {
 		status.textContent = text;
+		document.title = 'bench: ' + text.replace(/\s+/g, ' ').slice(0, 120);
 		if (!status.isConnected) document.body.append(status);
 	};
 
@@ -134,11 +136,12 @@
 		} else await wait(300);
 		const track = document.querySelector('.timeline-track');
 		const container = document.querySelector('.timeline-container');
-		const frameCount = Math.round(video.duration * fps);
+		// The frame the app seeks to for a position on the track (getTimeFromPosition).
+		const lastFrame = Math.ceil(video.duration * fps - 1e-3) - 1;
 		const rect = track.getBoundingClientRect();
 		const y = rect.top + rect.height / 2;
 		const xOf = (p) => rect.left + p * rect.width;
-		const targetOf = (p) => Math.min(frameCount - 1, Math.floor(p * frameCount));
+		const targetOf = (p) => Math.min(lastFrame, Math.floor(p * video.duration * fps + 1e-3));
 
 		const ev = (type, x) =>
 			new PointerEvent(type, {
@@ -208,6 +211,9 @@
 				settledMs,
 				finalOk: finalShown.f === targetOf(p) && finalShown.src === 'v',
 				finalSrc: finalShown.src,
+				finalFrame: finalShown.f,
+				target: targetOf(p),
+				currentFrame: Math.floor(video.currentTime * fps + 1e-3),
 				handlerP95: pct(handlerMs, 0.95),
 				cacheCoverage: cache.total ? cacheAtStart / cache.total : 0
 			});
@@ -264,6 +270,7 @@
 		const moving = ticks.filter((t) => !t.hold);
 		const intervals = moving.slice(1).map((t, i) => t.t - moving[i].t);
 		const latency = [];
+		const error = [];
 		let freeze = 0;
 		let freezeStart = null;
 		let fresh = 0;
@@ -272,16 +279,21 @@
 		for (let i = 1; i < moving.length; i++) {
 			const tick = moving[i];
 			if (tick.src === 'c') cacheTicks++;
-			let lat = null;
-			for (let j = i; j >= 1; j--) {
+			// When the pointer was (or, for a frame ahead of it, will be) on the frame shown.
+			const passes = (j) => {
 				const a = moving[j - 1].target;
 				const b = moving[j].target;
-				if ((tick.shown >= Math.min(a, b) && tick.shown <= Math.max(a, b)) || tick.shown === b) {
-					lat = tick.shown === moving[i].target ? 0 : tick.t - moving[j].t;
-					break;
-				}
+				return tick.shown >= Math.min(a, b) && tick.shown <= Math.max(a, b);
+			};
+			let lat = tick.shown === tick.target ? 0 : null;
+			for (let j = i; lat === null && j >= 1; j--) if (passes(j)) lat = tick.t - moving[j].t;
+			for (let j = i + 1; j < moving.length; j++) {
+				if (!passes(j)) continue;
+				lat = Math.min(lat ?? Infinity, moving[j].t - tick.t);
+				break;
 			}
-			latency.push(lat ?? tick.t - moving[0].t);
+			latency.push(lat ?? Math.max(tick.t - moving[0].t, moving[moving.length - 1].t - tick.t));
+			error.push(Math.abs(tick.shown - tick.target));
 			if (tick.target !== moving[i - 1].target) {
 				changed++;
 				if (tick.shown !== moving[i - 1].shown) fresh++;
@@ -295,6 +307,8 @@
 			hz: Math.round(1000 / (pct(intervals, 0.5) || 16.7)),
 			latP50: pct(latency, 0.5),
 			latP95: pct(latency, 0.95),
+			errP50: pct(error, 0.5),
+			errP95: pct(error, 0.95),
 			freezeMax: Math.round(freeze),
 			freshPct: changed ? Math.round((100 * fresh) / changed) : 100,
 			cachePct: Math.round((100 * cacheTicks) / Math.max(1, moving.length - 1)),
