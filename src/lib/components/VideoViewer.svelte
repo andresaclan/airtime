@@ -119,6 +119,8 @@
 	/** Frame on the preview canvas while it covers the video; null when hidden. */
 	let previewFrame: number | null = $state(null);
 	let videoBox = $state({ left: 0, top: 0, width: 0, height: 0 });
+	/** The video element's own size, which pan percentages are taken of. */
+	let elementSize = $state({ width: 0, height: 0 });
 	let scrubCache: ScrubCache | null = null;
 
 	function previewTiming(): FrameTiming | null {
@@ -258,6 +260,7 @@
 			const style = getComputedStyle(video);
 			let width = parseFloat(style.width);
 			let height = parseFloat(style.height);
+			elementSize = { width, height };
 			if (video.videoWidth && video.videoHeight) {
 				const scale = Math.min(width / video.videoWidth, height / video.videoHeight);
 				width = video.videoWidth * scale;
@@ -676,12 +679,14 @@
 		applyDetectedFrameRate(rate);
 	}
 
-	// Computed transform style
-	let transformStyle = $derived(
-		zoomLevel > 1
-			? `transform: scale(${zoomLevel}) translate(${panX / zoomLevel}%, ${panY / zoomLevel}%);`
-			: ''
-	);
+	// Pan is a percentage of the video element. It's turned into pixels so the preview
+	// canvas, which covers only the picture, moves exactly as far as the video does.
+	let transformStyle = $derived.by(() => {
+		if (zoomLevel <= 1) return '';
+		const x = ((panX / zoomLevel) * elementSize.width) / 100;
+		const y = ((panY / zoomLevel) * elementSize.height) / 100;
+		return `transform: scale(${zoomLevel}) translate(${x}px, ${y}px);`;
+	});
 </script>
 
 <svelte:window onmouseup={handleMouseUp} onmousemove={handleMouseMove} />
