@@ -75,7 +75,7 @@
 	// How far a press on a mark moves before it scrubs instead.
 	const DRAG_THRESHOLD_PX = 6;
 
-	// Touch on the time tool, after iOS Photos: the playhead follows how far the finger
+	// Touch, after iOS Photos: the playhead follows how far the finger
 	// moves, never jumping to it, and one width of the bar is the whole clip. Slid up
 	// from where it scrubbed, the finger fine-tunes (fineScrub.ts) and a pause there sets
 	// `holdMark`. A touch that starts on a pin drags it, and it lands where it's let go.
@@ -362,7 +362,7 @@
 			videoElement.pause();
 		}
 
-		// Touch on the time tool: the playhead stays put until the finger moves.
+		// Touch: the playhead stays put until the finger moves.
 		if (fineTouch && event.pointerType === 'touch' && duration > 0) {
 			startTouch(event);
 			return;
@@ -734,7 +734,7 @@
 		}
 	}
 
-	/* Fine touch (the time tool on a touchscreen): a plain pill at rest, as iOS
+	/* Fine touch (a touchscreen): a plain pill at rest, as iOS
 	   Photos' bar is, that opens into a capsule with the time while it's held. The
 	   track keeps the same box open or closed, so nothing under it moves. */
 	.fine .timeline-track {
