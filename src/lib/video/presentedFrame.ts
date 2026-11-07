@@ -76,6 +76,18 @@ export function trackPresentedFrames(
 	// True from our own correcting seek until the next seek or play that isn't ours.
 	let corrected = false;
 	let correcting = false;
+	// WebKit (iPhones especially) can present a paused seek's frame only once the next
+	// seek has landed, as if it answered that one. Such a late frame isn't what's on
+	// screen for this seek: trusting it pulled the playhead back on every step.
+	let seekTime: number | null = null;
+	let previousSeekTime: number | null = null;
+	const isLate = (mediaTime: number) => {
+		const timing = getTiming();
+		if (!video.paused || seekTime === null || previousSeekTime === null) return false;
+		if (!timing || !(timing.fps > 0)) return false;
+		const frame = frameOfPresentedTime(mediaTime, timing);
+		return frame === frameAt(previousSeekTime, timing) && frame !== frameAt(seekTime, timing);
+	};
 	const reconcile = () => {
 		const timing = getTiming();
 		const mediaTime = presented.get(video);
@@ -88,12 +100,22 @@ export function trackPresentedFrames(
 		}
 	};
 	const onSeeking = () => {
+		previousSeekTime = seekTime;
+		seekTime = video.currentTime;
 		presented.set(video, null);
 		corrected = correcting;
 		correcting = false;
 	};
-	const onPlay = () => (corrected = false);
+	const onPlay = () => {
+		corrected = false;
+		seekTime = previousSeekTime = null;
+	};
 	const onFrame = (_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
+		if (isLate(metadata.mediaTime)) {
+			handle = video.requestVideoFrameCallback(onFrame);
+			return;
+		}
+		previousSeekTime = null;
 		presented.set(video, metadata.mediaTime);
 		presentedAt.set(video, performance.now());
 		handle = video.requestVideoFrameCallback(onFrame);
