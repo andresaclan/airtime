@@ -229,7 +229,9 @@
 			if (videoShows(previewTarget)) hidePreview();
 			else if (offTarget(videoPresented) <= offTarget(previewFrame)) previewFrame = null;
 		};
-		// A seek to the frame already on screen may present nothing new.
+		// A seek to the frame already on screen may present nothing new. Only then: WebKit
+		// can also land a seek without presenting its frame yet, and hiding the preview
+		// there showed the old frame again, as if the step had gone back.
 		let seekedTimer: ReturnType<typeof setTimeout> | undefined;
 		const seeked = () => {
 			clearTimeout(seekedTimer);
@@ -237,8 +239,11 @@
 				const timing = previewTiming();
 				if (!timing || previewFrame === null || previewTarget === null) return;
 				if (seekPending(video)) return;
-				if (frameAt(video.currentTime, timing) === previewTarget) {
-					videoFrame = videoPresented = previewTarget;
+				if (
+					videoPresented === previewTarget &&
+					frameAt(video.currentTime, timing) === previewTarget
+				) {
+					videoFrame = previewTarget;
 					hidePreview();
 				}
 			}, 150);
