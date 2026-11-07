@@ -85,6 +85,18 @@ export function trackPresentedFrames(
 		requestedTime = targetTime(video);
 		presented.set(video, null);
 	};
+	// WebKit (iPhones especially) can present a paused seek's frame only once the next
+	// seek has landed, as if it answered that one. Such a late frame isn't what's on
+	// screen for this seek: trusting it pulled the playhead back on every step.
+	let seekTime: number | null = null;
+	let previousSeekTime: number | null = null;
+	const isLate = (mediaTime: number) => {
+		const timing = getTiming();
+		if (!video.paused || seekTime === null || previousSeekTime === null) return false;
+		if (!timing || !(timing.fps > 0)) return false;
+		const frame = frameOfPresentedTime(mediaTime, timing);
+		return frame === frameAt(previousSeekTime, timing) && frame !== frameAt(seekTime, timing);
+	};
 	const reconcile = () => {
 		const timing = getTiming();
 		const mediaTime = presented.get(video);
@@ -101,6 +113,8 @@ export function trackPresentedFrames(
 		}
 	};
 	const onSeeking = () => {
+		previousSeekTime = seekTime;
+		seekTime = canonicalTime(video);
 		presented.set(video, null);
 		corrected = correcting;
 		correcting = false;
@@ -108,22 +122,26 @@ export function trackPresentedFrames(
 	const onPlay = () => {
 		corrected = false;
 		requestedTime = null;
+		seekTime = previousSeekTime = null;
 	};
 	const onFrame = (_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
-		presentedAt.set(video, performance.now());
 		handle = video.requestVideoFrameCallback(onFrame);
 		const timing = getTiming();
 		if (timing) observeMediaTimeline(video, metadata.mediaTime, timing);
 		const time = canonicalTime(video, metadata.mediaTime);
+		if (isLate(time)) return;
+		presentedAt.set(video, performance.now());
 		if (requestedTime !== null && timing) {
 			if (time < (timing.frameTimes?.[0] ?? 0) - 1e-5) return;
 			if (frameOfPresentedTime(time, timing) !== frameAt(requestedTime, timing)) return;
 			requestedTime = null;
 		}
+		previousSeekTime = null;
 		presented.set(video, time);
 		reconcile();
 	};
 	const forget = () => {
+		seekTime = previousSeekTime = null;
 		requestedTime = null;
 		presented.set(video, null);
 	};

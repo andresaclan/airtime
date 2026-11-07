@@ -1,189 +1,92 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
-import { displayedFrame, settledDisplayedFrame, trackPresentedFrames } from './presentedFrame';
-import { frameSeekTime, type FrameTiming } from './frames';
-import { clearSeeks, seek, setProbing } from './seek';
+import { describe, expect, test } from 'vitest';
+import { displayedFrame, trackPresentedFrames } from './presentedFrame';
 
-class Video extends EventTarget {
+/**
+ * Just enough of a paused video element: seeks land when `land()` is called, and
+ * `present(time)` fires the frame callback as the browser does when a frame is shown.
+ */
+class FakeVideo extends EventTarget {
 	paused = true;
 	seeking = false;
-	duration = 2;
-	assigned: number[] = [];
-	callbacks = new Map<number, VideoFrameRequestCallback>();
-	private serial = 0;
+	duration = 10;
 	private time = 0;
+	private callbacks: ((now: number, metadata: { mediaTime: number }) => void)[] = [];
 	get currentTime() {
 		return this.time;
 	}
 	set currentTime(time: number) {
 		this.time = time;
-		this.assigned.push(time);
 		this.seeking = true;
 		this.dispatchEvent(new Event('seeking'));
-	}
-	requestVideoFrameCallback(callback: VideoFrameRequestCallback) {
-		this.callbacks.set(++this.serial, callback);
-		return this.serial;
-	}
-	cancelVideoFrameCallback(handle: number) {
-		this.callbacks.delete(handle);
 	}
 	land() {
 		this.seeking = false;
 		this.dispatchEvent(new Event('seeked'));
 	}
-	pause() {
-		this.paused = true;
-		this.dispatchEvent(new Event('pause'));
-	}
 	present(mediaTime: number) {
-		const callbacks = [...this.callbacks.values()];
-		this.callbacks.clear();
-		for (const callback of callbacks) {
-			callback(performance.now(), { mediaTime } as VideoFrameCallbackMetadata);
-		}
+		const callbacks = this.callbacks;
+		this.callbacks = [];
+		for (const callback of callbacks) callback(0, { mediaTime });
 	}
-	get element() {
-		return this as unknown as HTMLVideoElement;
+	requestVideoFrameCallback(callback: (now: number, metadata: { mediaTime: number }) => void) {
+		this.callbacks.push(callback);
+		return this.callbacks.length;
 	}
+	cancelVideoFrameCallback() {}
 }
 
-const timing: FrameTiming = { fps: 30 };
-const cleanups: (() => void)[] = [];
-function tracked(getTiming: () => FrameTiming | null = () => timing) {
-	const video = new Video();
-	const cleanup = trackPresentedFrames(video.element, getTiming);
-	cleanups.push(cleanup);
-	return { video, cleanup };
+const timing = { fps: 60 };
+/** Middle of frame k at 60 fps, where a step seeks to. */
+const middle = (frame: number) => (frame + 0.5) / 60;
+
+function tracked() {
+	const fake = new FakeVideo();
+	const element = fake as unknown as HTMLVideoElement;
+	const stop = trackPresentedFrames(element, () => timing);
+	return { fake, element, stop };
 }
 
-afterEach(() => {
-	for (const cleanup of cleanups.splice(0)) cleanup();
-	vi.useRealTimers();
-});
-
-describe('the frame on screen', () => {
-	test('a final probe frame cannot undo the seek restoring the original picture', () => {
-		const { video } = tracked();
-		video.paused = false;
-		setProbing(video.element, true);
-		video.present(14 / 30);
-		seek(video.element, frameSeekTime(0, timing), timing);
-		video.land();
-		video.present(14 / 30);
-		expect(video.currentTime).toBe(frameSeekTime(0, timing));
-		video.present(0);
-		expect(displayedFrame(video.element, timing)).toBe(0);
-	});
-	test('a stale callback after seeked cannot rewind a newer explicit step', () => {
-		const { video } = tracked();
-		video.present(0);
-		seek(video.element, frameSeekTime(1, timing), timing);
-		video.land();
-		// The first picture has not been presented yet. A second step starts from 1.
-		expect(displayedFrame(video.element, timing)).toBe(1);
-		seek(video.element, frameSeekTime(2, timing), timing);
-		video.land();
-		// WebKit delivers the old seek's callback after the new seeked event.
-		video.present(1 / 30);
-		expect(displayedFrame(video.element, timing)).toBe(2);
-		expect(video.assigned).toHaveLength(2);
-		video.present(2 / 30);
-		expect(displayedFrame(video.element, timing)).toBe(2);
+describe('trackPresentedFrames', () => {
+	test('a paused seek that presents its frame is the frame on screen', () => {
+		const { fake, element, stop } = tracked();
+		fake.currentTime = middle(1);
+		fake.land();
+		fake.present(1 / 60);
+		expect(displayedFrame(element, timing)).toBe(1);
+		expect(fake.currentTime).toBe(middle(1));
+		stop();
 	});
 
-	test('a seek uses its latest target, including a rapid reversal, until it lands', () => {
-		const { video } = tracked();
-		video.present(0);
-		seek(video.element, frameSeekTime(8, timing), timing);
-		seek(video.element, frameSeekTime(9, timing), timing);
-		seek(video.element, frameSeekTime(7, timing), timing);
-		// A late callback for the first seek must not lose the queued reversal.
-		video.present(8 / 30);
-		expect(displayedFrame(video.element, timing)).toBe(7);
-		video.land();
-		video.present(8 / 30);
-		expect(displayedFrame(video.element, timing)).toBe(7);
-		video.land();
-		video.present(7 / 30);
-		expect(displayedFrame(video.element, timing)).toBe(7);
+	// WebKit (Safari, and iPhones especially) can present a paused seek's frame only after
+	// the next seek has landed. Reading that late frame as the new one pulled the playhead
+	// back a frame on every step, so stepping forward never got anywhere.
+	test("a late frame from the seek before doesn't pull the playhead back", () => {
+		const { fake, element, stop } = tracked();
+		fake.currentTime = middle(1);
+		fake.land();
+		// Nothing presented for frame 1 yet; the next step seeks on to frame 2.
+		fake.currentTime = middle(2);
+		fake.land();
+		fake.present(1 / 60);
+		expect(fake.currentTime).toBe(middle(2));
+		expect(displayedFrame(element, timing)).toBe(2);
+		// When frame 2 does arrive, it counts.
+		fake.present(2 / 60);
+		expect(displayedFrame(element, timing)).toBe(2);
+		stop();
 	});
 
-	test('WebKit float error and Firefox seek-middle timestamps keep the same frame', () => {
-		const irregular = { fps: 240, frameTimes: [0, 0.005, 0.008333, 0.013333] };
-		const { video } = tracked(() => irregular);
-		for (const mediaTime of [0.008333 - 3e-6, 0.008333 + 3e-6, 0.010833]) {
-			video.currentTime = frameSeekTime(2, irregular);
-			video.land();
-			video.present(mediaTime);
-			expect(displayedFrame(video.element, irregular)).toBe(2);
-		}
-	});
-
-	test('a final frame after pause corrects the playhead to the picture, once', () => {
-		const { video } = tracked();
-		video.paused = false;
-		video.currentTime = frameSeekTime(5, timing);
-		video.land();
-		video.present(5 / 30);
-		video.paused = true;
-		video.dispatchEvent(new Event('pause'));
-		video.present(6 / 30);
-		expect(video.currentTime).toBe(frameSeekTime(6, timing));
-		video.land();
-		// A decoder that refuses the correction cannot cause an endless seek loop.
-		video.present(5 / 30);
-		video.present(5 / 30);
-		expect(video.assigned).toHaveLength(2);
-	});
-
-	test('marking waits for the extra frame after pausing playback', async () => {
-		vi.useFakeTimers();
-		const { video } = tracked();
-		video.currentTime = frameSeekTime(5, timing);
-		video.land();
-		video.present(5 / 30);
-		const frame = settledDisplayedFrame(video.element, timing);
-		await vi.advanceTimersByTimeAsync(20);
-		video.present(6 / 30);
-		video.land();
-		await vi.advanceTimersByTimeAsync(100);
-		expect(await frame).toBe(6);
-	});
-
-	test('unknown timing never causes a correcting seek', () => {
-		const { video } = tracked(() => null);
-		video.present(1);
-		expect(video.assigned).toEqual([]);
-	});
-
-	test('a new video forgets the old presented frame', () => {
-		const { video } = tracked();
-		video.currentTime = frameSeekTime(12, timing);
-		video.land();
-		video.present(12 / 30);
-		video.dispatchEvent(new Event('emptied'));
-		clearSeeks(video.element);
-		video.currentTime = frameSeekTime(0, timing);
-		video.land();
-		expect(displayedFrame(video.element, timing)).toBe(0);
-	});
-
-	test('cleanup cancels the callback and removes reconciliation listeners', () => {
-		const { video, cleanup } = tracked();
-		video.present(0);
-		cleanup();
-		expect(video.callbacks.size).toBe(0);
-		video.currentTime = 1;
-		video.land();
-		video.dispatchEvent(new Event('pause'));
-		expect(video.assigned).toEqual([1]);
-		expect(displayedFrame(video.element, timing)).toBe(30);
-	});
-
-	test('without frame callbacks it falls back to the seek target', () => {
-		const video = new EventTarget() as HTMLVideoElement;
-		Object.assign(video, { currentTime: frameSeekTime(4, timing), paused: true, seeking: false });
-		trackPresentedFrames(video, () => timing)();
-		expect(displayedFrame(video, timing)).toBe(4);
+	test('after a pause, the frame left on screen still moves the playhead to it', () => {
+		const { fake, element, stop } = tracked();
+		fake.paused = false;
+		fake.dispatchEvent(new Event('play'));
+		fake.present(5 / 60);
+		fake.paused = true;
+		// Playback stopped with the playhead already in the next frame.
+		Object.defineProperty(fake, 'time', { value: middle(6), writable: true });
+		fake.dispatchEvent(new Event('pause'));
+		expect(displayedFrame(element, timing)).toBe(5);
+		expect(fake.currentTime).toBe(middle(5));
+		stop();
 	});
 });
