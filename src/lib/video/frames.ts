@@ -99,18 +99,36 @@ export function frameOfMarkTime(time: number, timing: Timing): number {
 }
 
 /**
- * The frame presented at `mediaTime` (`requestVideoFrameCallback` metadata). With a
- * table that is the nearest frame time: browsers report it with float error (WebKit
- * especially), so it's never compared exactly.
+ * How far before a frame's start (in frames) a presented media time may fall and still
+ * be that frame.
+ */
+const PRESENTED_TOLERANCE = 0.25;
+
+/**
+ * The frame presented at `mediaTime` (`requestVideoFrameCallback` metadata): the frame
+ * the time falls in. Chromium and WebKit report the frame's own start, WebKit with float
+ * error either side of it; Firefox, after a seek, reports the time sought, the middle of
+ * the frame. Rounding to the nearest start would take Firefox's to the next frame.
  */
 export function frameOfPresentedTime(mediaTime: number, timing: Timing): number {
 	const fps = rateOf(timing);
 	const times = tableOf(timing);
-	if (times) return Number.isFinite(mediaTime) ? nearest(times, mediaTime) : 0;
+	if (!Number.isFinite(mediaTime)) return 0;
+	if (times) {
+		// A time just short of the next frame's start is that frame, but never by more
+		// than a quarter of this frame's own length: a short frame in a variable-rate
+		// table must keep its middle (Firefox's report) to itself.
+		const frame = lastAtOrBefore(times, mediaTime);
+		const next = times[frame + 1];
+		if (next === undefined) return frame;
+		const tolerance = Math.min(
+			fps > 0 ? PRESENTED_TOLERANCE / fps : Infinity,
+			PRESENTED_TOLERANCE * (next - times[frame])
+		);
+		return next - mediaTime <= tolerance ? frame + 1 : frame;
+	}
 	if (!(mediaTime > 0) || !(fps > 0)) return 0;
-	// Rounding rather than flooring keeps it consistent with `frameSeekTime` even if
-	// a file's frames don't start exactly on multiples of 1 / fps.
-	return Math.round(mediaTime * fps);
+	return Math.floor(mediaTime * fps + PRESENTED_TOLERANCE);
 }
 
 /** Start of frame k: the time stored for a mark on that frame. */

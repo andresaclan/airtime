@@ -49,29 +49,60 @@ function deviceBudget(): ScrubBudget {
 	});
 }
 
+/**
+ * The index nearest `frame` that holds a frame, fewer than `within` away (of two equally
+ * near, the earlier); null if none does.
+ */
+export function nearestBuilt(
+	frames: readonly unknown[],
+	frame: number,
+	within = Infinity
+): number | null {
+	const limit = Math.min(within, frames.length + Math.abs(frame));
+	for (let distance = 0; distance < limit; distance += 1) {
+		if (frames[frame - distance] !== undefined) return frame - distance;
+		if (frames[frame + distance] !== undefined) return frame + distance;
+	}
+	return null;
+}
+
+type DecoderSlot = {
+	decoder: VideoDecoder;
+	/** Frame being decoded; null while idle. */
+	frame: number | null;
+	/** Set by `cancel` while it decodes, so its frame isn't drawn. */
+	drop: boolean;
+};
+
 export class ScrubCache {
 	frameCount = 0;
 	private frames: (ArrayBuffer | undefined)[] = [];
 	private worker: Worker;
-	private decoder: VideoDecoder | null = null;
-	/** Frame being decoded, and the latest one asked for while it is. */
-	private decoding: number | null = null;
+	/**
+	 * Decoders for drawing frames, each with the frame it's decoding. Two on desktops, so
+	 * at a high refresh rate one frame decodes while the other is drawn.
+	 */
+	private decoders: DecoderSlot[] = [];
+	private decoderCount: number;
+	/** The latest frame asked for while every decoder was busy. */
 	private wanted: number | null = null;
-	/** Set by `cancel` while a decode is running, so its frame isn't drawn. */
-	private dropDecoding = false;
 	private disposed = false;
 
 	constructor(
 		file: Blob,
 		private onDraw: (frame: number, image: VideoFrame) => void,
-		private onUnsupported: () => void = () => {}
+		private onUnsupported: () => void = () => {},
+		/** A frame was built, which may be nearer the target than the one on screen. */
+		private onBuilt: (frame: number) => void = () => {}
 	) {
 		this.worker = new Worker(new URL('./scrubCache.worker.ts', import.meta.url), {
 			type: 'module'
 		});
 		this.worker.onmessage = (event: MessageEvent<WorkerResponse>) => this.receive(event.data);
 		this.worker.onerror = () => this.fail();
-		this.post({ type: 'build', file, ...deviceBudget() });
+		const budget = deviceBudget();
+		this.decoderCount = budget.lowMemory ? 1 : 2;
+		this.post({ type: 'build', file, ...budget });
 	}
 
 	static supported(): boolean {
@@ -93,15 +124,23 @@ export class ScrubCache {
 			case 'start':
 				this.frameCount = message.frameCount;
 				this.frames = new Array(message.frameCount);
-				this.decoder = new VideoDecoder({
-					output: (image) => this.drawn(image),
-					error: () => this.fail()
-				});
-				this.decoder.configure(message.config);
+				for (let i = 0; i < this.decoderCount; i += 1) {
+					const slot: DecoderSlot = {
+						decoder: new VideoDecoder({
+							output: (image) => this.drawn(slot, image),
+							error: () => this.fail()
+						}),
+						frame: null,
+						drop: false
+					};
+					slot.decoder.configure(message.config);
+					this.decoders.push(slot);
+				}
 				break;
 			case 'frame':
 				this.frames[message.frame] = message.data;
-				if (this.wanted === message.frame && this.decoding === null) this.next();
+				if (this.wanted === message.frame) this.next();
+				else this.onBuilt(message.frame);
 				break;
 			case 'done':
 				this.worker.terminate();
@@ -122,52 +161,66 @@ export class ScrubCache {
 		return this.frames[frame] !== undefined;
 	}
 
+	/** The built frame nearest `frame`, fewer than `within` frames away; see `nearestBuilt`. */
+	nearest(frame: number, within = Infinity): number | null {
+		return nearestBuilt(this.frames, frame, within);
+	}
+
 	/** Builds the frames around this one next. */
 	focus(frame: number) {
 		if (!this.disposed) this.post({ type: 'focus', frame });
 	}
 
 	/**
-	 * Draws `frame` through `onDraw` as soon as it's decoded. While one frame is
-	 * decoding, only the latest request waits; the ones in between are skipped.
+	 * Draws `frame` through `onDraw` as soon as it's decoded. While every decoder is
+	 * busy, only the latest request waits; the ones in between are skipped. Frames can
+	 * come back out of order, so `onDraw` decides whether one is still worth drawing.
 	 */
 	request(frame: number) {
 		this.wanted = frame;
-		if (this.decoding === null) this.next();
+		this.next();
 	}
 
 	/** Drops a pending request, so a frame asked for earlier isn't drawn late. */
 	cancel() {
 		this.wanted = null;
-		this.dropDecoding = this.decoding !== null;
+		for (const slot of this.decoders) slot.drop = slot.frame !== null;
 	}
 
 	private next() {
 		const frame = this.wanted;
 		const data = frame === null ? undefined : this.frames[frame];
-		if (frame === null || !data || !this.decoder || this.decoder.state !== 'configured') return;
+		if (frame === null || !data) return;
+		// Already on its way.
+		if (this.decoders.some((slot) => slot.frame === frame && !slot.drop)) {
+			this.wanted = null;
+			return;
+		}
+		const slot = this.decoders.find(
+			(slot) => slot.frame === null && slot.decoder.state === 'configured'
+		);
+		if (!slot) return;
 		this.wanted = null;
-		this.decoding = frame;
-		this.decoder.decode(new EncodedVideoChunk({ type: 'key', timestamp: frame, data }));
+		slot.frame = frame;
+		slot.decoder.decode(new EncodedVideoChunk({ type: 'key', timestamp: frame, data }));
 		// Without a flush some decoders hold the frame back until more input arrives.
-		void this.decoder.flush().catch(() => {});
+		void slot.decoder.flush().catch(() => {});
 	}
 
-	private drawn(image: VideoFrame) {
-		const frame = image.timestamp;
-		this.decoding = null;
-		// Drawn even when a newer frame is wanted: it's still closer than what's on screen.
-		if (!this.disposed && !this.dropDecoding) this.onDraw(frame, image);
-		this.dropDecoding = false;
+	private drawn(slot: DecoderSlot, image: VideoFrame) {
+		slot.frame = null;
+		// Drawn even when a newer frame is wanted: it may still be closer than what's on screen.
+		if (!this.disposed && !slot.drop) this.onDraw(image.timestamp, image);
+		slot.drop = false;
 		image.close();
-		if (this.wanted !== null) this.next();
+		this.next();
 	}
 
 	dispose() {
 		if (this.disposed) return;
 		this.disposed = true;
 		this.worker.terminate();
-		if (this.decoder && this.decoder.state !== 'closed') this.decoder.close();
+		for (const { decoder } of this.decoders) if (decoder.state !== 'closed') decoder.close();
 		this.frames = [];
 	}
 }

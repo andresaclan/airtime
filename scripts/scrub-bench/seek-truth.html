@@ -1,0 +1,49 @@
+<!doctype html>
+<title>seek truth</title>
+<body>
+	<video id="v" muted playsinline></video>
+	<script>
+		// Which frame each browser shows after a seek to the middle of frame k, read from the
+		// pixels of framenum60.mp4 (brightness encodes the frame number; make-clips.sh), next
+		// to the frame requestVideoFrameCallback reports. Posts one line to /__bench/result.
+		(async () => {
+			const label = new URLSearchParams(location.search).get('label');
+			const video = document.getElementById('v');
+			const fps = 60;
+			video.src = '/__bench/clips/framenum60.mp4';
+			await new Promise((r) => video.addEventListener('loadeddata', r, { once: true }));
+			const canvas = document.createElement('canvas');
+			canvas.width = 8;
+			canvas.height = 8;
+			const context = canvas.getContext('2d', { willReadFrequently: true });
+			const pixelFrame = () => {
+				context.drawImage(video, 0, 0, 8, 8);
+				const red = context.getImageData(4, 4, 1, 1).data[0];
+				return Math.round((red * 219) / 255 / 3);
+			};
+			let reported = null;
+			const onFrame = (_now, meta) => {
+				reported = Math.round(meta.mediaTime * fps * 1000) / 1000;
+				video.requestVideoFrameCallback(onFrame);
+			};
+			if ('requestVideoFrameCallback' in video) video.requestVideoFrameCallback(onFrame);
+			const rows = [];
+			for (const k of [0, 1, 2, 5, 10, 17, 29, 30, 31, 40, 45, 58, 59, 12, 3]) {
+				reported = null;
+				video.currentTime = (k + 0.5) / fps;
+				await new Promise((r) => video.addEventListener('seeked', r, { once: true }));
+				await new Promise((r) => setTimeout(r, 120));
+				rows.push({ k, shown: pixelFrame(), rvfc: reported, current: video.currentTime * fps });
+			}
+			const off = rows.filter((row) => row.shown !== row.k).length;
+			const rvfcOff = rows.filter(
+				(row) => row.rvfc !== null && Math.round(row.rvfc) !== row.shown
+			).length;
+			await fetch('/__bench/result', {
+				method: 'POST',
+				body: JSON.stringify({ label, probe: { ua: navigator.userAgent, off, rvfcOff, rows } })
+			});
+			document.title = 'TRUTH DONE';
+		})();
+	</script>
+</body>

@@ -1,0 +1,68 @@
+<!doctype html><title>probe</title>
+<body>
+	<script>
+		(async () => {
+			const out = {
+				ua: navigator.userAgent,
+				label: new URLSearchParams(location.search).get('label')
+			};
+			try {
+				const gl = document.createElement('canvas').getContext('webgl');
+				const ext = gl.getExtension('WEBGL_debug_renderer_info');
+				out.gpu = gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER);
+			} catch (e) {
+				out.gpu = String(e);
+			}
+			out.webcodecs = typeof VideoDecoder !== 'undefined';
+			out.rvfc = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+			out.dec = {};
+			if (out.webcodecs)
+				for (const codec of ['avc1.64002a', 'avc1.640033', 'hvc1.1.6.L153.B0', 'avc1.42e02a'])
+					for (const hw of ['prefer-hardware', 'no-preference', 'prefer-software']) {
+						try {
+							out.dec[codec + ' ' + hw] = (
+								await VideoDecoder.isConfigSupported({
+									codec,
+									codedWidth: 1920,
+									codedHeight: 1080,
+									hardwareAcceleration: hw
+								})
+							).supported;
+						} catch (e) {
+							out.dec[codec + ' ' + hw] = 'err ' + e.message;
+						}
+					}
+			if (typeof VideoEncoder !== 'undefined')
+				try {
+					out.enc = (
+						await VideoEncoder.isConfigSupported({
+							codec: 'avc1.42e02a',
+							width: 1280,
+							height: 720,
+							bitrate: 1e7,
+							framerate: 30,
+							avc: { format: 'avc' }
+						})
+					).supported;
+				} catch (e) {
+					out.enc = String(e);
+				}
+			out.canPlay = {
+				h264: document.createElement('video').canPlayType('video/mp4; codecs="avc1.64002a"'),
+				hevc: document.createElement('video').canPlayType('video/mp4; codecs="hvc1.1.6.L153.B0"')
+			};
+			let n = 0,
+				t0 = performance.now();
+			await new Promise((r) => {
+				const f = () => (++n < 120 ? requestAnimationFrame(f) : r());
+				requestAnimationFrame(f);
+			});
+			out.hz = Math.round(120000 / (performance.now() - t0));
+			await fetch('/__bench/result', {
+				method: 'POST',
+				body: JSON.stringify({ probe: out, label: out.label })
+			});
+			document.title = 'PROBE DONE';
+		})();
+	</script>
+</body>

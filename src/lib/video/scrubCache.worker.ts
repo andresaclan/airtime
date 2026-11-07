@@ -6,6 +6,7 @@
  * in the original decodes from the last keyframe, up to hundreds of frames back.
  */
 import { readVideoTrack, type VideoSample, type VideoTrack } from './demux';
+import { createScaler } from './scrubScaler';
 
 export type WorkerRequest =
 	| { type: 'build'; file: Blob; maxBytes: number; lowMemory: boolean }
@@ -47,6 +48,10 @@ const LOW_MEMORY_QUEUE_LIMIT = 4;
 const PROXY_FPS = 30;
 /** Encoders sharing the work; past two the build stops getting faster. Low-memory builds use one. */
 const ENCODERS = 2;
+/** Spacing of the frames the coarse pass builds before the rest. */
+const COARSE_STRIDE = 4;
+/** Decoder failures the build recovers from before it stops. */
+const MAX_DECODER_FAILURES = 3;
 
 let focus = 0;
 
@@ -116,6 +121,16 @@ function proxySize(track: VideoTrack, maxBytes: number) {
 	return { width: even(width), height: even(height), frameBytes };
 }
 
+async function supportedDecoderConfig(
+	config: VideoDecoderConfig
+): Promise<VideoDecoderConfig | null> {
+	for (const hardwareAcceleration of ['prefer-hardware', 'no-preference'] as const) {
+		const candidate = { ...config, hardwareAcceleration };
+		if ((await VideoDecoder.isConfigSupported(candidate)).supported) return candidate;
+	}
+	return null;
+}
+
 async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 	if (typeof VideoDecoder === 'undefined' || typeof VideoEncoder === 'undefined') {
 		return post({ type: 'unsupported', reason: 'WebCodecs unavailable' });
@@ -124,14 +139,15 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 	if (!track) return post({ type: 'unsupported', reason: 'Not an MP4/MOV with H.264 or HEVC' });
 	if (track.frameCount > MAX_FRAMES) return post({ type: 'unsupported', reason: 'Too long' });
 
-	const decoderConfig: VideoDecoderConfig = {
+	// Hardware where there is some; software otherwise (hardware acceleration turned
+	// off, a virtual machine), which still builds the cache faster than seeks land.
+	const decoderConfig = await supportedDecoderConfig({
 		codec: track.codec,
 		description: track.description,
 		codedWidth: track.codedWidth,
-		codedHeight: track.codedHeight,
-		hardwareAcceleration: 'prefer-hardware'
-	};
-	if (!(await VideoDecoder.isConfigSupported(decoderConfig)).supported) {
+		codedHeight: track.codedHeight
+	});
+	if (!decoderConfig) {
 		return post({ type: 'unsupported', reason: `Can't decode ${track.codec}` });
 	}
 	const { width, height, frameBytes } = proxySize(track, maxBytes);
@@ -156,8 +172,7 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 		if (sample.frame >= 0) frameOfTimestamp.set(timestampOf(sample), sample.frame);
 	}
 
-	const canvas = new OffscreenCanvas(width, height);
-	const context = canvas.getContext('2d', { alpha: false })!;
+	const scale = createScaler(width, height, track.rotation);
 	let started = false;
 
 	const output = (chunk: EncodedVideoChunk, metadata?: EncodedVideoChunkMetadata) => {
@@ -185,31 +200,40 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 		return encoder;
 	});
 	let encoded = 0;
+	/** Only frames on this spacing are built in the current pass; see the passes below. */
+	let stride = 1;
+	let inPass = (frame: number) => frame % stride === 0;
 
-	const decoder = new VideoDecoder({
-		output: (decoded) => {
-			const frame = frameOfTimestamp.get(decoded.timestamp);
-			if (frame === undefined || built[frame]) {
-				decoded.close();
-				return;
-			}
-			built[frame] = 1;
-			context.save();
-			context.translate(width / 2, height / 2);
-			context.rotate((track.rotation * Math.PI) / 180);
-			const quarterTurn = track.rotation === 90 || track.rotation === 270;
-			const w = quarterTurn ? height : width;
-			const h = quarterTurn ? width : height;
-			context.drawImage(decoded, -w / 2, -h / 2, w, h);
-			context.restore();
+	const onDecoded = (decoded: VideoFrame) => {
+		const frame = frameOfTimestamp.get(decoded.timestamp);
+		if (frame === undefined || built[frame] || !inPass(frame)) {
 			decoded.close();
-			const proxy = new VideoFrame(canvas, { timestamp: (frame * 1_000_000) / PROXY_FPS });
-			encoders[encoded++ % encoders.length].encode(proxy, { keyFrame: true });
-			proxy.close();
-		},
-		error: (error) => post({ type: 'unsupported', reason: String(error) })
-	});
-	decoder.configure(decoderConfig);
+			return;
+		}
+		built[frame] = 1;
+		const proxy = scale(decoded, (frame * 1_000_000) / PROXY_FPS);
+		decoded.close();
+		encoders[encoded++ % encoders.length].encode(proxy, { keyFrame: true });
+		proxy.close();
+	};
+	// A decoder that fails (WebKit's, on some HEVC groups decoded on their own) closes;
+	// a new one carries on from the next group, so one bad group doesn't cost the rest.
+	// Past a few failures the build stops and keeps what it has.
+	let failures = 0;
+	const makeDecoder = () => {
+		const fresh = new VideoDecoder({ output: onDecoded, error: () => (failures += 1) });
+		fresh.configure(decoderConfig);
+		return fresh;
+	};
+	let decoder = makeDecoder();
+	const decoderReady = () => {
+		if (decoder.state !== 'closed') return true;
+		if (failures > MAX_DECODER_FAILURES) return false;
+		decoder = makeDecoder();
+		previous = -2;
+		return true;
+	};
+	const flushDecoder = () => decoder.flush().catch(() => {});
 
 	const read = sampleReader(file);
 	const gops = groups(track);
@@ -217,10 +241,13 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 	let previous = -2;
 
 	const feed = async (index: number) => {
+		fed.add(index);
+		if (!decoderReady()) return;
 		if (index !== previous + 1) {
 			// Jumping: decoding has to start again from a keyframe.
-			await decoder.flush();
+			await flushDecoder();
 		}
+		previous = index;
 		const gop = gops[index];
 		for (let i = gop.start; i < gop.end; i += 1) {
 			const sample = track.samples[i];
@@ -229,6 +256,7 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 			for (const encoder of encoders) {
 				await waitForQueue(encoder, () => encoder.encodeQueueSize, queueLimit);
 			}
+			if (decoder.state === 'closed') return;
 			decoder.decode(
 				new EncodedVideoChunk({
 					type: i === gop.start ? 'key' : 'delta',
@@ -237,13 +265,23 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 				})
 			);
 		}
-		fed.add(index);
-		previous = index;
 	};
+
+	const gopOfFrame = new Uint32Array(track.frameCount);
+	gops.forEach((gop, i) => gop.frames.forEach((frame) => (gopOfFrame[frame] = i)));
+	/** Groups built whole in the coarse pass, where the playhead lingered. */
+	const whole = new Set<number>();
+	inPass = (frame) => frame % stride === 0 || whole.has(gopOfFrame[frame]);
 
 	const firstFrames = gops.map((gop) => (gop.frames.length ? Math.min(...gop.frames) : -1));
 	const lastFrames = gops.map((gop) => (gop.frames.length ? Math.max(...gop.frames) : -1));
-	const wanted = (i: number) => !fed.has(i) && firstFrames[i] >= 0;
+	const wanted = (i: number) => {
+		if (fed.has(i) || firstFrames[i] < 0) return false;
+		if (gops[i].frames.some((frame) => !built[frame] && frame % stride === 0)) return true;
+		// Built already (a group of one keyframe); passed over from now on.
+		fed.add(i);
+		return false;
+	};
 	// The unfed group nearest the focus frame, searching outwards from the group that
 	// holds it. Behind counts double, since scrubbing usually carries on forwards.
 	const nextGroup = (): number => {
@@ -259,8 +297,53 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 		return aheadDistance <= behindDistance ? ahead : behind;
 	};
 
-	for (let index = nextGroup(); index >= 0; index = nextGroup()) await feed(index);
-	await decoder.flush();
+	// Coarse to fine, so a scrub that runs ahead of the frames built around the playhead
+	// always has a frame nearby to show (VideoViewer shows the nearest one built):
+	// 1. Each group's keyframe, which decodes on its own: within moments the whole clip
+	//    has a frame every group (about a second apart). Read one at a time, since
+	//    they're spread through the file.
+	for (const gop of gops) {
+		const sample = track.samples[gop.start];
+		if (!sample.key || sample.frame < 0) continue;
+		const data = new Uint8Array(
+			await file.slice(sample.offset, sample.offset + sample.size).arrayBuffer()
+		);
+		await waitForQueue(decoder, () => decoder.decodeQueueSize, queueLimit);
+		for (const encoder of encoders) {
+			await waitForQueue(encoder, () => encoder.encodeQueueSize, queueLimit);
+		}
+		if (!decoderReady()) break;
+		decoder.decode(new EncodedVideoChunk({ type: 'key', timestamp: timestampOf(sample), data }));
+	}
+	await flushDecoder();
+	previous = -2;
+	// 2. Every fourth frame, then 3. the rest, each from the playhead outwards. Encoding
+	//    is the slow part, so the first pass covers the clip in about a quarter of the
+	//    time even though it decodes every frame. Short groups (an all-keyframe file)
+	//    gain nothing from it.
+	const coarse = track.frameCount / gops.length >= 2 * COARSE_STRIDE;
+	//    A playhead that stays in one group (fine-tuning, not sweeping) gets that group
+	//    whole first.
+	const homeGroup = () =>
+		Math.max(
+			0,
+			gops.findIndex((_, i) => lastFrames[i] >= focus)
+		);
+	for (const pass of coarse ? [COARSE_STRIDE, 1] : [1]) {
+		stride = pass;
+		fed.clear();
+		let lastHome = -1;
+		for (let index = nextGroup(); index >= 0; index = nextGroup()) {
+			const home = homeGroup();
+			if (stride > 1 && home === lastHome && !whole.has(home)) {
+				whole.add(home);
+				await feed(home);
+			}
+			lastHome = home;
+			await feed(index);
+		}
+		await flushDecoder();
+	}
 	// Leading frames of an open GOP reference the group before, so a group decoded on
 	// its own can come out short. Decode those again after their predecessor.
 	for (let index = 1; index < gops.length; index += 1) {
@@ -268,9 +351,9 @@ async function build(file: Blob, maxBytes: number, lowMemory: boolean) {
 		if (previous !== index - 1) await feed(index - 1);
 		await feed(index);
 	}
-	await decoder.flush();
+	await flushDecoder();
 	await Promise.all(encoders.map((encoder) => encoder.flush()));
-	decoder.close();
+	if (decoder.state !== 'closed') decoder.close();
 	for (const encoder of encoders) encoder.close();
 	post({ type: 'done' });
 }
