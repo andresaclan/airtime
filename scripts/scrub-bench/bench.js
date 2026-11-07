@@ -128,7 +128,8 @@
 		const hasRvfc = 'requestVideoFrameCallback' in video;
 		if (hasRvfc) {
 			const onFrame = (_n, meta) => {
-				videoShown = Math.round(meta.mediaTime * fps);
+				// Firefox reports the time sought (mid-frame), others the frame's start.
+				videoShown = Math.floor(meta.mediaTime * fps + 0.25);
 				note(video.seeking ? 'rvfc-seeking' : 'rvfc', videoShown);
 				video.requestVideoFrameCallback(onFrame);
 			};

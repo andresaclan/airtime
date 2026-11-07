@@ -70,6 +70,8 @@ describe.each(RATES)('%s fps', (_label, fps) => {
 			expect(frameOfPresentedTime(k / fps, fps)).toBe(k);
 			// Browsers report media time to the microsecond.
 			expect(frameOfPresentedTime(Math.floor((k / fps) * 1e6) / 1e6, fps)).toBe(k);
+			// Firefox, after a seek, reports the time sought: the middle of the frame.
+			expect(frameOfPresentedTime(frameSeekTime(k, fps), fps)).toBe(k);
 		}
 	});
 
@@ -216,6 +218,8 @@ describe.each(FIXTURES)('%s with its timing table', (name) => {
 			if (k < last) expect(seek).toBeLessThan(times[k + 1]);
 			expect(frameAt(seek, timing)).toBe(k);
 			expect(frameOfPresentedTime(presentedAt(timing, seek), timing)).toBe(k);
+			// Firefox reports the time sought rather than the frame's start.
+			expect(frameOfPresentedTime(seek, timing)).toBe(k);
 		}
 	});
 

@@ -15,4 +15,7 @@ q=(-hide_banner -loglevel error -y)
 	-tag:v hvc1 -pix_fmt yuv420p -b:v 40M hevc-4k60.mp4
 [ -f h264-1080p240.mp4 ] || ffmpeg "${q[@]}" -f lavfi -i "testsrc2=size=1920x1080:rate=240:duration=5" \
 	-vf "noise=alls=8:allf=t" -c:v libx264 -g 240 -bf 2 -pix_fmt yuv420p -b:v 30M h264-1080p240.mp4
+# Brightness encodes the frame number, for seek-truth.html.
+[ -f framenum60.mp4 ] || ffmpeg "${q[@]}" -f lavfi -i "color=c=black:s=320x240:r=60:d=1,format=gray,geq=lum='16+N*3'" \
+	-pix_fmt yuv420p -c:v libx264 -crf 2 -g 30 -bf 2 framenum60.mp4
 ls -l "$dir"/*.mp4

@@ -30,6 +30,10 @@ Bun.serve({
 			}
 			return new Response('ok');
 		}
+		if (path === '/__bench/truth')
+			return new Response(Bun.file(join(here, 'seek-truth.html')), {
+				headers: { 'content-type': 'text/html' }
+			});
 		if (path === '/__bench/probe')
 			return new Response(Bun.file(join(here, 'probe.html')), {
 				headers: { 'content-type': 'text/html' }
