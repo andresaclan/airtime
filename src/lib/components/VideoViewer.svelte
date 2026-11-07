@@ -186,9 +186,13 @@
 				hidePreview();
 			},
 			(frame) => {
-				// Built while the picture is a nearby stand-in: swap in the nearer frame.
+				// Built while the picture is a nearby stand-in: swap in the nearest frame now
+				// built, which may be one already asked for rather than this one.
 				if (!videoElement?.paused || previewTarget === null || videoShows(previewTarget)) return;
-				if (offTarget(frame) < offTarget(previewFrame ?? videoPresented)) cache.request(frame);
+				const onScreen = offTarget(previewFrame ?? videoPresented);
+				if (offTarget(frame) >= onScreen) return;
+				const nearest = cache.nearest(previewTarget, onScreen);
+				if (nearest !== null) cache.request(nearest);
 			}
 		);
 		scrubCache = cache;
