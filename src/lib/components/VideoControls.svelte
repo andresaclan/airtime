@@ -118,8 +118,8 @@
 
 	$effect(() => stopHold);
 
-	// Repeated steps don't wait for seeks to land: seek() keeps one in flight and shows
-	// cached frames meanwhile, so the picture keeps moving on long-GOP clips.
+	// Repeated steps don't wait for seeks to land: seek() keeps one in flight and goes
+	// to the latest target when it lands.
 	function repeatKeyStep(event: KeyboardEvent, direction: 1 | -1) {
 		event.preventDefault();
 		if (canStep(direction, videoElement ? targetTime(videoElement) : undefined)) step(direction);
@@ -130,14 +130,14 @@
 		if (!videoElement) return;
 		videoElement.pause();
 		const newTime = getSteppedTime(1);
-		seek(videoElement, newTime, timing);
+		seek(videoElement, newTime, timing, { preview: false });
 	}
 
 	function stepFrameBack() {
 		if (!videoElement) return;
 		videoElement.pause();
 		const newTime = getSteppedTime(-1);
-		seek(videoElement, newTime, timing);
+		seek(videoElement, newTime, timing, { preview: false });
 	}
 
 	function toggleMute() {
