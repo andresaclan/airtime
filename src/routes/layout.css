@@ -1718,9 +1718,13 @@ body {
 	/* The picture sits in the middle of the space, and moves up only as far as it
 	   must to clear the dock: the dock's row is at least as tall as the dock, and the
 	   space the picture leaves is shared between the rows above and below it. */
+	/* The stage centres its column, so the frame is stretched to full width, not
+	   sized to its content: Safari sizes it to a narrow portrait picture. */
 	.viewer-stage.has-video .viewer-column > .viewer-frame {
 		display: grid;
 		flex: 1 1 0;
+		align-self: stretch;
+		width: auto;
 		grid-template-columns: minmax(0, 1fr);
 		grid-template-rows: minmax(0, 1fr) minmax(0, auto) minmax(auto, 1fr);
 		height: auto;
