@@ -46,12 +46,15 @@ Simulator testing still does not exercise a phone's hardware decoder. A physical
 iOS gate requires a dedicated runner/device or an external device service; do not
 report mobile WebKit results as a physical iPhone pass.
 
+Each contract case uses a fresh browser process to isolate decoder teardown.
+Replacing a file within one running app is also exercised explicitly.
+
 The Safari job intentionally runs on a dedicated CI machine: WebDriver opens
 Safari windows. Do not run it on a user's working desktop during background checks.
 
 ## The decoded-frame oracle
 
-`tests/frame-stepping/fixtures/` contains small H.264 videos with 16 black/white
+`tests/frame-stepping/fixtures/` contains small H.264 videos and a VP8 WebM fallback video with 16 black/white
 stripes. Eight encode the source frame index; eight encode its inverse. The inverse
 prevents a blank/black picture from accidentally passing as frame zero. ffmpeg
 independently decodes each fixture to produce `manifest.json`; ffprobe supplies
@@ -60,7 +63,8 @@ AVFoundation offset from its source frame rate, edit point and media timescale.
 Every browser must still display the same frame IDs. The contract imports no
 application timing functions.
 
-Cases cover constant frame rate, NTSC timestamps, 240 fps at QuickTime's 600 Hz
+Cases cover constant frame rate, NTSC timestamps over enough frames to cross the
+600 Hz rounding boundary, WebM playback-rate detection, 240 fps at QuickTime's 600 Hz
 time base, dropped frames, B-frame reordering, slow-motion pre-roll, and an edit
 list trimming partway through a frame. Both pages walk **every** frame in both
 directions using buttons and keyboard shortcuts. Tests also cover boundaries,
@@ -68,6 +72,11 @@ rapid input/reversal, holds and release, playback/pause, mark round trips, and
 replacing a marked video, and stepping with the preview cache disabled. Native video pixels and any visible cache preview must
 agree after settling. Browser logs/traces and failed screenshots are retained as
 CI artifacts for 14 days. Safari retains a screenshot and error text on failure.
+
+For parsed files, the authoritative container timing avoids an unnecessary
+playback probe. Files without readable timing retain the playback probe. A
+partial-frame edit actively samples a later picture to disambiguate zero, which
+WebKit can report for a clipped partial frame.
 
 Unit tests separately exercise callback order, timestamp rounding, late frames
 after pause, queued reversals, replacing a file, cleanup, and missing frame APIs.

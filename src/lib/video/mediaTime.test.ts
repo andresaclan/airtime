@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
 	clearMediaTimeline,
 	mediaTime,
+	mediaTimelineKnown,
 	nativeTime,
 	observeMediaTimeline,
 	MEDIA_TIMELINE_EVENT
@@ -14,6 +15,14 @@ function video() {
 }
 
 describe('a trim starting partway through a frame', () => {
+	test("zero cannot distinguish a clamped partial frame from Chromium's first frame", () => {
+		const element = video();
+		observeMediaTimeline(element, 0, timing);
+		expect(mediaTimelineKnown(element, timing)).toBe(false);
+		observeMediaTimeline(element, 1 / 30, timing);
+		expect(mediaTimelineKnown(element, timing)).toBe(true);
+		expect(nativeTime(element, 0.05)).toBe(0.05);
+	});
 	test('WebKit presentation times establish the edit offset, including timestamp error', () => {
 		const element = video();
 		let changes = 0;

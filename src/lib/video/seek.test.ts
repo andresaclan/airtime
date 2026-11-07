@@ -14,6 +14,7 @@ import {
 /** Just enough of a video element: seeks land when `land()` is called. */
 class FakeVideo extends EventTarget {
 	seeking = false;
+	paused = true;
 	/** Every time the playhead was moved, which restarts the browser's decode. */
 	assigned: number[] = [];
 	private time = 0;
@@ -161,6 +162,34 @@ describe('seek completion with frame callbacks', () => {
 		fake.present(0.02);
 		expect(seekPending(element)).toBe(false);
 		expect(targetTime(element)).toBeCloseTo(0.05, 9);
+	});
+
+	test('the logical target does not move when native presentation needs a retry', () => {
+		vi.useFakeTimers();
+		const fake = new PresentingVideo();
+		const element = fake as unknown as HTMLVideoElement;
+		seek(element, 0.15, timing);
+		fake.land();
+		vi.advanceTimersByTime(500);
+		expect(fake.currentTime).toBe(0.125);
+		expect(targetTime(element)).toBe(0.15);
+		clearSeeks(element);
+	});
+
+	test('resuming playback drains the latest target without a delayed backward retry', () => {
+		vi.useFakeTimers();
+		const fake = new PresentingVideo();
+		const element = fake as unknown as HTMLVideoElement;
+		seek(element, 0.15, timing);
+		fake.land();
+		seek(element, 0.35, timing);
+		fake.paused = false;
+		fake.dispatchEvent(new Event('play'));
+		expect(fake.assigned).toEqual([0.15, 0.35]);
+		fake.land();
+		vi.advanceTimersByTime(2000);
+		expect(fake.assigned).toEqual([0.15, 0.35]);
+		expect(seekPending(element)).toBe(false);
 	});
 
 	test('seeked alone does not release a decode before its picture arrives', () => {

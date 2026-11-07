@@ -8,7 +8,7 @@
 		type FrameTiming
 	} from '$lib/video/frames';
 	import { settledDisplayedFrame, trackPresentedFrames } from '$lib/video/presentedFrame';
-	import { mediaTime, MEDIA_TIMELINE_EVENT } from '$lib/video/mediaTime';
+	import { mediaTime, mediaTimelineKnown, MEDIA_TIMELINE_EVENT } from '$lib/video/mediaTime';
 	import { ScrubCache } from '$lib/video/scrubCache';
 	import {
 		clearSeeks,
@@ -631,6 +631,24 @@
 			applyDetectedFrameRate(null);
 			return;
 		}
+		if (sourceFrameRate) {
+			// Container timing is authoritative. Playback is only a fallback for
+			// formats without it, and must not move a parsed video's opening picture.
+			const timing = { fps: sourceFrameRate, frameTimes, editGap };
+			if (mediaTimelineKnown(video, timing)) {
+				// Safari's metadata preload need not decode the opening picture.
+				seek(video, frameSeekTime(0, timing, mediaTime(video, video.duration)), timing);
+			} else {
+				setProbing(video, true);
+				await calibrateTimeline(video, timing);
+				if (id !== detectionId) return;
+				if (isProbing(video))
+					seek(video, frameSeekTime(0, timing, mediaTime(video, video.duration)), timing);
+				setProbing(video, false);
+			}
+			applyDetectedFrameRate(null);
+			return;
+		}
 
 		const wasPlaying = !video.paused;
 		const originalTime = mediaTime(video);
@@ -677,6 +695,8 @@
 			// that picture settle before restoring, or it can overwrite the seek.
 			await settledDisplayedFrame(video, timing);
 			if (id !== detectionId) return;
+			if (isProbing(video)) await calibrateTimeline(video, timing);
+			if (id !== detectionId) return;
 			// Probe playback can present a final frame after pause. Restore through
 			// the same queue as user input so that callback cannot undo the reset.
 			if (isProbing(video)) {
@@ -690,6 +710,23 @@
 		setProbing(video, false);
 		endProbeMute(video);
 		applyDetectedFrameRate(rate);
+	}
+
+	/** A zero timestamp could be a clamped partial frame, so sample a later picture. */
+	async function calibrateTimeline(video: HTMLVideoElement, timing: FrameTiming) {
+		if (mediaTimelineKnown(video, timing)) return;
+		await new Promise<void>((resolve) => {
+			const finish = () => {
+				clearTimeout(timeout);
+				video.removeEventListener(MEDIA_TIMELINE_EVENT, finish);
+				resolve();
+			};
+			const timeout = setTimeout(finish, 1000);
+			video.addEventListener(MEDIA_TIMELINE_EVENT, finish, { once: true });
+			const probing = isProbing(video);
+			seek(video, frameSeekTime(1, timing, mediaTime(video, video.duration)), timing);
+			setProbing(video, probing);
+		});
 	}
 
 	// Computed transform style

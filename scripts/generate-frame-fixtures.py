@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix="airtime-frame-fixtures-") as scratch:
     manifest = []
     cases = [
         ("cfr30.mp4", "30", 36, []),
-        ("ntsc.mov", "30000/1001", 24, ["-video_track_timescale", "600"]),
+        ("ntsc.mov", "30000/1001", 80, ["-video_track_timescale", "600"]),
         ("slomo240.mov", "240", 48, ["-video_track_timescale", "600"]),
         ("vfr.mp4", "30", 24, ["-vf", "select=not(between(n\\,5\\,7))", "-fps_mode", "passthrough"]),
         ("bframes.mp4", "30", 36, ["-bf", "3"]),
@@ -49,6 +49,10 @@ with tempfile.TemporaryDirectory(prefix="airtime-frame-fixtures-") as scratch:
     run("ffmpeg", "-v", "error", "-y", "-i", str(OUTPUT / "preroll.mov"), "-c", "copy",
         "-bsf:v", "setts=duration=10", "-video_track_timescale", "2400", str(preroll))
     (OUTPUT / "preroll.mov").write_bytes(preroll.read_bytes())
+
+    run("ffmpeg", "-v", "error", "-y", "-i", str(OUTPUT / "cfr30.mp4"),
+        "-c:v", "libvpx", "-crf", "10", "-b:v", "0", "-g", "96", "-an", str(OUTPUT / "fallback.webm"))
+    manifest.append({"file": "fallback.webm"})
 
     # Trim inside a frame without re-encoding: an edit list and decode-only pre-roll.
     output = OUTPUT / "trim.mp4"

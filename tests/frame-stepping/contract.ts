@@ -146,7 +146,8 @@ export async function replace(page: FramePage, fixture: Fixture) {
 	await page.upload(fileURLToPath(new URL(`./fixtures/${fixture.file}`, import.meta.url)));
 	await waitFor(
 		() => readFrame(page),
-		(s) => s.fps.includes('fps') && !s.fps.includes('Detecting') && s.paused && !s.seeking,
+		(s) =>
+			s.id >= 0 && s.fps.includes('fps') && !s.fps.includes('Detecting') && s.paused && !s.seeking,
 		'Frame rate must be known and the playback probe finished'
 	);
 	await home(page);
@@ -186,6 +187,17 @@ export async function rapidAndHold(page: FramePage, fixture: Fixture) {
 		}
 	}, undefined);
 	await expectFrame(page, fixture, 7);
+	await page.evaluate(() => {
+		document.addEventListener(
+			'pointerup',
+			() => {
+				(window as typeof window & { __holdReleaseTime: number }).__holdReleaseTime = Number(
+					document.querySelector('[aria-label="Video timeline"]')!.getAttribute('aria-valuenow')
+				);
+			},
+			{ capture: true, once: true }
+		);
+	}, undefined);
 	await page.down(next);
 	try {
 		await waitFor(
@@ -196,11 +208,13 @@ export async function rapidAndHold(page: FramePage, fixture: Fixture) {
 	} finally {
 		await page.up();
 	}
-	const released = await waitFor(
-		() => readFrame(page),
-		(s) => !s.seeking,
-		'Hold seek finishes'
+	const releaseTime = await page.evaluate(
+		() => (window as typeof window & { __holdReleaseTime: number }).__holdReleaseTime,
+		undefined
 	);
+	assert.ok(Number.isFinite(releaseTime), 'Pointer release must be observed');
+	const releaseIndex = fixture.times.findLastIndex((time) => time <= releaseTime + 2e-6);
+	const released = await expectFrame(page, fixture, releaseIndex);
 	await pause(250);
 	const stopped = await readFrame(page);
 	assert.equal(stopped.id, released.id, 'Releasing a hold must stop repetition');

@@ -23,8 +23,8 @@ export const SEEK_EVENT = 'airtime:seek';
 const previews = new WeakMap<HTMLVideoElement, SeekPreview>();
 /** Latest target, while it hasn't been handed to the video yet. */
 const pending = new WeakMap<HTMLVideoElement, { time: number; timing: FrameTiming }>();
-/** Completion listener for the current seek; its identity survives equal target times. */
-const inFlight = new WeakMap<HTMLVideoElement, () => void>();
+/** Logical target and cleanup identity survive native retries and timeline calibration. */
+const inFlight = new WeakMap<HTMLVideoElement, { time: number; dispose: () => void }>();
 
 export function registerSeekPreview(video: HTMLVideoElement, preview: SeekPreview): () => void {
 	previews.set(video, preview);
@@ -35,9 +35,9 @@ export function registerSeekPreview(video: HTMLVideoElement, preview: SeekPrevie
 
 function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 	const previous = inFlight.get(video);
-	previous?.();
+	previous?.dispose();
 	let seeked = false;
-	const callbacks = typeof video.requestVideoFrameCallback === 'function';
+	const callbacks = typeof video.requestVideoFrameCallback === 'function' && video.paused;
 	// Seeking within the picture already on screen need not present a new frame.
 	let presented =
 		!callbacks || (!timing.editGap && frameAt(mediaTime(video), timing) === frameAt(time, timing));
@@ -47,17 +47,26 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 	let retried = false;
 	const cleanup = () => {
 		video.removeEventListener('seeked', landed);
+		video.removeEventListener('play', onPlay);
 		if (handle !== undefined) video.cancelVideoFrameCallback(handle);
 		clearTimeout(timeout);
 	};
 	const finish = () => {
-		if (!seeked || !presented || inFlight.get(video) !== cleanup) return;
+		if (!seeked || !presented || inFlight.get(video)?.dispose !== cleanup) return;
 		cleanup();
 		inFlight.delete(video);
 		const next = pending.get(video);
 		if (next === undefined) return;
 		pending.delete(video);
 		start(video, next.time, next.timing);
+	};
+	const onPlay = () => {
+		// Watching can skip presentation of the exact paused frame. Drain to the
+		// latest target on seeked instead of retrying backward during playback.
+		presented = true;
+		if (handle !== undefined) video.cancelVideoFrameCallback(handle);
+		clearTimeout(timeout);
+		finish();
 	};
 	const rebase = () => {
 		const offset = nativeTime(video, 0);
@@ -101,7 +110,7 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 			}, 500);
 	};
 	const onFrame: VideoFrameRequestCallback = (_now, metadata) => {
-		if (inFlight.get(video) !== cleanup) return;
+		if (inFlight.get(video)?.dispose !== cleanup) return;
 		observeMediaTimeline(video, metadata.mediaTime, timing);
 		if (rebase()) return;
 		const actual = mediaTime(video, metadata.mediaTime);
@@ -113,8 +122,9 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 			finish();
 		} else handle = video.requestVideoFrameCallback(onFrame);
 	};
-	inFlight.set(video, cleanup);
+	inFlight.set(video, { time, dispose: cleanup });
 	video.addEventListener('seeked', landed, { once: true });
+	video.addEventListener('play', onPlay, { once: true });
 	if (callbacks && !presented) handle = video.requestVideoFrameCallback(onFrame);
 	video.currentTime = nativeTime(video, time);
 }
@@ -153,13 +163,13 @@ export function seek(video: HTMLVideoElement, time: number, timing: FrameTiming)
 
 /** Where the playhead is headed: the latest seek target until it lands, else `currentTime`. */
 export function targetTime(video: HTMLVideoElement): number {
-	return pending.get(video)?.time ?? mediaTime(video);
+	return pending.get(video)?.time ?? inFlight.get(video)?.time ?? mediaTime(video);
 }
 
 /** Forgets queued seeks, when the video is emptied for a new file. */
 export function clearSeeks(video: HTMLVideoElement) {
 	pending.delete(video);
-	inFlight.get(video)?.();
+	inFlight.get(video)?.dispose();
 	inFlight.delete(video);
 	clearMediaTimeline(video);
 }

@@ -18,6 +18,10 @@ export function clearMediaTimeline(video: HTMLVideoElement) {
 	offsets.delete(video);
 }
 
+export function mediaTimelineKnown(video: HTMLVideoElement, timing: FrameTiming): boolean {
+	return !(timing.editGap && timing.editGap > 1e-5) || offsets.has(video);
+}
+
 function distance(time: number, times: readonly number[]): number {
 	let low = 0;
 	let high = times.length;
@@ -40,7 +44,8 @@ export function observeMediaTimeline(
 ) {
 	const gap = timing.editGap ?? 0;
 	const times = timing.frameTimes;
-	if (!(gap > 1e-5) || !times?.length || offsets.has(video) || presentedTime < 0) return;
+	if (!(gap > 1e-5) || !times?.length || offsets.has(video) || presentedTime <= times[0] + 1e-5)
+		return;
 	const canonical = distance(presentedTime, times) <= 1e-5;
 	const shifted = distance(presentedTime - gap, times) <= 1e-5;
 	// Ambiguous timestamps do not establish a browser's presentation convention.
