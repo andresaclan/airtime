@@ -94,6 +94,7 @@
 	// The time of every frame, read from the file. Frame math uses it whenever it's there,
 	// so frames that aren't evenly spaced (variable frame rate) are still stepped one by one.
 	let frameTimes: number[] | null = $state.raw(null);
+	let editGap = $state(0);
 	// The file's frame durations vary, so one fps value doesn't describe its frame times.
 	let variableFrameRate = $state(false);
 	let playbackFrameRate: number | null = $state(null);
@@ -179,7 +180,8 @@
 
 	let timing: FrameTiming = $derived({
 		fps: frameRate,
-		frameTimes: sourceFrameRate ? frameTimes : null
+		frameTimes: sourceFrameRate ? frameTimes : null,
+		editGap
 	});
 	let analysis = $derived(analyzeMarks(marks, timing, timeScale));
 	let activeMark = $derived(markAtFrame(marks, currentTime, timing));
@@ -330,6 +332,7 @@
 		frameRate = 30;
 		sourceFrameRate = null;
 		frameTimes = null;
+		editGap = 0;
 		variableFrameRate = false;
 		playbackFrameRate = null;
 		sourceFrameRateChecked = false;
@@ -360,6 +363,7 @@
 				const detectedFps = timing?.fps ?? null;
 				sourceFrameRate = detectedFps;
 				frameTimes = timing?.frameTimes ?? null;
+				editGap = timing?.editGap ?? 0;
 				variableFrameRate = timing?.variableFrameRate ?? false;
 				sourceFrameRateChecked = true;
 				if (detectedFps) {
@@ -1264,6 +1268,7 @@
 						bind:duration
 						{sourceFrameRate}
 						frameTimes={timing.frameTimes}
+						{editGap}
 						bind:frameRate
 						bind:playbackFrameRate
 						bind:volume

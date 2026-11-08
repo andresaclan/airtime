@@ -5,7 +5,7 @@
 // The throttling flags keep rAF and requestVideoFrameCallback at full rate while
 // the window sits behind other apps.
 //
-// macOS only. Pass playwright-core's `chromium`, which isn't a repo dependency:
+// macOS only. Pass playwright-core's `chromium`:
 //
 //   const { chromium } = createRequire('/tmp/airtime-limits-pw/')('playwright-core');
 //   const { page, close } = await launchBackground(chromium);
@@ -17,8 +17,10 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+/** @param {number} ms */
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** @param {import('playwright-core').BrowserType} chromium */
 export async function launchBackground(chromium, { width = 1400, height = 900 } = {}) {
 	const port = 9300 + Math.floor(Math.random() * 600);
 	const profile = mkdtempSync(join(tmpdir(), 'airtime-chrome-'));
@@ -39,15 +41,22 @@ export async function launchBackground(chromium, { width = 1400, height = 900 } 
 		'--autoplay-policy=no-user-gesture-required'
 	]);
 
-	let browser;
-	for (let i = 0; i < 150 && !browser; i++) {
+	// Wait for the endpoint outside Playwright so startup probes do not create
+	// partial browser connections in the test's tracing scope.
+	let endpoint;
+	const deadline = Date.now() + 15_000;
+	while (!endpoint && Date.now() < deadline) {
 		try {
-			browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+			const response = await fetch(`http://127.0.0.1:${port}/json/version`, {
+				signal: AbortSignal.timeout(500)
+			});
+			endpoint = (await response.json()).webSocketDebuggerUrl;
 		} catch {
 			await sleep(100);
 		}
 	}
-	if (!browser) throw new Error('Chrome did not start');
+	if (!endpoint) throw new Error('Chrome did not start');
+	const browser = await chromium.connectOverCDP(endpoint);
 	const context = browser.contexts()[0];
 	const cdp = await browser.newBrowserCDPSession();
 
@@ -72,6 +81,11 @@ export async function launchBackground(chromium, { width = 1400, height = 900 } 
 	}
 
 	const page = await newBackgroundPage();
-	const close = () => cdp.send('Browser.close').catch(() => {});
+	const close = async () => {
+		if (!browser.isConnected()) return;
+		const disconnected = new Promise((resolve) => browser.once('disconnected', resolve));
+		await cdp.send('Browser.close').catch(() => {});
+		await disconnected;
+	};
 	return { browser, context, page, newBackgroundPage, close };
 }

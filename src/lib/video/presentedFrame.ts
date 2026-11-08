@@ -1,5 +1,7 @@
 import { frameAt, frameOfPresentedTime, frameSeekTime, type FrameTiming } from './frames';
-import { seekPending, targetTime } from './seek';
+import { SEEK_EVENT, seekPending, targetTime } from './seek';
+import { clearPresentedTime, lastPresentedTime, setPresentedTime } from './presentationState';
+import { mediaTime as canonicalTime, nativeTime, observeMediaTimeline } from './mediaTime';
 
 /**
  * Which frame is actually on screen. `currentTime` only says where the playhead
@@ -15,8 +17,6 @@ type FrameCallbackVideo = HTMLVideoElement & {
 	cancelVideoFrameCallback(handle: number): void;
 };
 
-/** Media time of the frame last presented; null while a seek is pending or nothing is known. */
-const presented = new WeakMap<HTMLVideoElement, number | null>();
 /** `performance.now()` when the last frame was presented. */
 const presentedAt = new WeakMap<HTMLVideoElement, number>();
 
@@ -33,7 +33,7 @@ function supportsFrameCallbacks(video: HTMLVideoElement): video is FrameCallback
  * While a seek is landing that's its target, which the scrub preview already shows.
  */
 export function displayedFrame(video: HTMLVideoElement, timing: FrameTiming): number {
-	const mediaTime = presented.get(video);
+	const mediaTime = lastPresentedTime(video);
 	if (video.paused && !video.seeking && !seekPending(video) && mediaTime != null) {
 		return frameOfPresentedTime(mediaTime, timing);
 	}
@@ -76,6 +76,14 @@ export function trackPresentedFrames(
 	// True from our own correcting seek until the next seek or play that isn't ours.
 	let corrected = false;
 	let correcting = false;
+	// `seeked` can precede presentation. WebKit can then deliver a callback from
+	// an older seek after a newer one has landed. Keep the explicit target until
+	// its picture arrives, rather than correcting back to that stale callback.
+	let requestedTime: number | null = null;
+	const onRequest = () => {
+		requestedTime = targetTime(video);
+		setPresentedTime(video, null);
+	};
 	// WebKit (iPhones especially) can present a paused seek's frame only once the next
 	// seek has landed, as if it answered that one. Such a late frame isn't what's on
 	// screen for this seek: trusting it pulled the playhead back on every step.
@@ -90,51 +98,71 @@ export function trackPresentedFrames(
 	};
 	const reconcile = () => {
 		const timing = getTiming();
-		const mediaTime = presented.get(video);
-		if (corrected || !video.paused || video.seeking || mediaTime == null) return;
+		const mediaTime = lastPresentedTime(video);
+		if (corrected || !video.paused || video.seeking || seekPending(video) || mediaTime == null)
+			return;
 		if (!timing || !(timing.fps > 0)) return;
 		const frame = frameOfPresentedTime(mediaTime, timing);
-		if (frameAt(video.currentTime, timing) !== frame) {
+		if (frameAt(canonicalTime(video), timing) !== frame) {
 			correcting = true;
-			video.currentTime = frameSeekTime(frame, timing, video.duration);
+			video.currentTime = nativeTime(
+				video,
+				frameSeekTime(frame, timing, canonicalTime(video, video.duration))
+			);
 		}
 	};
 	const onSeeking = () => {
 		previousSeekTime = seekTime;
-		seekTime = video.currentTime;
-		presented.set(video, null);
+		seekTime = canonicalTime(video);
+		setPresentedTime(video, null);
 		corrected = correcting;
 		correcting = false;
 	};
 	const onPlay = () => {
+		// A throttled compositor may not report a new frame before pause. The
+		// picture from before playback must never rewind that pause.
+		setPresentedTime(video, null);
+		presentedAt.delete(video);
 		corrected = false;
+		requestedTime = null;
 		seekTime = previousSeekTime = null;
 	};
 	const onFrame = (_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
-		if (isLate(metadata.mediaTime)) {
-			handle = video.requestVideoFrameCallback(onFrame);
-			return;
+		handle = video.requestVideoFrameCallback(onFrame);
+		const timing = getTiming();
+		if (timing) observeMediaTimeline(video, metadata.mediaTime, timing);
+		const time = canonicalTime(video, metadata.mediaTime);
+		if (isLate(time)) return;
+		presentedAt.set(video, performance.now());
+		if (requestedTime !== null && timing) {
+			if (time < (timing.frameTimes?.[0] ?? 0) - 1e-5) return;
+			if (frameOfPresentedTime(time, timing) !== frameAt(requestedTime, timing)) return;
+			requestedTime = null;
 		}
 		previousSeekTime = null;
-		presented.set(video, metadata.mediaTime);
-		presentedAt.set(video, performance.now());
-		handle = video.requestVideoFrameCallback(onFrame);
+		setPresentedTime(video, time);
 		reconcile();
 	};
-	const forget = () => presented.set(video, null);
+	const forget = () => {
+		seekTime = previousSeekTime = null;
+		requestedTime = null;
+		setPresentedTime(video, null);
+	};
 
 	let handle = video.requestVideoFrameCallback(onFrame);
 	video.addEventListener('seeking', onSeeking);
+	video.addEventListener(SEEK_EVENT, onRequest);
 	video.addEventListener('emptied', forget);
 	video.addEventListener('play', onPlay);
 	video.addEventListener('pause', reconcile);
 	return () => {
 		video.cancelVideoFrameCallback(handle);
 		video.removeEventListener('seeking', onSeeking);
+		video.removeEventListener(SEEK_EVENT, onRequest);
 		video.removeEventListener('emptied', forget);
 		video.removeEventListener('play', onPlay);
 		video.removeEventListener('pause', reconcile);
-		presented.delete(video);
+		clearPresentedTime(video);
 		presentedAt.delete(video);
 	};
 }

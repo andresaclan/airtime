@@ -1,13 +1,20 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { estimatePlaybackFrameRate } from '$lib/video/frameRate';
-	import { frameAt, frameOfPresentedTime, type FrameTiming } from '$lib/video/frames';
-	import { trackPresentedFrames } from '$lib/video/presentedFrame';
+	import {
+		frameAt,
+		frameOfPresentedTime,
+		frameSeekTime,
+		type FrameTiming
+	} from '$lib/video/frames';
+	import { settledDisplayedFrame, trackPresentedFrames } from '$lib/video/presentedFrame';
+	import { mediaTime, mediaTimelineKnown, MEDIA_TIMELINE_EVENT } from '$lib/video/mediaTime';
 	import { ScrubCache } from '$lib/video/scrubCache';
 	import {
 		clearSeeks,
 		isProbing,
 		registerSeekPreview,
+		seek,
 		setProbing,
 		SEEK_EVENT,
 		seekPending,
@@ -31,6 +38,7 @@
 		sourceFrameRate?: number | null;
 		/** Time of every frame, from the file; see frames.ts. */
 		frameTimes?: readonly number[] | null;
+		editGap?: number;
 		frameRate: number;
 		playbackFrameRate?: number | null;
 		volume: number;
@@ -53,6 +61,7 @@
 		duration = $bindable(0),
 		sourceFrameRate = null,
 		frameTimes = null,
+		editGap = 0,
 		frameRate = $bindable(30),
 		playbackFrameRate = $bindable(null),
 		volume = $bindable(1),
@@ -127,7 +136,7 @@
 		if (!frameTimes?.length || !scrubCache || frameTimes.length !== scrubCache.frameCount) {
 			return null;
 		}
-		return { fps: frameRate, frameTimes };
+		return { fps: frameRate, frameTimes, editGap };
 	}
 
 	/** Frame the video itself has on screen, once its seeks have landed. */
@@ -225,7 +234,7 @@
 			handle = video.requestVideoFrameCallback(onFrame);
 			const timing = previewTiming();
 			if (!timing) return;
-			videoPresented = frameOfPresentedTime(metadata.mediaTime, timing);
+			videoPresented = frameOfPresentedTime(mediaTime(video, metadata.mediaTime), timing);
 			if (!video.seeking) videoFrame = videoPresented;
 			if (previewFrame === null || previewTarget === null) return;
 			if (videoShows(previewTarget)) hidePreview();
@@ -243,7 +252,7 @@
 				if (seekPending(video)) return;
 				if (
 					videoPresented === previewTarget &&
-					frameAt(video.currentTime, timing) === previewTarget
+					frameAt(mediaTime(video), timing) === previewTarget
 				) {
 					videoFrame = previewTarget;
 					hidePreview();
@@ -280,6 +289,11 @@
 		if (video.parentElement) resize.observe(video.parentElement);
 		if ('requestVideoFrameCallback' in video) handle = video.requestVideoFrameCallback(onFrame);
 		video.addEventListener(SEEK_EVENT, sync);
+		const timelineChanged = () => {
+			handleDurationChange();
+			sync();
+		};
+		video.addEventListener(MEDIA_TIMELINE_EVENT, timelineChanged);
 		video.addEventListener('emptied', emptied);
 		video.addEventListener('seeking', seeking);
 		video.addEventListener('seeked', seeked);
@@ -291,6 +305,7 @@
 			clearTimeout(seekedTimer);
 			if (handle) video.cancelVideoFrameCallback(handle);
 			video.removeEventListener(SEEK_EVENT, sync);
+			video.removeEventListener(MEDIA_TIMELINE_EVENT, timelineChanged);
 			video.removeEventListener('emptied', emptied);
 			video.removeEventListener('seeking', seeking);
 			video.removeEventListener('seeked', seeked);
@@ -300,7 +315,7 @@
 
 	function handleDurationChange() {
 		if (videoElement) {
-			duration = videoElement.duration;
+			duration = mediaTime(videoElement, videoElement.duration);
 			onDurationChange?.(duration);
 		}
 	}
@@ -324,8 +339,8 @@
 	function handleLoadedMetadata() {
 		if (videoElement) {
 			enforceInAppPlayback();
-			duration = videoElement.duration;
-			currentTime = videoElement.currentTime;
+			duration = mediaTime(videoElement, videoElement.duration);
+			currentTime = mediaTime(videoElement);
 			onDurationChange?.(duration);
 			detectFrameRate();
 			// Reset zoom on new video
@@ -374,7 +389,7 @@
 	$effect(() => {
 		if (!videoElement) return;
 		return trackPresentedFrames(videoElement, () =>
-			sourceFrameRate || playbackFrameRate ? { fps: frameRate, frameTimes } : null
+			sourceFrameRate || playbackFrameRate ? { fps: frameRate, frameTimes, editGap } : null
 		);
 	});
 
@@ -583,10 +598,8 @@
 		}
 	}
 
-	// Frame callbacks arrive at most once per display refresh, so a clip faster than the
-	// display (240 fps on a 120 Hz screen) reads as the refresh rate. Fast clips are
-	// sampled again at quarter speed, which tells rates up to 4× the refresh rate apart.
-	const FAST_FRAME_RATE = 50;
+	// A throttled compositor can undercount even a 30 fps clip. Probe at quarter
+	// speed from the start; never change the native decoder's rate while playing.
 	const SLOW_PROBE_RATE = 0.25;
 	// The mute setting from before a probe muted the video. Kept outside the probe so one
 	// cut short by the next video doesn't leave the video muted.
@@ -607,22 +620,25 @@
 		return new Promise((resolve) => {
 			const times: number[] = [];
 			let done = false;
-			// Low frame-rate clips may not deliver every frame in time; settle with what came.
+			let handle: number;
 			const timeout = setTimeout(() => finish(), timeoutMs);
 			const finish = () => {
 				if (done) return;
 				done = true;
 				clearTimeout(timeout);
+				video.cancelVideoFrameCallback(handle);
+				for (const event of ['pause', 'ended', 'emptied']) video.removeEventListener(event, finish);
 				resolve(times);
 			};
 			const callback = (_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
 				if (done) return;
 				if (id !== detectionId) return finish();
 				times.push(metadata.mediaTime);
-				if (times.length < 13) video.requestVideoFrameCallback(callback);
+				if (times.length < 13) handle = video.requestVideoFrameCallback(callback);
 				else finish();
 			};
-			video.requestVideoFrameCallback(callback);
+			for (const event of ['pause', 'ended', 'emptied']) video.addEventListener(event, finish);
+			handle = video.requestVideoFrameCallback(callback);
 		});
 	}
 
@@ -635,48 +651,96 @@
 			applyDetectedFrameRate(null);
 			return;
 		}
+		if (sourceFrameRate) {
+			// Container timing is authoritative. Playback is only a fallback for
+			// formats without it, and must not move a parsed video's opening picture.
+			const timing = { fps: sourceFrameRate, frameTimes, editGap };
+			if (mediaTimelineKnown(video, timing)) {
+				// Safari's metadata preload need not decode the opening picture.
+				seek(video, frameSeekTime(0, timing, mediaTime(video, video.duration)), timing);
+			} else {
+				setProbing(video, true);
+				await calibrateTimeline(video, timing);
+				if (id !== detectionId) return;
+				if (isProbing(video))
+					seek(video, frameSeekTime(0, timing, mediaTime(video, video.duration)), timing);
+				setProbing(video, false);
+			}
+			applyDetectedFrameRate(null);
+			return;
+		}
 
 		const wasPlaying = !video.paused;
-		const originalTime = video.currentTime;
+		const originalTime = mediaTime(video);
 
 		if (!wasPlaying) {
 			mutedBeforeProbe ??= video.muted;
 			video.muted = true;
 			setProbing(video, true);
+			video.playbackRate = SLOW_PROBE_RATE;
 			try {
 				await video.play();
 			} catch {
 				setProbing(video, false);
 				if (id !== detectionId) return;
+				video.playbackRate = playbackRate;
 				endProbeMute(video);
 				applyDetectedFrameRate(null);
 				return;
 			}
 		}
 
-		let rate = estimatePlaybackFrameRate(await sampleFrameTimes(video, id, 500));
-		// Only while probing: slowing down a video the athlete is watching would be jarring.
-		if (
-			!wasPlaying &&
-			isProbing(video) &&
-			rate !== null &&
-			rate >= FAST_FRAME_RATE &&
-			id === detectionId
-		) {
-			video.playbackRate = SLOW_PROBE_RATE;
-			const slowRate = estimatePlaybackFrameRate(await sampleFrameTimes(video, id, 1000));
-			video.playbackRate = playbackRate;
-			if (slowRate !== null && slowRate > rate) rate = slowRate;
-		}
+		const rate = estimatePlaybackFrameRate(
+			await sampleFrameTimes(video, id, wasPlaying ? 500 : 2000)
+		);
 
 		if (id !== detectionId) return;
+		if (!wasPlaying) {
+			if (isProbing(video)) video.pause();
+			video.playbackRate = playbackRate;
+		}
 		if (!wasPlaying && isProbing(video)) {
-			video.pause();
-			video.currentTime = originalTime;
+			const timing = {
+				fps: sourceFrameRate ?? rate ?? frameRate,
+				frameTimes: sourceFrameRate ? frameTimes : null,
+				editGap
+			};
+			// WebKit may finish presenting probe playback after pause/seeked. Let
+			// that picture settle before restoring, or it can overwrite the seek.
+			await settledDisplayedFrame(video, timing);
+			if (id !== detectionId) return;
+			if (isProbing(video)) await calibrateTimeline(video, timing);
+			if (id !== detectionId) return;
+			// Probe playback can present a final frame after pause. Restore through
+			// the same queue as user input so that callback cannot undo the reset.
+			if (isProbing(video)) {
+				seek(
+					video,
+					frameSeekTime(frameAt(originalTime, timing), timing, mediaTime(video, video.duration)),
+					timing
+				);
+			}
 		}
 		setProbing(video, false);
 		endProbeMute(video);
 		applyDetectedFrameRate(rate);
+	}
+
+	/** A zero timestamp could be a clamped partial frame, so sample a later picture. */
+	async function calibrateTimeline(video: HTMLVideoElement, timing: FrameTiming) {
+		if (mediaTimelineKnown(video, timing)) return;
+		await new Promise<void>((resolve) => {
+			const finish = () => {
+				clearTimeout(timeout);
+				video.removeEventListener(MEDIA_TIMELINE_EVENT, finish);
+				resolve();
+			};
+			const timeout = setTimeout(finish, 1000);
+			video.addEventListener(MEDIA_TIMELINE_EVENT, finish, { once: true });
+			const probing = isProbing(video);
+			seek(video, frameSeekTime(1, timing, mediaTime(video, video.duration)), timing);
+			setProbing(video, probing);
+		});
 	}
 
 	// Pan is a percentage of the video element. It's turned into pixels so the preview

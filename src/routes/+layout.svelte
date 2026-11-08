@@ -1,6 +1,15 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import { onMount } from 'svelte';
+
+	// File-input automation must wait for client handlers, not just SSR markup.
+	onMount(() => {
+		document.documentElement.dataset.airtimeReady = 'true';
+		return () => {
+			delete document.documentElement.dataset.airtimeReady;
+		};
+	});
 
 	let { children } = $props();
 </script>

@@ -109,7 +109,7 @@ How many frames per second a video holds, either read from the file or measured 
 _Avoid_: Assumed frame rate, default frame rate
 
 **Frame times**:
-When each frame of a video is shown, read from the file. When a video has them, stepping, marks and timings follow them, so a video whose frames aren't evenly spaced (a **variable frame rate**, such as slow motion with dropped frames) is still stepped one real frame at a time. Videos without them (WebM) are treated as evenly spaced at the frame rate.
+When each frame of a video is shown, read from the file. When a video has them, stepping, marks and timings follow them, so a video whose frames aren't evenly spaced (a **variable frame rate**, such as slow motion with dropped frames) is still stepped one real frame at a time. Videos without them (WebM) are treated as evenly spaced at the frame rate. When a trim cuts through a frame, Airtime begins with the first complete frame. Browser timestamp differences are translated so that marks keep the same meaning across browsers.
 
 ### Keeping data
 

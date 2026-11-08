@@ -61,6 +61,8 @@ export type FrameTimingAnalysis = {
 };
 
 export type VideoTiming = FrameTimingAnalysis & {
+	/** Gap before the first complete frame, removed from the canonical timeline. */
+	editGap: number;
 	/** Presentation time in seconds of every frame that plays, ascending. */
 	frameTimes: number[];
 	/** Presentation time of the first frame. Non-zero when an edit list delays it. */
@@ -309,12 +311,20 @@ export function buildCompositionTimes(tables: SampleTables): number[] {
  * The frames that play, in order: `times[k]` is frame k's presentation time in seconds
  * and `ticks[k]` the composition time (media ticks) of the sample that shows it.
  */
-export function buildPresentedFrames(tables: SampleTables): { times: number[]; ticks: number[] } {
+export function buildPresentedFrames(tables: SampleTables): {
+	times: number[];
+	ticks: number[];
+	editGap: number;
+} {
 	const { timescale, movieTimescale, elst } = tables;
 	const compositionTimes = buildCompositionTimes(tables).sort((a, b) => a - b);
 
 	if (elst.length === 0) {
-		return { times: compositionTimes.map((ticks) => ticks / timescale), ticks: compositionTimes };
+		return {
+			times: compositionTimes.map((ticks) => ticks / timescale),
+			ticks: compositionTimes,
+			editGap: 0
+		};
 	}
 
 	const times: number[] = [];
@@ -339,7 +349,11 @@ export function buildPresentedFrames(tables: SampleTables): { times: number[]; t
 	// An edit that starts partway through a frame hides that frame, and ffmpeg moves the
 	// next one back to the start of the edit rather than leave a gap.
 	const gap = times.length > 0 && leadingEmpty !== null ? times[0] - leadingEmpty : 0;
-	return { times: gap > 0 ? times.map((time) => time - gap) : times, ticks: shown };
+	return {
+		times: gap > 0 ? times.map((time) => time - gap) : times,
+		ticks: shown,
+		editGap: Math.max(0, gap)
+	};
 }
 
 // Longer gaps (a pause in recording) say nothing about the frame rate.
@@ -428,11 +442,12 @@ export function estimatePlaybackFrameRate(mediaTimes: number[]): number | null {
 export function parseVideoTiming(bytes: ArrayBuffer): VideoTiming | null {
 	const tables = parseSampleTables(bytes);
 	if (!tables) return null;
-	const frameTimes = buildFrameTimestamps(tables);
+	const { times: frameTimes, editGap } = buildPresentedFrames(tables);
 	const analysis = analyzeFrameTimestamps(frameTimes, tables.timescale);
 	if (!analysis) return null;
 	return {
 		...analysis,
+		editGap,
 		frameTimes,
 		startTime: frameTimes[0],
 		frameCount: frameTimes.length,
