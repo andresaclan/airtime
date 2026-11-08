@@ -181,7 +181,7 @@ export async function replace(page: FramePage, fixture: Fixture) {
 async function waitUntilReady(page: FramePage, fixture: Fixture) {
 	if (page.batch) return page.batch('ready', fixture);
 	// Do not allocate/read a video canvas while an unparsed file's startup
-	// playback probe is running. Safari's VP8 path can wedge that GPU readback.
+	// playback probe is running; readiness itself needs no pixel allocation.
 	await waitFor(
 		() =>
 			page.evaluate(() => {

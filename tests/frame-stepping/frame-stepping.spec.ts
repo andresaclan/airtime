@@ -148,6 +148,16 @@ test('unparsed video keeps every frame when playback callbacks are throttled', a
 			...framePage,
 			upload: async (path) => {
 				await framePage.evaluate(() => {
+					const changes: number[] = [];
+					(window as typeof window & { __liveRateChanges: number[] }).__liveRateChanges = changes;
+					const rate = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'playbackRate')!;
+					Object.defineProperty(HTMLMediaElement.prototype, 'playbackRate', {
+						...rate,
+						set(value: number) {
+							if (!this.paused && value !== rate.get!.call(this)) changes.push(value);
+							rate.set!.call(this, value);
+						}
+					});
 					const request = HTMLVideoElement.prototype.requestVideoFrameCallback;
 					const last = new WeakMap<VideoFrameRequestCallback, number>();
 					HTMLVideoElement.prototype.requestVideoFrameCallback = function (callback) {
@@ -173,6 +183,12 @@ test('unparsed video keeps every frame when playback callbacks are throttled', a
 		undefined
 	);
 	if (rate !== 1) throw new Error(`Playback probe left the user at ${rate} speed`);
+	const liveChanges = await framePage.evaluate(
+		() => (window as typeof window & { __liveRateChanges: number[] }).__liveRateChanges,
+		undefined
+	);
+	if (liveChanges.length)
+		throw new Error(`Playback probe changed native speed during playback: ${liveChanges}`);
 	await walkEveryFrame(framePage, fixture);
 });
 

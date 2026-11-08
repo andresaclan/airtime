@@ -65,6 +65,30 @@ afterEach(() => {
 });
 
 describe('the frame on screen', () => {
+	test('a backstep that emits no picture recovers through a neighboring frame', () => {
+		vi.useFakeTimers();
+		const timing = {
+			fps: 240,
+			frameTimes: Array.from({ length: 48 }, (_, frame) => Math.round((frame * 600) / 240) / 600)
+		};
+		const { video } = tracked(() => timing);
+		video.currentTime = frameSeekTime(16, timing);
+		video.land();
+		video.present(timing.frameTimes[16]);
+		seek(video.element, frameSeekTime(15, timing), timing);
+		video.land(); // Native iOS reports seeked but keeps frame 16, without a callback.
+		vi.advanceTimersByTime(500);
+		expect(video.currentTime).toBe(frameSeekTime(14, timing));
+		expect(displayedFrame(video.element, timing)).toBe(15);
+		video.land();
+		video.present(timing.frameTimes[14]);
+		expect(video.currentTime).toBe(frameSeekTime(15, timing));
+		video.land();
+		video.present(timing.frameTimes[15]);
+		expect(seekPending(video.element)).toBe(false);
+		expect(displayedFrame(video.element, timing)).toBe(15);
+	});
+
 	test('pause cannot rewind to a picture recorded before playback started', () => {
 		const { video } = tracked();
 		video.present(0);

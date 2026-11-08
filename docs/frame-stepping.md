@@ -13,9 +13,11 @@ whose frames are not evenly spaced. A time readout changing by 1/fps is not proo
   matching picture. A no-op seek may skip that wait only when the last presented
   picture matches; matching `currentTime` is insufficient after a late pause frame.
   If the playhead already names the target but a different picture is known, decode
-  an adjacent frame and return, keeping the user's logical target stable. If that callback is absent for 500 ms after `seeked`, retry
-  once inside the same frame. Another 500 ms without a matching picture releases
-  the queue so an unsupported or truncated frame cannot trap later input. Browsers without that API use `seeked` alone.
+  an adjacent frame and return, keeping the user's logical target stable. If that callback is absent for 500 ms after `seeked`, also decode
+  a neighboring frame and return: native iOS may leave the previous picture visible
+  after a backstep, even after a second seek inside the target frame. Each recovery
+  leg waits at most 500 ms for presentation before returning or releasing the queue,
+  so an unsupported or truncated frame cannot trap later input. Browsers without that API use `seeked` alone.
 - `mediaTime.ts` translates only at the native video boundary. Safari retains the
   gap before the first complete frame of a partial-frame edit; Chrome shifts it
   away. The parser preserves that gap, and presentation timestamps establish the
@@ -87,7 +89,8 @@ CI artifacts for 14 days. Safari retains capabilities, frame events, a screensho
 and error text on failure. Each native Safari case has a hard watchdog (120 seconds
 on macOS, 240 on iOS), including startup and cleanup. A wedged IPC channel kills
 only that case's owned SafariDriver process and records its last stage. Driver
-diagnostics are collected even when a job is cancelled.
+diagnostics are collected even when a job is cancelled. On a dedicated CI runner,
+a stall also captures bounded Safari/WebKit process-stack samples before cleanup.
 
 Safari fixtures are transferred as `File` bytes through the real input's change
 handler: SafariDriver's path upload can expose filenames without readable sandboxed
@@ -110,8 +113,9 @@ Startup readiness is polled without a canvas, so pixel readback cannot contend
 with Safari's WebM playback probe. Every subsequent step still uses the strict pixel oracle.
 
 For parsed files, the authoritative container timing avoids an unnecessary
-playback probe. Files without readable timing retain the playback probe. It samples again at quarter
-speed even when the initial estimate is low or absent: compositor throttling can
+playback probe. Files without readable timing retain the playback probe. It samples
+at quarter speed from the start and restores the user’s speed after pausing, so
+the probe never changes the native decoder’s rate during playback. Compositor throttling can
 otherwise turn a 30 fps file into a false 10 fps estimate. A separate decoded-frame
 case limits playback callbacks to 10 Hz to cover this regression. A
 partial-frame edit actively samples a later picture to disambiguate zero, which

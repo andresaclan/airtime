@@ -598,8 +598,8 @@
 		}
 	}
 
-	// A throttled compositor can undercount even a 30 fps clip. Sample every
-	// unparsed file again at quarter speed, so more source pictures reach the display.
+	// A throttled compositor can undercount even a 30 fps clip. Probe at quarter
+	// speed from the start; never change the native decoder's rate while playing.
 	const SLOW_PROBE_RATE = 0.25;
 	// The mute setting from before a probe muted the video. Kept outside the probe so one
 	// cut short by the next video doesn't leave the video muted.
@@ -677,29 +677,29 @@
 			mutedBeforeProbe ??= video.muted;
 			video.muted = true;
 			setProbing(video, true);
+			video.playbackRate = SLOW_PROBE_RATE;
 			try {
 				await video.play();
 			} catch {
 				setProbing(video, false);
 				if (id !== detectionId) return;
+				video.playbackRate = playbackRate;
 				endProbeMute(video);
 				applyDetectedFrameRate(null);
 				return;
 			}
 		}
 
-		let rate = estimatePlaybackFrameRate(await sampleFrameTimes(video, id, 500));
-		// Only while probing: slowing down a video the athlete is watching would be jarring.
-		if (!wasPlaying && isProbing(video) && id === detectionId) {
-			video.playbackRate = SLOW_PROBE_RATE;
-			const slowRate = estimatePlaybackFrameRate(await sampleFrameTimes(video, id, 2000));
-			video.playbackRate = playbackRate;
-			if (slowRate !== null && (rate === null || slowRate > rate)) rate = slowRate;
-		}
+		const rate = estimatePlaybackFrameRate(
+			await sampleFrameTimes(video, id, wasPlaying ? 500 : 2000)
+		);
 
 		if (id !== detectionId) return;
+		if (!wasPlaying) {
+			if (isProbing(video)) video.pause();
+			video.playbackRate = playbackRate;
+		}
 		if (!wasPlaying && isProbing(video)) {
-			video.pause();
 			const timing = {
 				fps: sourceFrameRate ?? rate ?? frameRate,
 				frameTimes: sourceFrameRate ? frameTimes : null,

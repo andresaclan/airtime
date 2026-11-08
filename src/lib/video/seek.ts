@@ -1,10 +1,4 @@
-import {
-	frameAt,
-	frameOfPresentedTime,
-	frameSeekTime,
-	frameStartTime,
-	type FrameTiming
-} from './frames';
+import { frameAt, frameOfPresentedTime, frameSeekTime, type FrameTiming } from './frames';
 import {
 	clearMediaTimeline,
 	mediaTime,
@@ -61,9 +55,12 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 		frameAt(mediaTime(video), timing) === targetFrame &&
 		frameOfPresentedTime(picture, timing) !== targetFrame;
 	const duration = Number.isFinite(video.duration) ? mediaTime(video, video.duration) : Infinity;
-	let nativeTarget = detouring
-		? frameSeekTime(targetFrame > 0 ? targetFrame - 1 : targetFrame + 1, timing, duration)
-		: time;
+	const adjacent = frameSeekTime(
+		targetFrame > 0 ? targetFrame - 1 : targetFrame + 1,
+		timing,
+		duration
+	);
+	let nativeTarget = detouring ? adjacent : time;
 	let presented =
 		!callbacks ||
 		(mediaTimelineKnown(video, timing) &&
@@ -79,9 +76,9 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 		if (handle !== undefined) video.cancelVideoFrameCallback(handle);
 		clearTimeout(timeout);
 	};
-	const restoreTarget = () => {
-		detouring = false;
-		nativeTarget = time;
+	const moveTo = (target: number, detour = false) => {
+		detouring = detour;
+		nativeTarget = target;
 		seeked = false;
 		presented = !callbacks || !video.paused;
 		clearTimeout(timeout);
@@ -90,6 +87,7 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 		if (!presented) handle = video.requestVideoFrameCallback(onFrame);
 		video.currentTime = nativeTime(video, nativeTarget);
 	};
+	const restoreTarget = () => moveTo(time);
 	const finish = () => {
 		if (!seeked || !presented || inFlight.get(video)?.dispose !== cleanup) return;
 		if (detouring) return restoreTarget();
@@ -136,15 +134,11 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 			timeout = setTimeout(() => {
 				if (detouring) return restoreTarget();
 				if (!retried) {
-					// A final playback picture can overwrite a paused WebKit seek.
-					// Retry once inside the same frame after the decoder has settled.
+					// Native iOS can report seeked without decoding a backstep.
+					// Moving within that frame still leaves the old picture visible;
+					// cross a frame boundary, then return to the logical target.
 					retried = true;
-					seeked = false;
-					video.addEventListener('seeked', landed, { once: true });
-					video.currentTime = nativeTime(
-						video,
-						(frameStartTime(frameAt(time, timing), timing) + time) / 2
-					);
+					moveTo(adjacent, true);
 					return;
 				}
 				presented = true;

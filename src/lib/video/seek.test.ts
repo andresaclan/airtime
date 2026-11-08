@@ -171,7 +171,7 @@ describe('seek completion with frame callbacks', () => {
 		seek(element, 0.15, timing);
 		fake.land();
 		vi.advanceTimersByTime(500);
-		expect(fake.currentTime).toBe(0.125);
+		expect(fake.currentTime).toBe(0.05);
 		expect(targetTime(element)).toBe(0.15);
 		clearSeeks(element);
 	});
@@ -213,7 +213,7 @@ describe('seek completion with frame callbacks', () => {
 		expect(fake.callbacks.size).toBe(0);
 	});
 
-	test('a missing picture retries once within the same frame, then releases the queue', () => {
+	test('a missing picture detours once and returns before releasing the queue', () => {
 		vi.useFakeTimers();
 		const fake = new PresentingVideo();
 		const element = fake as unknown as HTMLVideoElement;
@@ -223,10 +223,13 @@ describe('seek completion with frame callbacks', () => {
 		vi.advanceTimersByTime(499);
 		expect(fake.assigned).toEqual([0.15]);
 		vi.advanceTimersByTime(1);
-		expect(fake.assigned).toEqual([0.15, 0.125]);
+		expect(fake.assigned).toEqual([0.15, 0.05]);
 		fake.land();
 		vi.advanceTimersByTime(500);
-		expect(fake.assigned).toEqual([0.15, 0.125, 0.25]);
+		expect(fake.assigned).toEqual([0.15, 0.05, 0.15]);
+		fake.land();
+		vi.advanceTimersByTime(500);
+		expect(fake.assigned).toEqual([0.15, 0.05, 0.15, 0.25]);
 		clearSeeks(element);
 		expect(fake.callbacks.size).toBe(0);
 	});

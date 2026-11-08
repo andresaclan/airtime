@@ -5,6 +5,8 @@ import { ServiceBuilder } from 'selenium-webdriver/safari';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import {
 	fixtures,
 	browserContractScript,
@@ -25,6 +27,32 @@ mkdirSync(output, { recursive: true });
 
 type SafariSession = { driver: WebDriver; service: ReturnType<ServiceBuilder['build']> };
 let iosSession: SafariSession | undefined;
+
+// Dedicated CI only: capture native stacks while the stalled processes still
+// exist. WebDriver cannot retrieve page diagnostics from a blocked WebProcess.
+async function captureStacks(name: string) {
+	if (process.env.CI !== 'true') return;
+	const exec = promisify(execFile);
+	try {
+		const { stdout } = await exec('/bin/ps', ['-axo', 'pid=,comm='], { timeout: 3000 });
+		const processes = stdout
+			.split('\n')
+			.filter((line) => /Safari\.app\/|com\.apple\.WebKit\.(WebContent|GPU|Networking)/.test(line));
+		writeFileSync(`${output}/${name}-processes.txt`, processes.join('\n'));
+		await Promise.allSettled(
+			processes.map((line) => {
+				const pid = line.trim().split(/\s+/)[0];
+				return exec('/usr/bin/sample', [pid, '2', '-file', `${output}/${name}-${pid}-sample.txt`], {
+					timeout: 8000
+				}).catch((error) => {
+					writeFileSync(`${output}/${name}-${pid}-sample-error.txt`, String(error));
+				});
+			})
+		);
+	} catch (error) {
+		console.error('Native stack capture:', String(error));
+	}
+}
 
 function adapter(driver: WebDriver, stage: (label: string) => void): FramePage {
 	return {
@@ -186,6 +214,7 @@ async function run(name: string, scenario: (page: FramePage) => Promise<void>) {
 	let activeStage = 'start SafariDriver';
 	let timeoutError: Error | undefined;
 	let failure: unknown;
+	let diagnostics: Promise<unknown> | undefined;
 	const limit = ios ? 240_000 : 120_000;
 	console.log(`START ${name}`);
 	const watchdog = setTimeout(() => {
@@ -193,7 +222,9 @@ async function run(name: string, scenario: (page: FramePage) => Promise<void>) {
 		writeFileSync(`${output}/${name}-timeout.txt`, timeoutError.message);
 		console.error(timeoutError.message);
 		// Only this case's driver process. Killing it also rejects stalled HTTP calls.
-		void service.kill().catch((error) => console.error('Driver cleanup failed:', error));
+		diagnostics = captureStacks(name)
+			.finally(() => service.kill())
+			.catch((error) => console.error('Driver cleanup failed:', error));
 	}, limit);
 	try {
 		if (!driver) {
@@ -262,6 +293,7 @@ async function run(name: string, scenario: (page: FramePage) => Promise<void>) {
 			}
 		}
 	} finally {
+		await diagnostics;
 		if (!ios || failure || timeoutError) {
 			try {
 				if (driver && !timeoutError) {
