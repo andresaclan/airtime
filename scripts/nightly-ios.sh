@@ -216,7 +216,7 @@ if ((status == 0)); then
 	report_pass
 	exit 0
 fi
-if grep -qi "remote automation" "$log"; then
+if grep -qiE "remote automation|Could not find any session hosts" "$log"; then
 	infra "SafariDriver is not enabled on this Mac. Run once: sudo safaridriver --enable"
 fi
 if grep -q "SessionNotCreatedError" "$log"; then
