@@ -136,6 +136,12 @@ function adapter(driver: WebDriver, stage: (label: string) => void): FramePage {
 				);
 				return;
 			}
+			if (key === 'Enter') {
+				// Element Send Keys clicks its target first, and the small timeline
+				// pins can't take a WebDriver click. Key actions go to the focused element.
+				await driver.actions({ async: true }).sendKeys(Key.ENTER).perform();
+				return;
+			}
 			if (key.startsWith('Shift+Arrow')) {
 				await driver
 					.actions({ async: true })
@@ -146,8 +152,7 @@ function adapter(driver: WebDriver, stage: (label: string) => void): FramePage {
 				return;
 			}
 			const keys: Record<string, string> = {
-				Home: Key.HOME,
-				Enter: Key.ENTER
+				Home: Key.HOME
 			};
 			await driver
 				.switchTo()
