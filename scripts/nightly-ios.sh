@@ -167,13 +167,14 @@ bun install --frozen-lockfile || infra "bun install failed"
 bun run build || infra "build failed"
 
 port=""
-for candidate in $(seq 4180 4199); do
+# Safari refuses some ports outright (4190 is ManageSieve); 4280-4299 has none of them.
+for candidate in $(seq 4280 4299); do
 	if ! lsof -tiTCP:"$candidate" -sTCP:LISTEN >/dev/null; then
 		port="$candidate"
 		break
 	fi
 done
-[[ -n "$port" ]] || infra "no free preview port in 4180-4199"
+[[ -n "$port" ]] || infra "no free preview port in 4280-4299"
 bun run preview -- --port "$port" --strictPort >"$run_dir/preview.log" 2>&1 &
 server=$!
 for _ in $(seq 1 100); do
