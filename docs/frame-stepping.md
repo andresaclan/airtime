@@ -55,7 +55,10 @@ Simulator testing still does not exercise a phone's hardware decoder. A physical
 iOS gate requires a dedicated runner/device or an external device service; do not
 report mobile WebKit results as a physical iPhone pass.
 
-Each contract case uses a fresh browser process to isolate decoder teardown.
+Playwright cases use fresh browser processes; macOS Safari uses fresh WebDriver
+sessions. Native iOS retains one owned session because repeated session creation
+can race Safari's RWI application handoff. Each iOS case navigates through a blank
+document to tear down its old player/decoder before loading the app again.
 Replacing a file within one running app is also exercised explicitly.
 
 The Safari job intentionally runs on a dedicated CI machine: WebDriver opens
@@ -102,6 +105,9 @@ rejects a wrong barcode. This tests the app's real control handlers and native i
 test the Photos picker, physical keyboard delivery, or OS touch gesture delivery.
 The desktop jobs exercise native keyboard and pointer input; the mobile WebKit
 profile uses actual emulated taps.
+
+Startup readiness is polled without a canvas, so pixel readback cannot contend
+with Safari's WebM playback probe. Every subsequent step still uses the strict pixel oracle.
 
 For parsed files, the authoritative container timing avoids an unnecessary
 playback probe. Files without readable timing retain the playback probe. It samples again at quarter

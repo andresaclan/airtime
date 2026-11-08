@@ -180,10 +180,23 @@ export async function replace(page: FramePage, fixture: Fixture) {
 
 async function waitUntilReady(page: FramePage, fixture: Fixture) {
 	if (page.batch) return page.batch('ready', fixture);
+	// Do not allocate/read a video canvas while an unparsed file's startup
+	// playback probe is running. Safari's VP8 path can wedge that GPU readback.
 	await waitFor(
-		() => readFrame(page),
-		(s) =>
-			s.id >= 0 && s.fps.includes('fps') && !s.fps.includes('Detecting') && s.paused && !s.seeking,
+		() =>
+			page.evaluate(() => {
+				const video = document.querySelector('video');
+				const fps = document.querySelector('.time-fps')?.textContent ?? '';
+				return Boolean(
+					video &&
+					video.readyState >= 2 &&
+					video.paused &&
+					!video.seeking &&
+					fps.includes('fps') &&
+					!fps.includes('Detecting')
+				);
+			}, undefined),
+		Boolean,
 		'Frame rate must be known and the playback probe finished'
 	);
 	await home(page);

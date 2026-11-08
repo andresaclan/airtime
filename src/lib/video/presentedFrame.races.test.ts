@@ -20,6 +20,9 @@ class Video extends EventTarget {
 		this.seeking = true;
 		this.dispatchEvent(new Event('seeking'));
 	}
+	advanceTo(time: number) {
+		this.time = time; // Playback advances without dispatching a seeking event.
+	}
 	requestVideoFrameCallback(callback: VideoFrameRequestCallback) {
 		this.callbacks.set(++this.serial, callback);
 		return this.serial;
@@ -62,6 +65,19 @@ afterEach(() => {
 });
 
 describe('the frame on screen', () => {
+	test('pause cannot rewind to a picture recorded before playback started', () => {
+		const { video } = tracked();
+		video.present(0);
+		video.paused = false;
+		video.dispatchEvent(new Event('play'));
+		video.advanceTo(3.2 / 30);
+		video.pause();
+		expect(video.assigned).toEqual([]);
+		video.present(3 / 30);
+		expect(displayedFrame(video.element, timing)).toBe(3);
+		expect(video.assigned).toEqual([]);
+	});
+
 	test('a matching playhead cannot complete a seek while a late pause picture is shown', () => {
 		vi.useFakeTimers();
 		const video = new Video();

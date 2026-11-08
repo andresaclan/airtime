@@ -23,6 +23,9 @@ if (ios && !udid) throw new Error('Native iOS tests require an explicit simulato
 const output = ios ? 'test-results/safari-ios' : 'test-results/safari';
 mkdirSync(output, { recursive: true });
 
+type SafariSession = { driver: WebDriver; service: ReturnType<ServiceBuilder['build']> };
+let iosSession: SafariSession | undefined;
+
 function adapter(driver: WebDriver, stage: (label: string) => void): FramePage {
 	return {
 		engine: 'webkit',
@@ -48,6 +51,11 @@ function adapter(driver: WebDriver, stage: (label: string) => void): FramePage {
 		goto: async (path, expectedPath = path) => {
 			stage(`navigate ${path}`);
 			console.log(`  navigate ${path}`);
+			if (ios) {
+				// Tear down the old document/decoder while retaining the native session.
+				// Recreating iOS sessions can race Safari's RWI application handoff.
+				await driver.get('about:blank');
+			}
 			await driver.get(new URL(path, baseURL).href);
 			const expected = new URL(expectedPath, baseURL).href;
 			await driver.wait(
@@ -173,8 +181,8 @@ function adapter(driver: WebDriver, stage: (label: string) => void): FramePage {
 // Own the service explicitly so a wedged WebKit command can be terminated.
 // WebDriver's script/page timeouts cannot interrupt an unresponsive IPC channel.
 async function run(name: string, scenario: (page: FramePage) => Promise<void>) {
-	const service = new ServiceBuilder('/usr/bin/safaridriver').build();
-	let driver: WebDriver | undefined;
+	const service = iosSession?.service ?? new ServiceBuilder('/usr/bin/safaridriver').build();
+	let driver: WebDriver | undefined = iosSession?.driver;
 	let activeStage = 'start SafariDriver';
 	let timeoutError: Error | undefined;
 	let failure: unknown;
@@ -188,25 +196,28 @@ async function run(name: string, scenario: (page: FramePage) => Promise<void>) {
 		void service.kill().catch((error) => console.error('Driver cleanup failed:', error));
 	}, limit);
 	try {
-		const url = await service.start();
-		activeStage = 'create Safari session';
-		driver = await new Builder()
-			.usingServer(url)
-			.withCapabilities({
-				unhandledPromptBehavior: 'accept',
-				pageLoadStrategy: 'eager',
-				'safari:diagnose': true,
-				...(ios
-					? {
-							platformName: 'iOS',
-							'safari:useSimulator': true,
-							'safari:deviceUDID': udid,
-							'webkit:alwaysAllowAutoplay': true
-						}
-					: {})
-			})
-			.forBrowser('safari')
-			.build();
+		if (!driver) {
+			const url = await service.start();
+			activeStage = 'create Safari session';
+			driver = await new Builder()
+				.usingServer(url)
+				.withCapabilities({
+					unhandledPromptBehavior: 'accept',
+					pageLoadStrategy: 'eager',
+					'safari:diagnose': true,
+					...(ios
+						? {
+								platformName: 'iOS',
+								'safari:useSimulator': true,
+								'safari:deviceUDID': udid,
+								'webkit:alwaysAllowAutoplay': true
+							}
+						: {})
+				})
+				.forBrowser('safari')
+				.build();
+			if (ios) iosSession = { driver, service };
+		}
 		activeStage = 'configure Safari session';
 		await driver
 			.manage()
@@ -251,42 +262,61 @@ async function run(name: string, scenario: (page: FramePage) => Promise<void>) {
 			}
 		}
 	} finally {
-		try {
-			if (driver && !timeoutError) {
-				activeStage = 'quit Safari session';
-				await driver.quit();
+		if (!ios || failure || timeoutError) {
+			try {
+				if (driver && !timeoutError) {
+					activeStage = 'quit Safari session';
+					await driver.quit();
+				}
+			} catch (error) {
+				failure ??= timeoutError ?? error;
 			}
-		} catch (error) {
-			failure ??= timeoutError ?? error;
+			await service.kill();
+			if (ios) iosSession = undefined;
 		}
 		clearTimeout(watchdog);
-		await service.kill();
 	}
 	if (timeoutError || failure) throw timeoutError ?? failure;
 	console.log(`PASS ${name}`);
 }
 
-for (const route of ['/', '/alpha']) {
-	const name = route === '/' ? 'player' : 'legacy-link';
-	await run(`${name}-no-preview-cache`, async (page) => {
-		await load(page, route, fixtures[3], false);
-		await walkEveryFrame(page, fixtures[3]);
-	});
-	for (const fixture of fixtures) {
-		await run(`${name}-${fixture.file}`, async (page) => {
+try {
+	for (const route of ['/', '/alpha']) {
+		const name = route === '/' ? 'player' : 'legacy-link';
+		await run(`${name}-no-preview-cache`, async (page) => {
+			await load(page, route, fixtures[3], false);
+			await walkEveryFrame(page, fixtures[3]);
+		});
+		for (const fixture of fixtures) {
+			await run(`${name}-${fixture.file}`, async (page) => {
+				await load(page, route, fixture);
+				await walkEveryFrame(page, fixture);
+			});
+		}
+		await run(`${name}-interaction`, async (page) => {
+			const fixture = fixtures[0];
 			await load(page, route, fixture);
-			await walkEveryFrame(page, fixture);
+			await interact(page, fixture);
+			await replace(page, fixtures[3]);
+			if (page.batch) await page.batch('next', fixtures[3]);
+			else {
+				await page.press('.');
+				await expectFrame(page, fixtures[3], 1);
+			}
 		});
 	}
-	await run(`${name}-interaction`, async (page) => {
-		const fixture = fixtures[0];
-		await load(page, route, fixture);
-		await interact(page, fixture);
-		await replace(page, fixtures[3]);
-		if (page.batch) await page.batch('next', fixtures[3]);
-		else {
-			await page.press('.');
-			await expectFrame(page, fixtures[3], 1);
+} finally {
+	if (iosSession) {
+		const { driver, service } = iosSession;
+		const alarm = setTimeout(() => {
+			void service.kill();
+		}, 15_000);
+		try {
+			await driver.quit();
+		} finally {
+			await service.kill();
+			clearTimeout(alarm);
+			iosSession = undefined;
 		}
-	});
+	}
 }

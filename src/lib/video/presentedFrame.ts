@@ -119,6 +119,10 @@ export function trackPresentedFrames(
 		correcting = false;
 	};
 	const onPlay = () => {
+		// A throttled compositor may not report a new frame before pause. The
+		// picture from before playback must never rewind that pause.
+		setPresentedTime(video, null);
+		presentedAt.delete(video);
 		corrected = false;
 		requestedTime = null;
 		seekTime = previousSeekTime = null;
