@@ -8,6 +8,7 @@
 #
 #   nightly-ios.sh           what launchd runs
 #   nightly-ios.sh --force   run now: ignore idle time and the last tested commit
+#   nightly-ios.sh --dry-run check the setup: build and serve main, skip the simulator
 #
 # Results: a notification, a log folder under ~/Library/Logs/airtime-nightly-ios, and
 # (unless AIRTIME_NIGHTLY_ISSUES=0) one rolling GitHub issue while main is failing.
@@ -25,7 +26,9 @@ ISSUE_TITLE="Nightly iOS Simulator frame check failing on main"
 # about the app. Give such a commit a few chances before reporting it.
 MAX_INFRA_ATTEMPTS=3
 FORCE=0
+DRY_RUN=0
 [[ "${1:-}" == "--force" ]] && FORCE=1
+[[ "${1:-}" == "--dry-run" ]] && FORCE=1 && DRY_RUN=1
 
 say() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*"; }
 mkdir -p "$STATE" "$LOGS"
@@ -177,6 +180,11 @@ for _ in $(seq 1 100); do
 	kill -0 "$server" 2>/dev/null || infra "preview server exited"
 	sleep 0.3
 done
+curl --fail --silent "http://localhost:$port/" >/dev/null || infra "preview server never answered"
+if [[ "$DRY_RUN" == 1 ]]; then
+	say "Dry run: built main $short and served it on port $port; skipping the simulator"
+	exit 0
+fi
 
 pgrep -x Simulator >/dev/null || simulator_was_running=0
 # The same isolated device CI used: newest iOS runtime, booted before SafariDriver.

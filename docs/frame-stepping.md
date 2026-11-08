@@ -71,7 +71,8 @@ keep one GitHub issue open until `main` passes again; logs stay on the Mac under
 ```sh
 sudo safaridriver --enable            # once per Mac
 scripts/install-nightly-ios.sh        # install, or --uninstall
-/bin/bash ~/Library/Application\ Support/airtime-nightly-ios/nightly-ios.sh --force  # run now
+/bin/bash ~/Library/Application\ Support/airtime-nightly-ios/nightly-ios.sh --dry-run  # check the setup
+/bin/bash ~/Library/Application\ Support/airtime-nightly-ios/nightly-ios.sh --force    # run it now
 ```
 
 Simulator testing still does not exercise a phone's hardware decoder. A physical
