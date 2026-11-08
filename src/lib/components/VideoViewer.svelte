@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 	import { estimatePlaybackFrameRate } from '$lib/video/frameRate';
 	import {
 		frameAt,
@@ -37,6 +37,12 @@
 		currentTime: number;
 		duration: number;
 		sourceFrameRate?: number | null;
+		/**
+		 * Whether the file's own timing has been read (or found unreadable). Frame-rate
+		 * detection waits for it: a playback probe must never run on a file whose
+		 * container already says its frame rate.
+		 */
+		sourceTimingChecked?: boolean;
 		/** Time of every frame, from the file; see frames.ts. */
 		frameTimes?: readonly number[] | null;
 		editGap?: number;
@@ -61,6 +67,7 @@
 		currentTime = $bindable(0),
 		duration = $bindable(0),
 		sourceFrameRate = null,
+		sourceTimingChecked = true,
 		frameTimes = null,
 		editGap = 0,
 		frameRate = $bindable(30),
@@ -328,13 +335,33 @@
 		}
 	}
 
+	// Detection starts once per video, when both its metadata and the file's own timing
+	// are in. The file is read in parallel with the video loading, and either can finish
+	// first; starting on metadata alone played a parsed file to measure its frame rate.
+	let metadataLoaded = false;
+	let detectionStarted = false;
+	function startFrameRateDetection() {
+		if (!metadataLoaded || !sourceTimingChecked || detectionStarted) return;
+		detectionStarted = true;
+		detectFrameRate();
+	}
+	$effect(() => {
+		void videoSrc;
+		metadataLoaded = false;
+		detectionStarted = false;
+	});
+	$effect(() => {
+		if (sourceTimingChecked) untrack(startFrameRateDetection);
+	});
+
 	function handleLoadedMetadata() {
 		if (videoElement) {
 			enforceInAppPlayback();
 			duration = mediaTime(videoElement, videoElement.duration);
 			currentTime = mediaTime(videoElement);
 			onDurationChange?.(duration);
-			detectFrameRate();
+			metadataLoaded = true;
+			startFrameRateDetection();
 			// Reset zoom on new video
 			resetZoom();
 		}

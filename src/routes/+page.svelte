@@ -1267,6 +1267,7 @@
 						bind:currentTime
 						bind:duration
 						{sourceFrameRate}
+						sourceTimingChecked={sourceFrameRateChecked}
 						frameTimes={timing.frameTimes}
 						{editGap}
 						bind:frameRate
