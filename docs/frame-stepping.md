@@ -81,7 +81,10 @@ rapid input/reversal, holds and release, playback/pause, mark round trips, and
 replacing a marked video, and stepping with the preview cache disabled. Native video pixels and any visible cache preview must
 agree after settling. Browser logs/traces and failed screenshots are retained as
 CI artifacts for 14 days. Safari retains capabilities, frame events, a screenshot
-and error text on failure.
+and error text on failure. Each native Safari case has a hard watchdog (120 seconds
+on macOS, 240 on iOS), including startup and cleanup. A wedged IPC channel kills
+only that case's owned SafariDriver process and records its last stage. Driver
+diagnostics are collected even when a job is cancelled.
 
 Safari fixtures are transferred as `File` bytes through the real input's change
 handler: SafariDriver's path upload can expose filenames without readable sandboxed

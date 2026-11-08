@@ -84,7 +84,7 @@ jobs:
           done
           bun run test:frames:safari
       - name: Collect Safari startup diagnostics
-        if: failure() && (matrix.browser == 'safari' || matrix.browser == 'safari-ios')
+        if: always() && (matrix.browser == 'safari' || matrix.browser == 'safari-ios')
         shell: bash
         run: |
           mkdir -p test-results/safari-driver

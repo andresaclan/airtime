@@ -1,6 +1,7 @@
 // Shipping Safari, not Playwright WebKit. Run on a dedicated macOS CI runner:
 // sudo safaridriver --enable && bun run test:frames:safari
 import { Builder, By, Key, type WebDriver } from 'selenium-webdriver';
+import { ServiceBuilder } from 'selenium-webdriver/safari';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import assert from 'node:assert/strict';
@@ -22,7 +23,7 @@ if (ios && !udid) throw new Error('Native iOS tests require an explicit simulato
 const output = ios ? 'test-results/safari-ios' : 'test-results/safari';
 mkdirSync(output, { recursive: true });
 
-function adapter(driver: WebDriver): FramePage {
+function adapter(driver: WebDriver, stage: (label: string) => void): FramePage {
 	return {
 		engine: 'webkit',
 		...(ios
@@ -31,6 +32,7 @@ function adapter(driver: WebDriver): FramePage {
 						operation: 'ready' | 'walk' | 'interaction' | 'next',
 						fixture: (typeof fixtures)[number]
 					) => {
+						stage(`browser batch ${operation}: ${fixture.file}`);
 						const result = await driver.executeAsyncScript<{ ok: boolean; error?: string }>(
 							browserContractScript(),
 							operation,
@@ -44,6 +46,8 @@ function adapter(driver: WebDriver): FramePage {
 				}
 			: {}),
 		goto: async (path, expectedPath = path) => {
+			stage(`navigate ${path}`);
+			console.log(`  navigate ${path}`);
 			await driver.get(new URL(path, baseURL).href);
 			const expected = new URL(expectedPath, baseURL).href;
 			await driver.wait(
@@ -52,9 +56,12 @@ function adapter(driver: WebDriver): FramePage {
 				'Entry redirect must finish'
 			);
 		},
-		evaluate: async <R, A>(fn: (arg: A) => R, arg: A): Promise<R> =>
-			driver.executeScript(`return (${fn.toString()})(arguments[0]);`, arg ?? null),
+		evaluate: async <R, A>(fn: (arg: A) => R, arg: A): Promise<R> => {
+			stage(`evaluate ${fn.toString().slice(0, 120)}`);
+			return driver.executeScript(`return (${fn.toString()})(arguments[0]);`, arg ?? null);
+		},
 		click: async (selector) => {
+			stage(`click ${selector}`);
 			if (ios) {
 				// iOS 26/27 pointer actions can wedge the remote automation channel:
 				// https://bugs.webkit.org/show_bug.cgi?id=322937
@@ -65,9 +72,11 @@ function adapter(driver: WebDriver): FramePage {
 			await driver.findElement(By.css(selector)).click();
 		},
 		focus: async (selector) => {
+			stage(`focus ${selector}`);
 			await driver.executeScript('document.querySelector(arguments[0]).focus()', selector);
 		},
 		press: async (key) => {
+			stage(`press ${key}`);
 			// Mobile Safari has no hardware keyboard in CI. Exercise the same key
 			// handlers with DOM events; DOM activation exercises the buttons.
 			if (ios) {
@@ -104,6 +113,7 @@ function adapter(driver: WebDriver): FramePage {
 				.then((element) => element.sendKeys(keys[key] ?? key));
 		},
 		down: async (selector) => {
+			stage(`down ${selector}`);
 			if (ios) {
 				// Exercise sustained touch handlers and the release click explicitly.
 				// This tests app repetition; OS gesture delivery needs device UI tests.
@@ -123,6 +133,7 @@ function adapter(driver: WebDriver): FramePage {
 			await driver.actions({ async: true }).move({ origin: target }).press().perform();
 		},
 		up: async () => {
+			stage('release hold');
 			if (ios) {
 				await driver.executeScript(`
 					const target = window.__heldFrameButton;
@@ -137,6 +148,8 @@ function adapter(driver: WebDriver): FramePage {
 			await driver.actions({ async: true }).release().perform();
 		},
 		upload: async (path) => {
+			stage(`upload ${basename(path)}`);
+			console.log(`  upload ${basename(path)}`);
 			// SafariDriver's path upload can expose the filename without readable
 			// sandboxed bytes. The Mac path also does not exist inside iOS. Transfer
 			// the fixture through the real input handler; decoding stays in Safari.
@@ -157,25 +170,44 @@ function adapter(driver: WebDriver): FramePage {
 	};
 }
 
-// Start a fresh session per case: marks, queued seeks and decoder state cannot leak.
+// Own the service explicitly so a wedged WebKit command can be terminated.
+// WebDriver's script/page timeouts cannot interrupt an unresponsive IPC channel.
 async function run(name: string, scenario: (page: FramePage) => Promise<void>) {
-	const driver = await new Builder()
-		.withCapabilities({
-			unhandledPromptBehavior: 'accept',
-			pageLoadStrategy: 'eager',
-			'safari:diagnose': true,
-			...(ios
-				? {
-						platformName: 'iOS',
-						'safari:useSimulator': true,
-						'safari:deviceUDID': udid,
-						'webkit:alwaysAllowAutoplay': true
-					}
-				: {})
-		})
-		.forBrowser('safari')
-		.build();
+	const service = new ServiceBuilder('/usr/bin/safaridriver').build();
+	let driver: WebDriver | undefined;
+	let activeStage = 'start SafariDriver';
+	let timeoutError: Error | undefined;
+	let failure: unknown;
+	const limit = ios ? 240_000 : 120_000;
+	console.log(`START ${name}`);
+	const watchdog = setTimeout(() => {
+		timeoutError = new Error(`${name} exceeded ${limit / 1000}s during ${activeStage}`);
+		writeFileSync(`${output}/${name}-timeout.txt`, timeoutError.message);
+		console.error(timeoutError.message);
+		// Only this case's driver process. Killing it also rejects stalled HTTP calls.
+		void service.kill().catch((error) => console.error('Driver cleanup failed:', error));
+	}, limit);
 	try {
+		const url = await service.start();
+		activeStage = 'create Safari session';
+		driver = await new Builder()
+			.usingServer(url)
+			.withCapabilities({
+				unhandledPromptBehavior: 'accept',
+				pageLoadStrategy: 'eager',
+				'safari:diagnose': true,
+				...(ios
+					? {
+							platformName: 'iOS',
+							'safari:useSimulator': true,
+							'safari:deviceUDID': udid,
+							'webkit:alwaysAllowAutoplay': true
+						}
+					: {})
+			})
+			.forBrowser('safari')
+			.build();
+		activeStage = 'configure Safari session';
 		await driver
 			.manage()
 			.setTimeouts({ implicit: 0, pageLoad: 30_000, script: ios ? 120_000 : 15_000 });
@@ -193,27 +225,45 @@ async function run(name: string, scenario: (page: FramePage) => Promise<void>) {
 		console.log(
 			`Safari ${capabilities.get('browserVersion')} on ${capabilities.get('platformName')}`
 		);
-		await scenario(adapter(driver));
-		console.log(`PASS ${name}`);
+		await scenario(
+			adapter(driver, (label) => {
+				activeStage = label;
+			})
+		);
 	} catch (error) {
-		writeFileSync(`${output}/${name}.png`, await driver.takeScreenshot(), 'base64');
-		writeFileSync(`${output}/${name}.txt`, String(error));
-		const events = await driver.executeScript(`
-			const video = document.querySelector('video');
-			return {
-				events: window.__frameLog || [],
-				media: video && {
-					readyState: video.readyState, networkState: video.networkState,
-					error: video.error && { code: video.error.code, message: video.error.message },
-					src: video.currentSrc
-				}
-			};
-		`);
-		writeFileSync(`${output}/${name}-events.json`, JSON.stringify(events, null, 2));
-		throw error;
+		failure = timeoutError ?? error;
+		writeFileSync(`${output}/${name}.txt`, String(failure));
+		if (driver && !timeoutError) {
+			try {
+				activeStage = 'capture failure artifacts';
+				writeFileSync(`${output}/${name}.png`, await driver.takeScreenshot(), 'base64');
+				const events = await driver.executeScript(`
+					const video = document.querySelector('video');
+					return {
+						events: window.__frameLog || [],
+						media: video && { readyState: video.readyState, networkState: video.networkState,
+							error: video.error && { code: video.error.code, message: video.error.message }, src: video.currentSrc }
+					};
+				`);
+				writeFileSync(`${output}/${name}-events.json`, JSON.stringify(events, null, 2));
+			} catch (captureError) {
+				console.error('Failure artifact capture:', String(captureError));
+			}
+		}
 	} finally {
-		await driver.quit();
+		try {
+			if (driver && !timeoutError) {
+				activeStage = 'quit Safari session';
+				await driver.quit();
+			}
+		} catch (error) {
+			failure ??= timeoutError ?? error;
+		}
+		clearTimeout(watchdog);
+		await service.kill();
 	}
+	if (timeoutError || failure) throw timeoutError ?? failure;
+	console.log(`PASS ${name}`);
 }
 
 for (const route of ['/', '/alpha']) {
