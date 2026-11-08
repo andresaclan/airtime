@@ -70,9 +70,28 @@ export function readFrame(page: FramePage) {
 			return bits.slice(0, 8).reduce((id, bit, k) => id + (Number(bit) << k), 0);
 		};
 		const overlay = document.querySelector<HTMLCanvasElement>('[data-scrub-surface].visible');
+		// The preview must cover exactly the picture: object-fit: contain inside the
+		// video element's box, not the element itself (Safari stretches the element).
+		let previewOffBy: number | null = null;
+		if (overlay && video && video.videoWidth && video.videoHeight) {
+			const box = video.getBoundingClientRect();
+			const preview = overlay.getBoundingClientRect();
+			if (box.width && preview.width) {
+				const scale = Math.min(box.width / video.videoWidth, box.height / video.videoHeight);
+				const width = video.videoWidth * scale;
+				const height = video.videoHeight * scale;
+				previewOffBy = Math.max(
+					Math.abs(preview.left - (box.left + (box.width - width) / 2)),
+					Math.abs(preview.top - (box.top + (box.height - height) / 2)),
+					Math.abs(preview.width - width),
+					Math.abs(preview.height - height)
+				);
+			}
+		}
 		return {
 			id: video && video.readyState >= 2 ? decode(video) : -1,
 			overlay: overlay ? decode(overlay) : null,
+			previewOffBy,
 			time: video?.currentTime ?? -1,
 			duration: video?.duration ?? -1,
 			paused: video?.paused ?? false,
@@ -90,9 +109,24 @@ export function readFrame(page: FramePage) {
 export async function expectFrame(page: FramePage, fixture: Fixture, index: number) {
 	let consecutive = 0;
 	const offset = page.engine === 'webkit' ? fixture.webkitOffset : 0;
+	const target = fixture.ids[index];
+	// Every sample counts, not just the settled one: once the picture on screen
+	// (the preview while it covers the video) shows the target, it must not flash
+	// back to another frame before the step settles.
+	let shown = false;
 	return waitFor(
 		() => readFrame(page),
 		(state) => {
+			if (state.previewOffBy !== null && state.previewOffBy > 2)
+				assert.fail(
+					`${fixture.file}: the preview is ${state.previewOffBy.toFixed(1)} px off the picture: ${JSON.stringify(state)}`
+				);
+			const visible = state.overlay ?? state.id;
+			if (visible === target) shown = true;
+			else if (shown && visible >= 0)
+				assert.fail(
+					`${fixture.file}: frame ${index} (barcode ${target}) was shown, then barcode ${visible}: ${JSON.stringify(state)}`
+				);
 			const correct =
 				state.paused &&
 				!state.seeking &&
@@ -145,6 +179,15 @@ export async function load(page: FramePage, route: string, fixture: Fixture, pre
 			},
 			true
 		);
+		document.addEventListener(
+			'play',
+			(e) => {
+				if (!(e.target instanceof HTMLVideoElement)) return;
+				const counted = window as typeof window & { __airtimePlays?: number };
+				counted.__airtimePlays = (counted.__airtimePlays ?? 0) + 1;
+			},
+			true
+		);
 		for (const event of ['seeking', 'seeked', 'play', 'pause', 'emptied', 'airtime:seek']) {
 			document.addEventListener(
 				event,
@@ -174,8 +217,22 @@ export async function load(page: FramePage, route: string, fixture: Fixture, pre
 }
 
 export async function replace(page: FramePage, fixture: Fixture) {
+	const plays = () =>
+		page.evaluate(
+			() => (window as typeof window & { __airtimePlays?: number }).__airtimePlays ?? 0,
+			undefined
+		);
+	const before = await plays();
 	await page.upload(fileURLToPath(new URL(`./fixtures/${fixture.file}`, import.meta.url)));
 	await waitUntilReady(page, fixture);
+	// Every fixture carries container timing, which is authoritative. Only a file
+	// without it (WebM) may be played briefly to measure its frame rate.
+	if (!fixture.file.endsWith('.webm'))
+		assert.equal(
+			await plays(),
+			before,
+			`${fixture.file}: opening a file with container timing must not start playback`
+		);
 }
 
 async function waitUntilReady(page: FramePage, fixture: Fixture) {

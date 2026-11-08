@@ -61,6 +61,27 @@ with tempfile.TemporaryDirectory(prefix="airtime-frame-fixtures-") as scratch:
         "-video_track_timescale", "600", "-an", str(OUTPUT / "hevc.mov"))
     manifest.append({"file": "hevc.mov"})
 
+    # How an iPhone stores portrait video: landscape-coded frames and a -90° display
+    # matrix, so players show 144x256. The bands run across the coded rows so that,
+    # once rotated for display, they read left to right like every other fixture.
+    rotated = Path(scratch) / "rotated.rgb"
+    with rotated.open("wb") as file:
+        for frame in range(36):
+            bits = [(frame >> bit) & 1 for bit in range(8)]
+            stripes = bits + [1 - b for b in bits]
+            # Displayed column x is coded row HEIGHT - 1 - x after a clockwise turn.
+            file.write(b"".join(
+                bytes([235 if stripes[(HEIGHT - 1 - row) * 16 // HEIGHT] else 16]) * 3 * WIDTH
+                for row in range(HEIGHT)))
+    coded = Path(scratch) / "coded.mov"
+    run("ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pixel_format", "rgb24",
+        "-video_size", f"{WIDTH}x{HEIGHT}", "-framerate", "30", "-i", str(rotated),
+        "-c:v", "libx264", "-preset", "medium", "-crf", "10", "-pix_fmt", "yuv420p",
+        "-g", "96", "-bf", "0", "-video_track_timescale", "600", "-an", str(coded))
+    run("ffmpeg", "-v", "error", "-y", "-display_rotation:v:0", "-90", "-i", str(coded),
+        "-c", "copy", "-video_track_timescale", "600", str(OUTPUT / "portrait.mov"))
+    manifest.append({"file": "portrait.mov"})
+
     # Trim inside a frame without re-encoding: an edit list and decode-only pre-roll.
     output = OUTPUT / "trim.mp4"
     run("ffmpeg", "-v", "error", "-y", "-ss", "0.51", "-i", str(OUTPUT / "cfr30.mp4"),
@@ -73,7 +94,10 @@ with tempfile.TemporaryDirectory(prefix="airtime-frame-fixtures-") as scratch:
             "-show_entries", "frame=best_effort_timestamp_time", "-of", "json", str(path)))
         case["times"] = [float(frame["best_effort_timestamp_time"]) for frame in probe["frames"]]
         # Decode again with ffmpeg, independently of Airtime's parser and browser decoder.
+        # ffmpeg applies the display matrix first; scaling every picture to the coded
+        # fixture size keeps one sampling grid for portrait and landscape alike.
         pixels = run("ffmpeg", "-v", "error", "-i", str(path), "-fps_mode", "passthrough",
+            "-vf", f"scale={WIDTH}:{HEIGHT}:flags=neighbor",
             "-f", "rawvideo", "-pix_fmt", "rgb24", "-")
         ids = []
         size = WIDTH * HEIGHT * 3

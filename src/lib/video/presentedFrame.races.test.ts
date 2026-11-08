@@ -167,6 +167,29 @@ describe('the frame on screen', () => {
 		expect(displayedFrame(video.element, timing)).toBe(2);
 	});
 
+	test('a late callback cannot rewind a no-op seek to the picture already on screen', () => {
+		const { video } = tracked();
+		video.currentTime = frameSeekTime(1, timing);
+		video.land();
+		video.present(1 / 30);
+		seek(video.element, frameSeekTime(2, timing), timing);
+		video.land();
+		video.present(2 / 30);
+		// Frame 2 is already shown, so this seek completes on seeked alone.
+		seek(video.element, frameSeekTime(2, timing), timing);
+		video.land();
+		expect(seekPending(video.element)).toBe(false);
+		// WebKit then delivers a callback from two seeks back. It isn't the previous
+		// seek's frame, so only the requested target can show that it is stale.
+		video.present(1 / 30);
+		expect(displayedFrame(video.element, timing)).toBe(2);
+		expect(video.assigned).toEqual([
+			frameSeekTime(1, timing),
+			frameSeekTime(2, timing),
+			frameSeekTime(2, timing)
+		]);
+	});
+
 	test('a seek uses its latest target, including a rapid reversal, until it lands', () => {
 		const { video } = tracked();
 		video.present(0);
