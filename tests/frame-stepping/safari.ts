@@ -25,12 +25,6 @@ if (ios && !udid) throw new Error('Native iOS tests require an explicit simulato
 const output = ios ? 'test-results/safari-ios' : 'test-results/safari';
 mkdirSync(output, { recursive: true });
 
-// Shipping Safari's WebM renderer can deadlock on CI: its process stacks show the
-// renderer blocked on an internal WebKit lock while the compositor queries the
-// video layer size. No app change avoids it. Phones record MOV/MP4, and the WebM
-// playback-probe path stays covered by Chrome, Chromium and Playwright WebKit.
-const nativeFixtures = fixtures.filter((fixture) => !fixture.file.endsWith('.webm'));
-
 type SafariSession = { driver: WebDriver; service: ReturnType<ServiceBuilder['build']> };
 let iosSession: SafariSession | undefined;
 
@@ -211,7 +205,7 @@ function adapter(driver: WebDriver, stage: (label: string) => void): FramePage {
 			`,
 				readFileSync(path).toString('base64'),
 				basename(path),
-				path.endsWith('.webm') ? 'video/webm' : 'video/mp4'
+				path.endsWith('.mov') ? 'video/quicktime' : 'video/mp4'
 			);
 		}
 	};
@@ -324,30 +318,27 @@ async function run(name: string, scenario: (page: FramePage) => Promise<void>) {
 }
 
 try {
-	for (const route of ['/', '/alpha']) {
-		const name = route === '/' ? 'player' : 'legacy-link';
-		await run(`${name}-no-preview-cache`, async (page) => {
-			await load(page, route, fixtures[3], false);
-			await walkEveryFrame(page, fixtures[3]);
-		});
-		for (const fixture of nativeFixtures) {
-			await run(`${name}-${fixture.file}`, async (page) => {
-				await load(page, route, fixture);
-				await walkEveryFrame(page, fixture);
-			});
-		}
-		await run(`${name}-interaction`, async (page) => {
-			const fixture = fixtures[0];
-			await load(page, route, fixture);
-			await interact(page, fixture);
-			await replace(page, fixtures[3]);
-			if (page.batch) await page.batch('next', fixtures[3]);
-			else {
-				await page.press('.');
-				await expectFrame(page, fixtures[3], 1);
-			}
+	await run('player-no-preview-cache', async (page) => {
+		await load(page, '/', fixtures[3], false);
+		await walkEveryFrame(page, fixtures[3]);
+	});
+	for (const fixture of fixtures) {
+		await run(`player-${fixture.file}`, async (page) => {
+			await load(page, '/', fixture);
+			await walkEveryFrame(page, fixture);
 		});
 	}
+	await run('player-interaction', async (page) => {
+		const fixture = fixtures[0];
+		await load(page, '/', fixture);
+		await interact(page, fixture);
+		await replace(page, fixtures[3]);
+		if (page.batch) await page.batch('next', fixtures[3]);
+		else {
+			await page.press('.');
+			await expectFrame(page, fixtures[3], 1);
+		}
+	});
 } finally {
 	if (iosSession) {
 		const { driver, service } = iosSession;

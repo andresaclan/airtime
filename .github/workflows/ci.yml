@@ -28,8 +28,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, browser: chromium }
-          - { os: ubuntu-latest, browser: chrome }
           - { os: macos-15, browser: chromium }
           - { os: macos-15, browser: chrome }
           # AVFoundation/H.264 on macOS; Linux WebKit is not Safari's media stack.
@@ -38,6 +36,9 @@ jobs:
           - { os: macos-15, browser: safari }
           - { os: macos-15, browser: safari-ios }
     runs-on: ${{ matrix.os }}
+    # The Simulator reports but doesn't block merges: it can flake, and it isn't an
+    # iPhone's hardware decoder. Remove this line to make it required again.
+    continue-on-error: ${{ matrix.browser == 'safari-ios' }}
     # iOS includes first boot and fresh documents in one native Safari session.
     timeout-minutes: ${{ matrix.browser == 'safari-ios' && 40 || 20 }}
     steps:

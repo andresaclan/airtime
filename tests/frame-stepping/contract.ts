@@ -117,7 +117,7 @@ export async function home(page: FramePage) {
 }
 
 export async function load(page: FramePage, route: string, fixture: Fixture, preview = true) {
-	await page.goto(route, route === '/alpha' ? '/' : route);
+	await page.goto(route);
 	await waitFor(
 		() => page.evaluate(() => document.documentElement.dataset.airtimeReady === 'true', undefined),
 		Boolean,

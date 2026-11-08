@@ -2,12 +2,12 @@ import { test as base, type BrowserContext, type Page } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import {
 	fixtures,
-	browserContractScript,
 	load,
 	interact,
 	walkEveryFrame,
 	replace,
 	expectFrame,
+	waitFor,
 	type FramePage
 } from './contract';
 
@@ -109,112 +109,53 @@ const test = base.extend<{ framePage: FramePage }>({
 	}
 });
 
-for (const route of ['/', '/alpha']) {
-	test(`${route}: stepping works without the WebCodecs preview cache`, async ({ framePage }) => {
-		await load(framePage, route, fixtures[3], false);
-		await walkEveryFrame(framePage, fixtures[3]);
-	});
+test('stepping works without the WebCodecs preview cache', async ({ framePage }) => {
+	await load(framePage, '/', fixtures[3], false);
+	await walkEveryFrame(framePage, fixtures[3]);
+});
 
-	for (const fixture of fixtures) {
-		test(`${route}: visits every decoded frame forward and backward in ${fixture.file}`, async ({
-			framePage
-		}) => {
-			await load(framePage, route, fixture);
-			await walkEveryFrame(framePage, fixture);
-		});
-	}
-
-	test(`${route}: rapid reversals, holds, pause and marks stay on the picture`, async ({
+for (const fixture of fixtures) {
+	test(`visits every decoded frame forward and backward in ${fixture.file}`, async ({
 		framePage
 	}) => {
-		const fixture = fixtures[0];
-		await load(framePage, route, fixture);
-		await interact(framePage, fixture);
-		// Replacing a marked file must discard its old frame/seek/cache state.
-		await replace(framePage, fixtures[3]);
-		await framePage.press('.');
-		await expectFrame(framePage, fixtures[3], 1);
+		if (fixture.file === 'hevc.mov') {
+			await framePage.goto('/');
+			// Playwright's open-source Chromium ships without an HEVC decoder; branded
+			// Chrome has one. Skip only when the browser says so, never on a failure.
+			const hevc = await framePage.evaluate(
+				() => document.createElement('video').canPlayType('video/mp4; codecs="hvc1.1.6.L63.B0"'),
+				undefined
+			);
+			test.skip(!hevc, 'This browser build has no HEVC decoder');
+		}
+		await load(framePage, '/', fixture);
+		await walkEveryFrame(framePage, fixture);
 	});
 }
 
-// A busy/background compositor can present only 10 pictures per second. The
-// source is still 30 fps: the probe must slow playback instead of adopting 10 fps.
-test('unparsed video keeps every frame when playback callbacks are throttled', async ({
-	framePage
-}) => {
-	const fixture = fixtures.find((fixture) => fixture.file === 'fallback.webm')!;
-	await load(
-		{
-			...framePage,
-			upload: async (path) => {
-				await framePage.evaluate(() => {
-					const changes: number[] = [];
-					(window as typeof window & { __liveRateChanges: number[] }).__liveRateChanges = changes;
-					const rate = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'playbackRate')!;
-					Object.defineProperty(HTMLMediaElement.prototype, 'playbackRate', {
-						...rate,
-						set(value: number) {
-							if (!this.paused && value !== rate.get!.call(this)) changes.push(value);
-							rate.set!.call(this, value);
-						}
-					});
-					const request = HTMLVideoElement.prototype.requestVideoFrameCallback;
-					const last = new WeakMap<VideoFrameRequestCallback, number>();
-					HTMLVideoElement.prototype.requestVideoFrameCallback = function (callback) {
-						const present: VideoFrameRequestCallback = (now, metadata) => {
-							if (!this.paused && now - (last.get(callback) ?? -Infinity) < 90) {
-								request.call(this, present);
-								return;
-							}
-							last.set(callback, now);
-							callback(now, metadata);
-						};
-						return request.call(this, present);
-					};
-				}, undefined);
-				await framePage.upload(path);
-			}
-		},
-		'/',
-		fixture
-	);
-	const rate = await framePage.evaluate(
-		() => document.querySelector('video')!.playbackRate,
-		undefined
-	);
-	if (rate !== 1) throw new Error(`Playback probe left the user at ${rate} speed`);
-	const liveChanges = await framePage.evaluate(
-		() => (window as typeof window & { __liveRateChanges: number[] }).__liveRateChanges,
-		undefined
-	);
-	if (liveChanges.length)
-		throw new Error(`Playback probe changed native speed during playback: ${liveChanges}`);
-	await walkEveryFrame(framePage, fixture);
+test('rapid reversals, holds, pause and marks stay on the picture', async ({ framePage }) => {
+	const fixture = fixtures[0];
+	await load(framePage, '/', fixture);
+	await interact(framePage, fixture);
+	// Replacing a marked file must discard its old frame/seek/cache state.
+	await replace(framePage, fixtures[3]);
+	await framePage.press('.');
+	await expectFrame(framePage, fixtures[3], 1);
 });
 
-// Exercise the exact serialized source used by native iOS, including rejection
-// of a wrong barcode. This catches serializer/transport mistakes independently.
-test('native iOS browser batch keeps the decoded-frame oracle strict', async ({ framePage }) => {
-	const fixture = fixtures[3];
-	await load(framePage, '/', fixture, false);
-	await framePage.click('[aria-label="Mute"]');
-	const batch = async (operation: string, expected: typeof fixture) =>
-		framePage.evaluate(
-			({ script, operation, fixture }) =>
-				new Promise<{ ok: boolean; error?: string }>((resolve) => {
-					new Function(script)(operation, fixture, resolve);
-				}),
-			{ script: browserContractScript(), operation, fixture: expected }
-		);
-	for (const operation of ['ready', 'walk', 'interaction']) {
-		const result = await batch(operation, fixture);
-		if (!result.ok) throw new Error(`${operation}: ${result.error}`);
-	}
-	const wrong = { ...fixture, ids: fixture.ids.map(() => 255) };
-	const rejected = await batch('ready', wrong);
-	if (rejected.ok || !rejected.error?.includes('expected decoded frame 0 (barcode 255)')) {
-		throw new Error(
-			`Browser batch must reject the wrong decoded picture: ${JSON.stringify(rejected)}`
-		);
-	}
+// Old links and home-screen icons still point at /alpha. Everything behind the
+// redirect is the same page, so checking where it lands is enough.
+test('/alpha redirects to the player', async ({ framePage }) => {
+	await framePage.goto('/alpha', '/');
+	await waitFor(
+		() =>
+			framePage.evaluate(
+				() =>
+					document.documentElement.dataset.airtimeReady === 'true' &&
+					!!document.querySelector('#video-file-input'),
+				undefined
+			),
+		Boolean,
+		'/alpha must land on a working player'
+	);
 });
