@@ -117,9 +117,9 @@ open_issue() {
 }
 
 report_failure() {
-	local kind="$1" detail="$2"
+	local kind="$1" detail="$2" public="${3:-1}"
 	notify "main $short: $kind" "$detail"
-	[[ "$ISSUES" == 1 ]] || return
+	[[ "$ISSUES" == 1 && "$public" == 1 ]] || return
 	# The repository is public: report the commit and the assertion, never local logs.
 	local body
 	body="$(printf '%s\n\n%s\n\n```\n%s\n```\n\n%s' \
@@ -154,7 +154,8 @@ infra() {
 	local count=$(($(cat "$key" 2>/dev/null || echo 0) + 1))
 	echo "$count" >"$key"
 	if ((count >= MAX_INFRA_ATTEMPTS)); then
-		report_failure "could not run" "$1 (attempt $count of $MAX_INFRA_ATTEMPTS)"
+		# A problem with this Mac's setup says nothing about main: notify only.
+		report_failure "could not run" "$1 (attempt $count of $MAX_INFRA_ATTEMPTS)" 0
 		echo "$sha" >"$STATE/last-tested"
 	fi
 	exit 1
@@ -216,8 +217,11 @@ if ((status == 0)); then
 	report_pass
 	exit 0
 fi
-if grep -qiE "remote automation|Could not find any session hosts" "$log"; then
+if grep -qi "remote automation" "$log"; then
 	infra "SafariDriver is not enabled on this Mac. Run once: sudo safaridriver --enable"
+fi
+if grep -q "Could not find any session hosts" "$log"; then
+	infra "SafariDriver found no simulator to automate. Check that Xcode's Simulator app is installed and SafariDriver is enabled (sudo safaridriver --enable)"
 fi
 if grep -q "SessionNotCreatedError" "$log"; then
 	infra "SafariDriver could not start a session in the simulator"

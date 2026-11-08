@@ -64,8 +64,9 @@ commits it hasn't tested, and only once the Mac has been idle for 20 minutes: th
 Simulator and SafariDriver can take focus. Each run creates an isolated iPhone on the
 newest iOS runtime (`scripts/frame-ios-simulator.py`) and deletes it afterwards. A
 session that never starts is retried, at most three times per commit, before it is
-reported. A wrong picture is reported at once. Failures post a notification and
-keep one GitHub issue open until `main` passes again; logs stay on the Mac under
+reported. A wrong picture is reported at once. Every failure posts a notification;
+a wrong picture also keeps one GitHub issue open until `main` passes again, while
+a problem with the Mac's own setup stays local. Logs stay on the Mac under
 `~/Library/Logs/airtime-nightly-ios/`.
 
 ```sh
