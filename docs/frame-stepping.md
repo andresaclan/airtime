@@ -63,6 +63,12 @@ can race Safari's RWI application handoff. Each iOS case navigates through a bla
 document to tear down its old player/decoder before loading the app again.
 Replacing a file within one running app is also exercised explicitly.
 
+Native Safari jobs (macOS and iOS) skip the WebM fixture. Shipping Safari's WebM
+renderer deadlocks on CI inside WebKit (an internal lock taken while the compositor
+queries the video layer size), and no app-side change avoided it. Phones record
+MOV/MP4; the WebM playback-probe path is still covered by Chrome, Chromium, and
+both Playwright WebKit profiles.
+
 The Safari job intentionally runs on a dedicated CI machine: WebDriver opens
 Safari windows. Do not run it on a user's working desktop during background checks.
 
