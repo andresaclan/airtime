@@ -97,7 +97,7 @@ describe('out-of-sequence marks', () => {
 	test('a mark repeating the previous type is flagged and gets no interval', () => {
 		const marks = marksAt(60, ['T1', 0], ['T2', 10], ['L1', 40], ['L2', 50], ['T3', 70]);
 		const { intervals, outOfSequence } = analyzeMarks(marks, 60);
-		expect([...outOfSequence]).toEqual(['T2', 'L2']);
+		expect([...outOfSequence]).toEqual(['T2']);
 		expect(intervals.map((interval) => [interval.kind, interval.from.id, interval.to.id])).toEqual([
 			['flight', 'T2', 'L1'],
 			['contact', 'L2', 'T3']
@@ -114,9 +114,9 @@ describe('groupJumps', () => {
 	const group = (marks: Mark[], fps = 60, timeScale = 1) =>
 		groupJumps(marks, analyzeMarks(marks, fps, timeScale));
 
-	test('rebound jumps share the landing that ends one flight and starts the next contact', () => {
+	test('repeat hops share the landing that ends one flight and starts the next contact', () => {
 		const marks = marksAt(60, ['L0', 0], ['T1', 12], ['L1', 42], ['T2', 54], ['L2', 84]);
-		const { jumps, unpairedMarks } = group(marks);
+		const { jumps, unpairedMarks } = groupJumps(marks, analyzeMarks(marks, 60, 1, 'repeat-hops'));
 		expect(unpairedMarks).toEqual([]);
 		expect(jumps).toHaveLength(2);
 		const [first, second] = jumps;
@@ -202,5 +202,28 @@ describe('rsi', () => {
 		);
 		const noLanding = marksAt(60, ['L0', 0], ['T1', 12]);
 		expect(rsi(groupJumps(noLanding, analyzeMarks(noLanding, 60)).jumps[0])).toBe(undefined);
+	});
+});
+
+describe('contact belongs to its jump', () => {
+	test.each(['approach', 'drop-jump', null] as const)(
+		'%s never borrows the previous landing',
+		(type) => {
+			const marks = marksAt(60, ['L0', 0], ['T1', 12], ['L1', 42], ['T2', 100], ['L2', 130]);
+			const { jumps } = groupJumps(marks, analyzeMarks(marks, 60, 1, type));
+			expect(jumps[0].contact?.from.id).toBe('L0');
+			expect(jumps[1].contact).toBeUndefined();
+			expect(rsi(jumps[1])).toBeUndefined();
+			expect(jumps[1].flight?.frames).toBe(30);
+		}
+	);
+
+	test('a separate plant after a landing starts the next approach jump', () => {
+		const marks = marksAt(60, ['T1', 12], ['L1', 42], ['Lplant', 90], ['T2', 100], ['L2', 130]);
+		const analysis = analyzeMarks(marks, 60);
+		const { jumps } = groupJumps(marks, analysis);
+		expect(jumps[1].contact?.from.id).toBe('Lplant');
+		expect(jumps[1].contact?.frames).toBe(10);
+		expect(analysis.outOfSequence.size).toBe(0);
 	});
 });

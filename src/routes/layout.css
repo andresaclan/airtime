@@ -1555,3 +1555,161 @@ body {
 		min-height: 48px;
 	}
 }
+
+/* A jump owns the workspace; capture/review never compete with session results. */
+.viewer-stage.has-video:has(.jump-workspace) {
+	padding: 0;
+	gap: 0;
+	align-items: stretch;
+}
+.jump-workspace .viewer-column {
+	display: flex;
+	flex: 1;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+}
+.jump-workspace .viewer-column > .viewer-frame {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	min-height: 0;
+	border: none;
+	border-radius: 0;
+}
+.jump-workspace .viewer-column > .viewer-frame > :first-child {
+	flex: 1 1 0;
+	min-height: 0;
+	height: auto;
+}
+.jump-workspace .player-dock {
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+}
+.jump-workspace .viewer-column .control-bar {
+	height: auto;
+}
+@media (max-width: 640px) and (min-height: 501px) {
+	/* Let landscape footage begin at the top; leave thumb space below the picture. */
+	.jump-workspace .viewer-column > .viewer-frame > :first-child {
+		flex: 0 1 auto;
+		aspect-ratio: var(--video-aspect, 0.5625);
+	}
+	.jump-workspace .player-dock {
+		margin-top: auto;
+	}
+}
+/* Landscape phones use a rail so controls never shorten the picture. */
+@media (max-height: 500px) {
+	.jump-workspace {
+		position: relative;
+	}
+	.jump-workspace .viewer-column > .viewer-frame > :first-child {
+		margin-right: 288px;
+	}
+	.jump-workspace .player-dock {
+		position: absolute;
+		top: 0;
+		right: 0;
+		width: 288px;
+		margin: 0;
+	}
+	.jump-workspace .control-toolbar .time-readout,
+	.jump-workspace .control-toolbar .playback-extras,
+	.jump-workspace .context-strip,
+	.jump-workspace.reviewing .step-marks,
+	.jump-workspace.finished .step-marks,
+	.jump-workspace .transport-dock {
+		display: none;
+	}
+	.jump-workspace .control-bar-inner {
+		padding: 4px 10px;
+		grid-template-areas: 'scrub' 'transport' 'marks';
+		grid-template-columns: minmax(0, 1fr);
+		gap: 6px;
+	}
+	.jump-workspace .step-marks {
+		justify-self: stretch;
+		padding-left: 0;
+	}
+	.jump-workspace .mark-primary {
+		flex: 1;
+		min-height: 44px;
+	}
+	.jump-workspace .playback-controls {
+		justify-content: center;
+	}
+	.jump-workspace .jump-review,
+	.jump-workspace .jump-complete {
+		position: absolute;
+		right: 0;
+		bottom: 0;
+		width: 288px;
+		background: hsl(var(--at-bg));
+	}
+	.jump-workspace .jump-review {
+		padding: 4px 10px;
+	}
+	.jump-workspace .jump-complete {
+		flex-wrap: wrap;
+		padding: 10px;
+	}
+	.jump-workspace .jump-complete > div {
+		width: 100%;
+		flex-basis: 100%;
+	}
+	.jump-workspace .marking-hint {
+		padding-inline: 10px;
+	}
+}
+.jump-workspace.finished .step-marks {
+	visibility: hidden;
+}
+@media (max-height: 500px) {
+	.jump-workspace .viewer-column > .viewer-frame > :first-child {
+		width: calc(100% - 288px);
+		margin-right: 0;
+	}
+	.jump-workspace.reviewing .review-marks {
+		gap: 2px;
+		flex-wrap: nowrap;
+	}
+	.jump-workspace.reviewing .review-marks > strong {
+		display: none;
+	}
+	.jump-workspace.reviewing .mark-tab {
+		padding-inline: 6px;
+		font-size: 12px;
+	}
+	.jump-workspace .correction-bar > span {
+		width: 100%;
+		font-size: 12px;
+	}
+	.jump-workspace .correction-bar {
+		gap: 4px;
+	}
+	.jump-workspace .correction-bar .btn {
+		padding-inline: 8px;
+		font-size: 12px;
+	}
+	.jump-workspace .control-toolbar .play-btn,
+	.jump-workspace .control-toolbar .step-btn {
+		width: 44px;
+		height: 44px;
+	}
+}
+
+@media (max-height: 500px) {
+	.jump-workspace.finished .jump-complete > div {
+		flex: 0 0 100%;
+		flex-direction: row;
+		justify-content: space-between;
+	}
+	.jump-workspace.finished .jump-complete strong {
+		white-space: nowrap;
+	}
+}

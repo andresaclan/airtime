@@ -1,4 +1,5 @@
 /** Manually marked jump events and the timings derived from them. */
+import type { JumpType } from '$lib/session/schema';
 import { frameAt, frameOfMarkTime, frameStartTime, markFrameStart, type Timing } from './frames';
 
 export type MarkType = 'takeoff' | 'landing';
@@ -85,16 +86,28 @@ export function markAtFrame(marks: Mark[], time: number, timing: Timing): Mark |
  * a clip that plays back 4× slower than it was captured. With a timing table,
  * durations and frame counts come from the real times of the marked frames.
  */
-export function analyzeMarks(marks: Mark[], timing: Timing, timeScale = 1): Analysis {
+export function analyzeMarks(
+	marks: Mark[],
+	timing: Timing,
+	timeScale = 1,
+	jumpType: JumpType | null = 'approach'
+): Analysis {
 	const intervals: Interval[] = [];
 	const outOfSequence = new Set<string>();
 	for (let i = 1; i < marks.length; i += 1) {
 		const from = marks[i - 1];
 		const to = marks[i];
 		if (from.type === to.type) {
-			outOfSequence.add(to.id);
+			// A separate touchdown after a completed flight starts the next jump.
+			if (!(from.type === 'landing' && marks[i - 2]?.type === 'takeoff')) {
+				outOfSequence.add(to.id);
+			}
 			continue;
 		}
+		// Only repeat hops deliberately share the previous flight's touchdown.
+		// Other jumps need their own plant/box landing; unknown legacy types are conservative.
+		if (from.type === 'landing' && marks[i - 2]?.type === 'takeoff' && jumpType !== 'repeat-hops')
+			continue;
 		const seconds = markFrameStart(to.time, timing) - markFrameStart(from.time, timing);
 		const realSeconds = seconds * timeScale;
 		const kind = from.type === 'takeoff' ? 'flight' : 'contact';

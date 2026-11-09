@@ -43,7 +43,12 @@ export function trendPoint(session: Session): TrendPoint | null {
 	const time = Date.parse(session.recordedAt);
 	if (Number.isNaN(time)) return null;
 	const marks = sortMarks(session.marks);
-	const analysis = analyzeMarks(marks, session.frameRate.value, session.timeScale);
+	const analysis = analyzeMarks(
+		marks,
+		session.frameRate.value,
+		session.timeScale,
+		session.jumpType
+	);
 	const completed = groupJumps(marks, analysis).jumps.flatMap(({ flight, contact }) =>
 		flight ? [{ flight, contact }] : []
 	);
