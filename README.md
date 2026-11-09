@@ -42,16 +42,16 @@ The development server starts at `http://localhost:5173`.
 
 ## Basic workflow
 
-Airtime is built around an approach jump: three marks give contact time, flight time, jump height and RSI. A marking guide under the video shows which step you're on and lights up the button that marks it.
+Airtime is built around an approach jump: three marks give contact time, flight time, jump height and RSI. The **Mark** button always names the step that belongs at the frame on screen (plant step, takeoff or landing), and a line under the video says which frame that is.
 
 1. Open a local video with **Open video**, or drag it onto the app.
 2. Play (press `R` to slow down) until you're near your last step before the jump, then pause.
-3. **Plant step:** step with `,` and `.` to the first frame your plant foot touches the ground and press **Landing** (`L`).
-4. **Takeoff:** step forward to the first frame both feet are off the ground and press **Takeoff** (`T`).
-5. **Landing:** step forward to the first frame your feet touch back down and press **Landing** (`L`). The analysis panel shows the jump.
+3. **Plant step:** step with `,` and `.` to the first frame your plant foot touches the ground and press **Mark plant step** (`M`).
+4. **Takeoff:** step forward to the first frame both feet are off the ground and press **Mark takeoff** (`M`).
+5. **Landing:** step forward to the first frame your feet touch back down and press **Mark landing** (`M`). The analysis panel shows the jump.
 6. Press `⌘S` / `Ctrl+S` to save. Open the same file later to pick up where you left off.
 
-Hide the guide with **Hide**; bring it back from the keyboard shortcuts dialog (`?`).
+The arrow button beside **Mark** marks the other type instead (`T` for a takeoff, `L` for a touchdown or landing). Pressing **Mark** on a frame that's already marked opens that mark's controls, to nudge it a frame or remove it. The line under the video retires itself after three measured jumps, or hide it sooner with **Got it**; bring it back from the keyboard shortcuts dialog (`?`).
 
 ## Keyboard shortcuts
 
@@ -64,9 +64,10 @@ Press `?` in the app to see these at any time.
 | `Shift` + `←` / `→`          | Step one frame backward / forward    |
 | `R`                          | Cycle playback speed 1× / ½× / ¼×    |
 | `↑` / `↓`                    | Volume up / down                     |
-| `M`                          | Mute or unmute                       |
-| `T`                          | Mark takeoff on this frame           |
-| `L`                          | Mark landing on this frame           |
+| `Shift` + `M`                | Mute or unmute                       |
+| `M`                          | Mark the step the Mark button names  |
+| `T`                          | Mark a takeoff on this frame         |
+| `L`                          | Mark a touchdown or landing          |
 | `[` / `]`                    | Jump to previous / next mark         |
 | `Backspace` / `Delete`       | Delete the mark at the playhead      |
 | `⌘` / `Ctrl` + `Z`           | Undo a mark change                   |

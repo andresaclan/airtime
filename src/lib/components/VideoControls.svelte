@@ -190,7 +190,8 @@
 			repeatKeyStep(event, -1);
 		} else if ((pressed === 'ArrowRight' && event.shiftKey) || pressed === '.') {
 			repeatKeyStep(event, 1);
-		} else if (key === 'm') {
+		} else if (key === 'm' && event.shiftKey) {
+			// Shift: plain M marks a jump.
 			event.preventDefault();
 			toggleMute();
 		} else if (pressed === 'ArrowUp' && !event.shiftKey) {

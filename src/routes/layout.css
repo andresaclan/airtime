@@ -425,7 +425,6 @@ body {
 		display: inline;
 	}
 	.pointer-only,
-	.mark-action kbd,
 	.btn-kbd {
 		display: none;
 	}
@@ -650,6 +649,11 @@ body {
 	isolation: isolate;
 }
 
+/* The Mark… choice opens upwards, over the marking hint. */
+.control-bar:has(.mark-menu) {
+	z-index: 32;
+}
+
 /* The toolbar lays itself out from the bar's own width (see the control-bar
    container query). The bar is docked under the picture, so it never covers the
    feet at takeoff and landing. */
@@ -752,11 +756,7 @@ body {
 	font-size: 11px;
 }
 
-.mark-actions {
-	display: contents;
-}
-
-/* Takeoff, the frame controls and Landing read as one segmented control, like the
+/* The frame controls and the Mark buttons read as one segmented control, like the
    grouped controls in T3's diff toolbar: one bordered track, quiet segments,
    hairlines between the groups. */
 .transport-dock {
@@ -795,99 +795,9 @@ body {
 	right: 0;
 }
 
-.mark-action-takeoff {
-	grid-area: takeoff;
-	justify-self: end;
-}
-
-.mark-action-landing {
-	grid-area: landing;
-	justify-self: start;
-}
-
-.mark-action {
-	--mark-color: hsl(var(--at-takeoff));
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	height: 32px;
-	padding: 0 9px 0 11px;
-	border: 1px solid transparent;
-	border-radius: 7px;
-	background: transparent;
-	color: hsl(var(--at-fg));
-	font: inherit;
-	font-size: 13px;
-	font-weight: 500;
-	white-space: nowrap;
-	cursor: pointer;
-	transition:
-		background 140ms var(--at-ease),
-		border-color 140ms var(--at-ease);
-}
-
-.mark-action.mark-action-landing {
-	--mark-color: hsl(var(--at-landing));
-}
-
-@media (hover: hover) {
-	.mark-action:hover {
-		background: hsl(var(--at-fg) / 0.1);
-	}
-}
-
-.mark-action.on-frame {
-	border-color: color-mix(in srgb, var(--mark-color) 55%, transparent);
-	background: color-mix(in srgb, var(--mark-color) 12%, hsl(var(--at-surface)));
-}
-
-.mark-action:active {
-	transform: translateY(1px);
-}
-
-/* The marking guide's next step: the button that marks it is outlined in its colour
-   and breathes once in a while, so a new athlete knows what to press. */
-.mark-action.next:not(.on-frame) {
-	border-color: color-mix(in srgb, var(--mark-color) 70%, transparent);
-	background: color-mix(in srgb, var(--mark-color) 8%, transparent);
-	animation: mark-next 2.4s var(--at-ease) infinite;
-}
-
-@keyframes mark-next {
-	0%,
-	60%,
-	100% {
-		box-shadow: 0 0 0 0 color-mix(in srgb, var(--mark-color) 0%, transparent);
-	}
-	30% {
-		box-shadow: 0 0 0 4px color-mix(in srgb, var(--mark-color) 22%, transparent);
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.mark-action.next {
-		animation: none;
-	}
-}
-
-.mark-action-dot {
-	flex: 0 0 auto;
-	width: 7px;
-	height: 7px;
-	border-radius: 50%;
-	background: var(--mark-color);
-}
-
-.mark-action kbd {
-	color: hsl(var(--at-fg-muted));
-	font:
-		500 11px/1 var(--at-font-mono),
-		monospace;
-}
-
 /* Narrow bar (a phone): a phone player, not an editor strip. The scrubber, one
-   row of playback with the time beside it, then Takeoff and Landing as two big
-   buttons under the thumb. No dock or strip boxes, no tick labels, and the frame
+   row of playback with the time beside it, then the Mark buttons big under the
+   thumb (MarkButtons). No dock or strip boxes, no tick labels, and the frame
    rate only when it needs a look. */
 @container control-bar (max-width: 700px) {
 	.control-bar-inner {
@@ -981,43 +891,6 @@ body {
 	.control-bar .control-toolbar .step-btn svg {
 		width: 28px;
 		height: 28px;
-	}
-	.mark-actions {
-		grid-area: marks;
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 10px;
-		margin-top: 6px;
-	}
-	.mark-action-takeoff,
-	.mark-action-landing {
-		grid-area: auto;
-		justify-self: stretch;
-	}
-	.mark-action {
-		justify-content: center;
-		min-width: 0;
-		height: 52px;
-		border-radius: 14px;
-		background: hsl(var(--at-fg) / 0.07);
-		font-size: 16px;
-		font-weight: 600;
-	}
-	.mark-action-dot {
-		width: 9px;
-		height: 9px;
-	}
-	.mark-action kbd {
-		display: none;
-	}
-}
-
-@container control-bar (max-width: 340px) {
-	.mark-action {
-		padding-inline: 4px;
-	}
-	.mark-action-dot {
-		display: none;
 	}
 }
 
@@ -1220,32 +1093,19 @@ body {
 	text-anchor: middle;
 }
 
-/* The button that marks a step, as a small chip in its colour. */
+/* Which way the feet go at each step: down onto the ground or up off it, in the
+   colour the Mark button takes for it. */
 .empty-mark {
 	--mark-color: hsl(var(--at-landing));
-	display: inline-flex;
+	display: inline-grid;
 	justify-self: end;
-	align-items: center;
-	gap: 6px;
+	place-items: center;
+	width: 26px;
 	height: 22px;
-	padding: 0 8px;
 	border: 1px solid color-mix(in srgb, var(--mark-color) 45%, transparent);
 	border-radius: 6px;
-	font-size: 12px;
-	line-height: 1;
 	background: color-mix(in srgb, var(--mark-color) 10%, transparent);
-	color: hsl(var(--at-fg));
-	font-weight: 500;
-	white-space: nowrap;
-}
-
-.empty-mark::before {
-	content: '';
-	flex: 0 0 auto;
-	width: 7px;
-	height: 7px;
-	border-radius: 50%;
-	background: var(--mark-color);
+	color: var(--mark-color);
 }
 
 .empty-mark.takeoff {
@@ -1645,12 +1505,10 @@ body {
 	.backup-reminder {
 		padding-block: 4px;
 	}
-	/* Takeoff and Landing are 44px tall at every width, not only in a narrow bar
-	   (a phone held sideways has a wide one). Above the speed chip's hit area. */
-	.mark-action {
-		position: relative;
+	/* The Mark buttons (44px tall at every width, in MarkButtons) sit above the
+	   speed chip's hit area. */
+	.step-marks {
 		z-index: 1;
-		min-height: 44px;
 	}
 }
 
@@ -1848,7 +1706,7 @@ body {
 		height: 22px;
 	}
 
-	/* The row above the pill: a frame step at each end, Takeoff and Landing between,
+	/* The row above the pill: a frame step at each end, the Mark buttons between,
 	   each a glass button of its own. */
 	.viewer-frame .player-dock .control-toolbar .step-btn {
 		grid-area: tools;
@@ -1878,24 +1736,25 @@ body {
 	}
 
 	.viewer-frame .player-dock .control-toolbar .step-btn:active:not(:disabled),
-	.viewer-frame .player-dock .mark-action:active {
+	.viewer-frame .player-dock .step-marks .mark-alt:active,
+	.viewer-frame .player-dock .step-marks .mark-primary:not(.add):not(:disabled):active {
 		background: var(--glass-pressed);
 	}
 
-	.viewer-frame .player-dock .mark-actions {
+	/* The other type, a glass circle, then the Mark button filling the rest. */
+	.viewer-frame .player-dock .step-marks {
 		grid-area: tools;
 		align-self: center;
+		justify-self: stretch;
 		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 10px;
-		margin: 0 62px;
+		grid-template-columns: 52px minmax(0, 1fr);
+		gap: 8px;
+		margin: 0 60px;
+		padding: 0;
 	}
 
-	.viewer-frame .player-dock .mark-action {
-		grid-area: auto;
-		justify-self: stretch;
-		justify-content: center;
-		min-width: 0;
+	.viewer-frame .player-dock .step-marks.solo {
+		grid-template-columns: minmax(0, 1fr);
 	}
 
 	/* The editor bar's decorations, ticks and running time have no place here, at
@@ -1906,7 +1765,7 @@ body {
 	.viewer-frame .player-dock .time-separator,
 	.viewer-frame .player-dock .time-duration,
 	.viewer-frame .player-dock .time-frame,
-	.viewer-frame .player-dock .mark-action kbd {
+	.viewer-frame .player-dock .step-marks kbd {
 		display: none;
 	}
 
@@ -1914,26 +1773,48 @@ body {
 		display: contents;
 	}
 
-	.viewer-frame .player-dock .mark-action {
+	.viewer-frame .player-dock .step-marks .mark-primary,
+	.viewer-frame .player-dock .step-marks .mark-alt {
 		height: 52px;
 		border: 1px solid var(--glass-rim);
 		border-radius: 26px;
 		background: var(--glass);
+		color: #fff;
 		font-family: var(--photos-font);
-		font-size: 16px;
-		font-weight: 600;
 		backdrop-filter: blur(20px) saturate(1.4);
 		-webkit-backdrop-filter: blur(20px) saturate(1.4);
 	}
 
-	.viewer-frame .player-dock .mark-action.on-frame {
-		border-color: color-mix(in srgb, var(--mark-color) 60%, transparent);
-		background: color-mix(in srgb, var(--mark-color) 22%, var(--glass));
+	.viewer-frame .player-dock .step-marks .mark-primary {
+		order: 2;
+		justify-content: center;
+		min-width: 0;
+		gap: 6px;
+		padding: 0 12px;
+		font-size: 15px;
+		font-weight: 600;
 	}
 
-	.viewer-frame .player-dock .mark-action.next:not(.on-frame) {
-		border-color: color-mix(in srgb, var(--mark-color) 75%, transparent);
-		background: color-mix(in srgb, var(--mark-color) 12%, var(--glass));
+	.viewer-frame .player-dock .step-marks .mark-alt {
+		order: 1;
+		width: 52px;
+		color: var(--mark-color);
+	}
+
+	.viewer-frame .player-dock .step-marks .mark-primary:disabled {
+		color: hsl(0 0% 100% / 0.6);
+	}
+
+	/* The step that belongs here: the one filled button, in its type's colour. */
+	.viewer-frame .player-dock .step-marks .mark-primary.add {
+		border-color: transparent;
+		background: var(--mark-color);
+		color: #000;
+	}
+
+	.viewer-frame .player-dock .step-marks .mark-primary.on-frame {
+		border-color: color-mix(in srgb, var(--mark-color) 60%, transparent);
+		background: color-mix(in srgb, var(--mark-color) 22%, var(--glass));
 	}
 
 	.viewer-frame .player-dock .control-bar-inner > .control-toolbar {
@@ -1942,7 +1823,7 @@ body {
 
 	.viewer-frame .player-dock .control-toolbar > .time-readout,
 	.viewer-frame .player-dock .control-toolbar .step-btn,
-	.viewer-frame .player-dock .mark-actions {
+	.viewer-frame .player-dock .step-marks {
 		margin-bottom: 12px;
 	}
 
@@ -2011,7 +1892,7 @@ body {
 	}
 
 	/* Held: the pill grows up for the time, the bar runs its full width and thickens,
-	   and play, speed, mute, the steps and Takeoff and Landing step aside. */
+	   and play, speed, mute, the steps and the Mark buttons step aside. */
 	.viewer-frame .player-dock .control-bar-inner:has(> .timeline-container.open)::before {
 		margin-top: -30px;
 	}
@@ -2033,7 +1914,7 @@ body {
 	.viewer-frame .player-dock .control-bar-inner:has(> .timeline-container.open) .play-btn,
 	.viewer-frame .player-dock .control-bar-inner:has(> .timeline-container.open) .playback-extras,
 	.viewer-frame .player-dock .control-bar-inner:has(> .timeline-container.open) .step-btn,
-	.viewer-frame .player-dock .control-bar-inner:has(> .timeline-container.open) .mark-actions,
+	.viewer-frame .player-dock .control-bar-inner:has(> .timeline-container.open) .step-marks,
 	.viewer-frame .player-dock .control-bar-inner:has(> .timeline-container.open) .time-fps {
 		opacity: 0;
 		pointer-events: none;
@@ -2042,7 +1923,7 @@ body {
 	.viewer-frame .player-dock .play-btn,
 	.viewer-frame .player-dock .playback-extras,
 	.viewer-frame .player-dock .step-btn,
-	.viewer-frame .player-dock .mark-actions,
+	.viewer-frame .player-dock .step-marks,
 	.viewer-frame .player-dock .time-fps {
 		transition:
 			opacity 180ms var(--at-ease),
@@ -2050,8 +1931,8 @@ body {
 			transform 140ms ease;
 	}
 
-	/* The marking guide: a glass card on the black, not a band across it. */
-	.viewer-frame .player-dock .marking-guide {
+	/* The marking hint: a glass card on the black, not a band across it. */
+	.viewer-frame .player-dock .marking-hint {
 		margin: 0 14px 12px;
 		border: 1px solid var(--glass-rim);
 		border-radius: 18px;
