@@ -1,4 +1,4 @@
-"""Provision an isolated iPhone for the nightly native iOS run (scripts/nightly-ios.sh).
+"""Provision an isolated iPhone for the native iOS frame check (tests/frame-stepping/ios.ts).
 
 SafariDriver owns browser automation. This script provisions and boots the
 simulator; it never reuses an existing device or another T3 session's simulator.
