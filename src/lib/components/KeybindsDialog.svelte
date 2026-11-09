@@ -5,17 +5,17 @@
 	interface Props {
 		isOpen: boolean;
 		onClose: () => void;
-		/** The marking guide was hidden; it can be brought back from here. */
-		guideHidden?: boolean;
-		onShowGuide?: () => void;
+		/** The marking hint was hidden or retired; it can be brought back from here. */
+		hintHidden?: boolean;
+		onShowHint?: () => void;
 		groups?: KeybindGroup[];
 	}
 
 	let {
 		isOpen,
 		onClose,
-		guideHidden = false,
-		onShowGuide,
+		hintHidden = false,
+		onShowHint,
 		groups = KEYBIND_GROUPS
 	}: Props = $props();
 
@@ -127,10 +127,10 @@
 					</div>
 				{/each}
 			</div>
-			{#if guideHidden && onShowGuide}
+			{#if hintHidden && onShowHint}
 				<div class="guide-footer">
-					<span>The marking guide walks you through a jump, step by step.</span>
-					<button class="guide-show" onclick={onShowGuide}>Show marking guide</button>
+					<span>A line under the video says which frame each step is.</span>
+					<button class="guide-show" onclick={onShowHint}>Show marking hints</button>
 				</div>
 			{/if}
 		</div>

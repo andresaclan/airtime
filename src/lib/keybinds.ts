@@ -11,7 +11,7 @@ export const KEYBIND_GROUPS: KeybindGroup[] = [
 			{ keys: 'Shift + ← / →', action: 'Step a frame (arrow keys)' },
 			{ keys: '↑ / ↓', action: 'Volume up / down' },
 			{ keys: 'R', action: 'Playback speed 1× / ½× / ¼×' },
-			{ keys: 'M', action: 'Mute / unmute' }
+			{ keys: 'Shift + M', action: 'Mute / unmute' }
 		]
 	},
 	{
@@ -24,8 +24,9 @@ export const KEYBIND_GROUPS: KeybindGroup[] = [
 	{
 		title: 'Marks',
 		binds: [
-			{ keys: 'T', action: 'Mark takeoff' },
-			{ keys: 'L', action: 'Mark landing' },
+			{ keys: 'M', action: 'Mark the step the Mark button names' },
+			{ keys: 'T', action: 'Mark a takeoff' },
+			{ keys: 'L', action: 'Mark a touchdown or landing' },
 			{ keys: '[ / ]', action: 'Previous / next mark' },
 			{ keys: 'Backspace / Delete', action: 'Delete mark at playhead' },
 			{ keys: 'Ctrl / ⌘ + Z', action: 'Undo mark change' },

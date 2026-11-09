@@ -5,10 +5,11 @@
 	import MarksPanel from '$lib/components/MarksPanel.svelte';
 	import KeybindsDialog from '$lib/components/KeybindsDialog.svelte';
 	import SessionsDialog from '$lib/components/SessionsDialog.svelte';
-	import MarkingGuide from '$lib/components/MarkingGuide.svelte';
+	import MarkingHint from '$lib/components/MarkingHint.svelte';
+	import MarkButtons from '$lib/components/MarkButtons.svelte';
+	import MarkGlyph from '$lib/components/MarkGlyph.svelte';
 	import HoldCue, { type ScrubCue } from '$lib/components/HoldCue.svelte';
-	import { singleTap } from '$lib/components/singleTap';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 	import { resolve } from '$app/paths';
@@ -27,11 +28,12 @@
 	import { displayedFrame, settledDisplayedFrame } from '$lib/video/presentedFrame';
 	import { seek } from '$lib/video/seek';
 	import {
-		STEP_MARK,
-		guideStep,
-		isGuideHidden,
-		plantLabel,
-		setGuideHidden
+		isHintHidden,
+		markAction,
+		markStep,
+		noteMeasuredJump,
+		setHintHidden,
+		stepLabel
 	} from '$lib/video/guide';
 	import {
 		analyzeMarks,
@@ -186,57 +188,48 @@
 	let analysis = $derived(analyzeMarks(marks, timing, timeScale));
 	let activeMark = $derived(markAtFrame(marks, currentTime, timing));
 
-	// The marking guide walks a new athlete through a jump, step by step, and lights
-	// up the button that marks the step they're on.
-	let guideHidden = $state(false);
-	let showGuide = $derived(!guideHidden && !mediaError);
-	let nextMark = $derived.by(() => {
-		if (!showGuide || !frameRateKnown) return null;
-		const step = guideStep(marks);
-		return step === 'done' ? null : STEP_MARK[step];
-	});
-
-	// On a touchscreen the bar also marks: scrub to a frame, slide
-	// up above the bar to fine-tune, and pause there. The pause sets the mark the jump
-	// needs next (the guide's step, shown or not); once a jump has landed, the next
-	// pause starts another from its plant step, or with a takeoff for repeat hops, as
-	// the guide says. Pins drag and drop. The Takeoff and Landing buttons and the frame
-	// steppers stay for marking frame by frame.
-	const touchScreen = new MediaQuery('(pointer: coarse)');
-
-	// On a phone held upright the player is laid out after iOS Photos (layout.css): a tap
-	// on the picture hides the controls and another brings them back.
-	const phonePlayer = new MediaQuery(
-		'(max-width: 900px) and (min-height: 501px) and (pointer: coarse)'
+	// The Mark button names the step that belongs at the frame on screen (guide.ts), and
+	// a one-line hint under the picture says which frame that is, until it retires.
+	let hintHidden = $state(false);
+	let showHint = $derived(!hintHidden && !mediaError);
+	let markingStatus: 'detecting' | 'known' | 'failed' = $derived(
+		frameRateKnown && !mediaError ? 'known' : frameRateFailed || mediaError ? 'failed' : 'detecting'
 	);
-	let chromeHidden = $state(false);
-	const CHROME_TAP_IGNORE = '.player-dock, .zoom-pill, .viewer-overlay, button, a, input, select';
+	let nextAction = $derived(
+		markingStatus === 'known'
+			? markAction(marks, frameAt(currentTime, timing), timing, jumpType)
+			: null
+	);
+	let markButtons: ReturnType<typeof MarkButtons> | undefined = $state();
+	let marksPanel: ReturnType<typeof MarksPanel> | undefined = $state();
 
-	function toggleChrome() {
-		chromeHidden = phonePlayer.current && !chromeHidden;
-	}
+	// On a touchscreen the bar also marks: scrub to a frame, slide up above the bar to
+	// fine-tune, and pause there. The pause sets what the Mark button names for that
+	// frame. Pins drag and drop. The Mark buttons and the frame steppers stay for
+	// marking frame by frame.
+	const touchScreen = new MediaQuery('(pointer: coarse)');
 	let scrubCue: ScrubCue | null = $state(null);
-	let holdStep = $derived(guideStep(marks));
-	let holdMark: MarkType | null = $derived.by(() => {
-		if (!frameRateKnown || mediaError) return null;
-		if (holdStep !== 'done') return STEP_MARK[holdStep];
-		return jumpType === 'repeat-hops' ? 'takeoff' : 'landing';
-	});
-	// The plant step is a landing, but the capsule calls it what the guide does. It's
-	// only the step while nothing is marked, so no landing pin takes the name.
-	let holdLabels: Record<MarkType, string> = $derived({
-		takeoff: 'takeoff',
-		landing: holdStep === 'plant' ? plantLabel(jumpType).toLowerCase() : 'landing'
-	});
+	let holdMark: MarkType | null = $derived(nextAction?.kind === 'add' ? nextAction.type : null);
+	let holdLabel = $derived(
+		nextAction?.kind === 'add' ? stepLabel(nextAction.step, jumpType).toLowerCase() : ''
+	);
+
+	/** What a mark is called on the timeline: its step, so a plant step isn't a "landing". */
+	function markName(mark: Mark): string {
+		return stepLabel(markStep(marks, mark), jumpType).toLowerCase();
+	}
 
 	function frameTaken(frame: number, except?: string): boolean {
 		return marks.some((mark) => mark.id !== except && frameOf(mark.time, timing) === frame);
 	}
 
-	function handleHold(frame: number): boolean {
-		if (!holdMark || frameTaken(frame)) return false;
-		commitMarks(placeMark(marks, holdMark, frameStartTime(frame, timing), timing));
-		return true;
+	/** A pause on the bar sets what belongs there, and says what it set (a plant step, say). */
+	function handleHold(frame: number): string | false {
+		if (!frameRateKnown || mediaError || frameTaken(frame)) return false;
+		const action = markAction(marks, frame, timing, jumpType);
+		if (action.kind !== 'add') return false;
+		commitMarks(placeMark(marks, action.type, frameStartTime(frame, timing), timing));
+		return stepLabel(action.step, jumpType).toLowerCase();
 	}
 
 	function handleMoveMark(mark: Mark, frame: number): boolean {
@@ -245,9 +238,9 @@
 		return true;
 	}
 
-	function setGuide(hidden: boolean) {
-		guideHidden = hidden;
-		setGuideHidden(hidden);
+	function setHint(hidden: boolean) {
+		hintHidden = hidden;
+		setHintHidden(hidden);
 	}
 
 	// Width over height, once the video's metadata is in. On narrow screens a landscape
@@ -256,14 +249,14 @@
 	// there the video letterboxes in what's left, so the controls stay on screen.
 	let videoAspect: number | null = $state(null);
 	// Header, stage padding, control bar and the collapsed sheet, roughly; the
-	// marking guide adds its band.
+	// marking hint adds its line.
 	const STACKED_CHROME_PX = 300;
-	const GUIDE_PX = 76;
+	const HINT_PX = 46;
 	let fitLandscape = $derived.by(() => {
 		if (!stacked.current || !((videoAspect ?? 0) > 1)) return false;
 		const width = innerWidth.current ?? 0;
 		const height = innerHeight.current ?? 0;
-		const chrome = STACKED_CHROME_PX + (showGuide ? GUIDE_PX : 0);
+		const chrome = STACKED_CHROME_PX + (showHint ? HINT_PX : 0);
 		return width / videoAspect! <= height - chrome;
 	});
 
@@ -326,7 +319,6 @@
 		videoFileName = file.name;
 		isPlaying = false;
 		mediaError = false;
-		chromeHidden = false;
 		currentTime = 0;
 		duration = 0;
 		frameRate = 30;
@@ -516,7 +508,7 @@
 
 	onMount(() => {
 		saveShortcut = isApplePlatform() ? '⌘S' : 'Ctrl S';
-		guideHidden = isGuideHidden();
+		hintHidden = isHintHidden();
 		// Phones start with the sheet collapsed so the video gets the height.
 		if (stacked.current) panelOpen = false;
 		void refreshBackup();
@@ -680,21 +672,59 @@
 		if (isDirty) event.preventDefault();
 	}
 
+	function flightCount(list: Mark[]): number {
+		return analyzeMarks(list, timing, timeScale).intervals.filter((i) => i.kind === 'flight')
+			.length;
+	}
+
 	function commitMarks(next: Mark[]) {
+		// Each newly measured jump counts towards retiring the marking hint.
+		if (!hintHidden && flightCount(next) > flightCount(marks) && noteMeasuredJump()) {
+			hintHidden = true;
+		}
 		markHistory = [...markHistory, marks];
 		markFuture = [];
 		marks = next;
 	}
 
-	async function addMark(type: MarkType) {
-		if (!videoElement || !canMark()) return;
+	/** Pauses on the frame on screen, so a mark never lands between frames. */
+	async function frameToMark(): Promise<number | null> {
+		if (!videoElement || !canMark()) return null;
 		const loadId = activeVideoLoadId;
-		// Marking while playing would land between frames; pause on the frame instead,
-		// and mark the frame left on screen.
 		if (!videoElement.paused) videoElement.pause();
 		const frame = await settledDisplayedFrame(videoElement, timing);
-		if (loadId !== activeVideoLoadId) return;
+		return loadId === activeVideoLoadId ? frame : null;
+	}
+
+	async function addMark(type: MarkType) {
+		const frame = await frameToMark();
+		if (frame === null) return;
 		commitMarks(placeMark(marks, type, frameStartTime(frame, timing), timing));
+	}
+
+	/**
+	 * The Mark button (or M): pauses on the frame on screen, then marks the step that
+	 * belongs there, opens the controls of the mark on it, or offers the choice of type.
+	 */
+	async function pressMark(fromKey = false) {
+		const frame = await frameToMark();
+		if (frame === null) return;
+		const action = markAction(marks, frame, timing, jumpType);
+		if (action.kind === 'add') {
+			commitMarks(placeMark(marks, action.type, frameStartTime(frame, timing), timing));
+			return;
+		}
+		// Brings the playhead onto that frame, so the panel and the button agree on it.
+		seekToFrame(frame);
+		if (action.kind === 'on-frame') await editActiveMark();
+		else markButtons?.openChoice(fromKey);
+	}
+
+	/** Pressing Mark on a marked frame opens that mark's controls in the panel. */
+	async function editActiveMark() {
+		panelOpen = true;
+		await tick();
+		marksPanel?.showMark();
 	}
 
 	function nudgeMark(id: string, frames: number) {
@@ -803,7 +833,10 @@
 			return;
 		}
 		if (event.metaKey || event.ctrlKey) return;
-		if (key === 't' || key === 'l') {
+		if (key === 'm' && !event.shiftKey) {
+			event.preventDefault();
+			void pressMark(true);
+		} else if (key === 't' || key === 'l') {
 			event.preventDefault();
 			addMark(key === 't' ? 'takeoff' : 'landing');
 		} else if ((key === 'backspace' || key === 'delete') && activeMark) {
@@ -857,11 +890,9 @@
 	function handleVideoMetadata() {
 		const video = videoElement;
 		if (!video?.videoWidth || !video.videoHeight) return;
-		const first = videoAspect === null;
+		// The sheet stays collapsed under a landscape video: the picture sits in the
+		// middle of the height and the controls low, where a thumb reaches (layout.css).
 		videoAspect = video.videoWidth / video.videoHeight;
-		// Below a landscape video the sheet has room, so open it rather than leave a gap.
-		// The phone player centres the picture instead, with the sheet closed under it.
-		if (first && fitLandscape && !phonePlayer.current) panelOpen = true;
 	}
 
 	function handleMediaError() {
@@ -904,9 +935,9 @@
 <KeybindsDialog
 	isOpen={keybindsOpen}
 	onClose={() => (keybindsOpen = false)}
-	{guideHidden}
-	onShowGuide={() => {
-		setGuide(false);
+	{hintHidden}
+	onShowHint={() => {
+		setHint(false);
 		keybindsOpen = false;
 	}}
 />
@@ -1161,7 +1192,7 @@
 						<span class="btn btn-primary">Choose video</span>
 					</button>
 					<!-- An approach jump, as the three marks see it: the plant step and landing
-					     are both touchdowns (Landing); the takeoff is when the feet leave. -->
+					     are both touchdowns; the takeoff is when the feet leave. -->
 					<svg
 						class="empty-diagram"
 						viewBox="0 14 520 100"
@@ -1197,30 +1228,24 @@
 							<span class="empty-step-num">1</span>
 							<strong>Plant step</strong>
 							<span class="empty-step-text">First frame your plant foot touches the ground.</span>
-							<span class="empty-mark landing"
-								><span class="sr-only">Mark it with </span>Landing</span
-							>
+							<span class="empty-mark landing"><MarkGlyph type="landing" /></span>
 						</li>
 						<li>
 							<span class="empty-step-num">2</span>
 							<strong>Takeoff</strong>
 							<span class="empty-step-text">First frame both feet are off the ground.</span>
-							<span class="empty-mark takeoff"
-								><span class="sr-only">Mark it with </span>Takeoff</span
-							>
+							<span class="empty-mark takeoff"><MarkGlyph type="takeoff" /></span>
 						</li>
 						<li>
 							<span class="empty-step-num">3</span>
 							<strong>Landing</strong>
 							<span class="empty-step-text">First frame your feet touch back down.</span>
-							<span class="empty-mark landing"
-								><span class="sr-only">Mark it with </span>Landing</span
-							>
+							<span class="empty-mark landing"><MarkGlyph type="landing" /></span>
 						</li>
 					</ol>
 					<p class="empty-result">
-						Mark each frame with the button shown. You get contact time, flight time, jump height
-						and RSI, and a guide under the video walks you through it.
+						Step to each moment and press Mark: it always names the step that comes next. You get
+						flight time, contact time, jump height and RSI.
 					</p>
 				</div>
 				<div class="empty-footer at-reveal" style="--delay: 60ms">
@@ -1253,12 +1278,7 @@
 			</div>
 		{:else}
 			<div class="viewer-column">
-				<div
-					class="viewer-frame"
-					class:landscape={fitLandscape}
-					class:chrome-hidden={chromeHidden}
-					{@attach singleTap(toggleChrome, CHROME_TAP_IGNORE)}
-				>
+				<div class="viewer-frame" class:landscape={fitLandscape}>
 					<VideoViewer
 						bind:videoElement
 						{videoSrc}
@@ -1323,17 +1343,16 @@
 							<p class="viewer-overlay-title">Drop to replace video</p>
 						</div>
 					{/if}
-					<!-- On a phone the dock rests at the bottom under the centred picture, and a tap
-					     on the picture hides and shows it, as in iOS Photos (see layout.css). -->
+					<!-- The hint and the controls, kept together so a phone can rest them low under a
+					     landscape video (see layout.css). Elsewhere the wrapper dissolves. -->
 					<div class="player-dock">
-						{#if showGuide}
-							<MarkingGuide
-								{marks}
-								{analysis}
+						{#if !mediaError}
+							<MarkingHint
+								action={nextAction}
+								frameRate={markingStatus}
 								{jumpType}
-								frameRate={frameRateKnown ? 'known' : frameRateFailed ? 'failed' : 'detecting'}
-								{saveShortcut}
-								onHide={() => setGuide(true)}
+								hidden={hintHidden}
+								onHide={() => setHint(true)}
 							/>
 						{/if}
 						<div class="control-bar">
@@ -1346,16 +1365,18 @@
 									{marks}
 									intervals={analysis.intervals}
 									activeMarkId={activeMark?.id ?? null}
-									markLabels={holdLabels}
+									{markName}
+									shapedPins
 									fineTouch={touchScreen.current}
 									holdMark={touchScreen.current ? holdMark : null}
+									{holdLabel}
 									onHold={handleHold}
 									onMoveMark={handleMoveMark}
 									bind:cue={scrubCue}
 								/>
 
 								<div class="control-toolbar">
-									<!-- One segmented group behind Takeoff, the frame controls and Landing. -->
+									<!-- One segmented group behind the frame controls and the Mark buttons. -->
 									<span class="transport-dock" aria-hidden="true"></span>
 									<!-- The context strip under the controls: where, how fast, how loud. -->
 									<span class="context-strip" aria-hidden="true"></span>
@@ -1398,26 +1419,14 @@
 										onCyclePlaybackRate={cyclePlaybackRate}
 									/>
 
-									<div class="mark-actions">
-										<button
-											class="mark-action mark-action-takeoff"
-											class:on-frame={activeMark?.type === 'takeoff'}
-											class:next={nextMark === 'takeoff'}
-											onclick={() => addMark('takeoff')}
-											title="Mark takeoff on this frame (T)"
-										>
-											<span class="mark-action-dot"></span>Takeoff<kbd>T</kbd>
-										</button>
-										<button
-											class="mark-action mark-action-landing"
-											class:on-frame={activeMark?.type === 'landing'}
-											class:next={nextMark === 'landing'}
-											onclick={() => addMark('landing')}
-											title="Mark landing on this frame (L)"
-										>
-											<span class="mark-action-dot"></span>Landing<kbd>L</kbd>
-										</button>
-									</div>
+									<MarkButtons
+										bind:this={markButtons}
+										action={nextAction}
+										frameRate={markingStatus}
+										{jumpType}
+										onPress={() => pressMark()}
+										onMark={addMark}
+									/>
 								</div>
 							</div>
 						</div>
@@ -1426,6 +1435,7 @@
 			</div>
 			{#if panelOpen || stacked.current}
 				<MarksPanel
+					bind:this={marksPanel}
 					{marks}
 					{analysis}
 					{timing}

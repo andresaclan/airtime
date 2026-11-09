@@ -425,7 +425,6 @@ body {
 		display: inline;
 	}
 	.pointer-only,
-	.mark-action kbd,
 	.btn-kbd {
 		display: none;
 	}
@@ -650,6 +649,11 @@ body {
 	isolation: isolate;
 }
 
+/* The Mark… choice opens upwards, over the marking hint. */
+.control-bar:has(.mark-menu) {
+	z-index: 32;
+}
+
 /* The toolbar lays itself out from the bar's own width (see the control-bar
    container query). The bar is docked under the picture, so it never covers the
    feet at takeoff and landing. */
@@ -752,11 +756,7 @@ body {
 	font-size: 11px;
 }
 
-.mark-actions {
-	display: contents;
-}
-
-/* Takeoff, the frame controls and Landing read as one segmented control, like the
+/* The frame controls and the Mark buttons read as one segmented control, like the
    grouped controls in T3's diff toolbar: one bordered track, quiet segments,
    hairlines between the groups. */
 .transport-dock {
@@ -795,99 +795,9 @@ body {
 	right: 0;
 }
 
-.mark-action-takeoff {
-	grid-area: takeoff;
-	justify-self: end;
-}
-
-.mark-action-landing {
-	grid-area: landing;
-	justify-self: start;
-}
-
-.mark-action {
-	--mark-color: hsl(var(--at-takeoff));
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	height: 32px;
-	padding: 0 9px 0 11px;
-	border: 1px solid transparent;
-	border-radius: 7px;
-	background: transparent;
-	color: hsl(var(--at-fg));
-	font: inherit;
-	font-size: 13px;
-	font-weight: 500;
-	white-space: nowrap;
-	cursor: pointer;
-	transition:
-		background 140ms var(--at-ease),
-		border-color 140ms var(--at-ease);
-}
-
-.mark-action.mark-action-landing {
-	--mark-color: hsl(var(--at-landing));
-}
-
-@media (hover: hover) {
-	.mark-action:hover {
-		background: hsl(var(--at-fg) / 0.1);
-	}
-}
-
-.mark-action.on-frame {
-	border-color: color-mix(in srgb, var(--mark-color) 55%, transparent);
-	background: color-mix(in srgb, var(--mark-color) 12%, hsl(var(--at-surface)));
-}
-
-.mark-action:active {
-	transform: translateY(1px);
-}
-
-/* The marking guide's next step: the button that marks it is outlined in its colour
-   and breathes once in a while, so a new athlete knows what to press. */
-.mark-action.next:not(.on-frame) {
-	border-color: color-mix(in srgb, var(--mark-color) 70%, transparent);
-	background: color-mix(in srgb, var(--mark-color) 8%, transparent);
-	animation: mark-next 2.4s var(--at-ease) infinite;
-}
-
-@keyframes mark-next {
-	0%,
-	60%,
-	100% {
-		box-shadow: 0 0 0 0 color-mix(in srgb, var(--mark-color) 0%, transparent);
-	}
-	30% {
-		box-shadow: 0 0 0 4px color-mix(in srgb, var(--mark-color) 22%, transparent);
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.mark-action.next {
-		animation: none;
-	}
-}
-
-.mark-action-dot {
-	flex: 0 0 auto;
-	width: 7px;
-	height: 7px;
-	border-radius: 50%;
-	background: var(--mark-color);
-}
-
-.mark-action kbd {
-	color: hsl(var(--at-fg-muted));
-	font:
-		500 11px/1 var(--at-font-mono),
-		monospace;
-}
-
 /* Narrow bar (a phone): a phone player, not an editor strip. The scrubber, one
-   row of playback with the time beside it, then Takeoff and Landing as two big
-   buttons under the thumb. No dock or strip boxes, no tick labels, and the frame
+   row of playback with the time beside it, then the Mark buttons big under the
+   thumb (MarkButtons). No dock or strip boxes, no tick labels, and the frame
    rate only when it needs a look. */
 @container control-bar (max-width: 700px) {
 	.control-bar-inner {
@@ -981,43 +891,6 @@ body {
 	.control-bar .control-toolbar .step-btn svg {
 		width: 28px;
 		height: 28px;
-	}
-	.mark-actions {
-		grid-area: marks;
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 10px;
-		margin-top: 6px;
-	}
-	.mark-action-takeoff,
-	.mark-action-landing {
-		grid-area: auto;
-		justify-self: stretch;
-	}
-	.mark-action {
-		justify-content: center;
-		min-width: 0;
-		height: 52px;
-		border-radius: 14px;
-		background: hsl(var(--at-fg) / 0.07);
-		font-size: 16px;
-		font-weight: 600;
-	}
-	.mark-action-dot {
-		width: 9px;
-		height: 9px;
-	}
-	.mark-action kbd {
-		display: none;
-	}
-}
-
-@container control-bar (max-width: 340px) {
-	.mark-action {
-		padding-inline: 4px;
-	}
-	.mark-action-dot {
-		display: none;
 	}
 }
 
@@ -1220,32 +1093,19 @@ body {
 	text-anchor: middle;
 }
 
-/* The button that marks a step, as a small chip in its colour. */
+/* Which way the feet go at each step: down onto the ground or up off it, in the
+   colour the Mark button takes for it. */
 .empty-mark {
 	--mark-color: hsl(var(--at-landing));
-	display: inline-flex;
+	display: inline-grid;
 	justify-self: end;
-	align-items: center;
-	gap: 6px;
+	place-items: center;
+	width: 26px;
 	height: 22px;
-	padding: 0 8px;
 	border: 1px solid color-mix(in srgb, var(--mark-color) 45%, transparent);
 	border-radius: 6px;
-	font-size: 12px;
-	line-height: 1;
 	background: color-mix(in srgb, var(--mark-color) 10%, transparent);
-	color: hsl(var(--at-fg));
-	font-weight: 500;
-	white-space: nowrap;
-}
-
-.empty-mark::before {
-	content: '';
-	flex: 0 0 auto;
-	width: 7px;
-	height: 7px;
-	border-radius: 50%;
-	background: var(--mark-color);
+	color: var(--mark-color);
 }
 
 .empty-mark.takeoff {
@@ -1454,6 +1314,39 @@ body {
 		height: auto;
 		aspect-ratio: var(--video-aspect);
 	}
+	/* Over the collapsed sheet, a landscape video sits in the middle of the height and
+	   the hint and controls rest at the bottom, where a thumb reaches them. The
+	   controls' row is at least as tall as they are, and the space the picture leaves
+	   is shared between the rows above and below it, so the picture moves up only as
+	   far as it must to clear them. */
+	/* The stage centres its column, so the frame is stretched to full width: sized to
+	   its content, the picture would narrow and move as the video seeks. */
+	.viewer-stage:has(> .marks-panel.sheet.collapsed) .viewer-column > .viewer-frame.landscape {
+		display: grid;
+		flex: 1 1 auto;
+		align-self: stretch;
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: minmax(0, 1fr) auto minmax(auto, 1fr);
+	}
+	.viewer-stage:has(> .marks-panel.sheet.collapsed)
+		.viewer-column
+		> .viewer-frame.landscape
+		> :first-child {
+		grid-row: 2;
+	}
+	.viewer-stage:has(> .marks-panel.sheet.collapsed) .viewer-frame.landscape > .player-dock {
+		grid-row: 3;
+		align-self: end;
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+}
+
+/* The hint and the controls, grouped for the layout above. Elsewhere the wrapper
+   dissolves and its parts lay out as they always have. */
+.player-dock {
+	display: contents;
 }
 
 /* Phones, upright or sideways: the logo stands in for "Airtime /", so the file
@@ -1645,12 +1538,10 @@ body {
 	.backup-reminder {
 		padding-block: 4px;
 	}
-	/* Takeoff and Landing are 44px tall at every width, not only in a narrow bar
-	   (a phone held sideways has a wide one). Above the speed chip's hit area. */
-	.mark-action {
-		position: relative;
+	/* The Mark buttons (44px tall at every width, in MarkButtons) sit above the
+	   speed chip's hit area. */
+	.step-marks {
 		z-index: 1;
-		min-height: 44px;
 	}
 }
 
@@ -1662,428 +1553,5 @@ body {
 	}
 	.context-strip {
 		min-height: 48px;
-	}
-}
-
-/* ========================================
-   Phone player, after iOS Photos
-   ======================================== */
-
-/* The readout or guide and the controls, as one dock (see the phone player below).
-   Elsewhere it dissolves and its parts lay out as they always have. */
-.player-dock {
-	display: contents;
-}
-
-/* A phone held upright plays a video the way iOS Photos does: black all round, the
-   picture centred, and the controls floating at the bottom in glass. The pill holds
-   play, the bar, speed and mute; the row above it the frame steps and Takeoff and
-   Landing. A touch on the bar turns the pill into the scrubber in place, with the
-   time over the bar, and the other controls step aside until the finger lifts. A
-   tap on the picture hides everything, and another brings it back. */
-@media (max-width: 900px) and (min-height: 501px) and (pointer: coarse) {
-	.app-shell:has(> .viewer-stage.has-video) {
-		--at-stage: 0 0% 0%;
-		--glass: hsl(240 3% 17% / 0.8);
-		--glass-pressed: hsl(240 3% 26% / 0.85);
-		--glass-rim: hsl(0 0% 100% / 0.1);
-		--photos-font: -apple-system, system-ui, var(--at-font-sans);
-		background: #000;
-	}
-
-	.app-shell:has(> .viewer-stage.has-video) > .app-header {
-		border-bottom-color: transparent;
-		background: #000;
-	}
-
-	.viewer-stage.has-video {
-		--stage-pad: 0px;
-		gap: 0;
-		padding: 0;
-	}
-
-	/* The picture sits in the middle of the space, and moves up only as far as it
-	   must to clear the dock: the dock's row is at least as tall as the dock, and the
-	   space the picture leaves is shared between the rows above and below it. */
-	/* The stage centres its column, so the frame is stretched to full width, not
-	   sized to its content: Safari sizes it to a narrow portrait picture. */
-	.viewer-stage.has-video .viewer-column > .viewer-frame {
-		display: grid;
-		flex: 1 1 0;
-		align-self: stretch;
-		width: auto;
-		grid-template-columns: minmax(0, 1fr);
-		grid-template-rows: minmax(0, 1fr) minmax(0, auto) minmax(auto, 1fr);
-		height: auto;
-		min-height: 0;
-		border: none;
-		border-radius: 0;
-		background: #000;
-	}
-
-	/* The full app's sheet, opened under a landscape video, takes the space below
-	   the player and leaves the player its natural height. */
-	.viewer-stage.has-video:has(> .marks-panel.sheet.fill) .viewer-column > .viewer-frame {
-		flex: 0 0 auto;
-		grid-template-rows: 0 auto auto;
-	}
-
-	.viewer-stage.has-video .viewer-column > .viewer-frame > :first-child {
-		grid-row: 2;
-		flex: none;
-		width: 100%;
-		height: auto;
-		min-height: 0;
-		max-height: 100%;
-		aspect-ratio: var(--video-aspect, 16 / 9);
-	}
-
-	/* The padding keeps a tall picture off the buttons when it fills the space. */
-	.viewer-frame .player-dock {
-		grid-row: 3;
-		align-self: end;
-		display: flex;
-		flex-direction: column;
-		min-width: 0;
-		padding-top: 14px;
-	}
-
-	.viewer-frame .player-dock .control-bar {
-		border-top: none;
-		background: transparent;
-	}
-
-	.viewer-frame .player-dock .control-bar-inner {
-		grid-template-columns: minmax(0, 1fr);
-		grid-template-rows: auto auto 56px;
-		grid-template-areas:
-			'status'
-			'tools'
-			'pill';
-		row-gap: 0;
-		column-gap: 0;
-		padding: 0 14px 14px;
-	}
-
-	/* The pill: a ghost row item behind play, the bar, speed and mute. Held, it
-	   grows upward to make room for the time. */
-	.viewer-frame .player-dock .control-bar-inner::before {
-		content: '';
-		grid-area: pill;
-		align-self: stretch;
-		border: 1px solid var(--glass-rim);
-		border-radius: 28px;
-		background: var(--glass);
-		box-shadow: 0 10px 30px hsl(0 0% 0% / 0.45);
-		backdrop-filter: blur(20px) saturate(1.4);
-		-webkit-backdrop-filter: blur(20px) saturate(1.4);
-		transition: margin 240ms var(--at-ease);
-	}
-
-	/* Glass makes a layer of its own, which would paint over plain buttons. */
-	.viewer-frame .player-dock .control-toolbar .play-btn,
-	.viewer-frame .player-dock .control-toolbar .playback-extras,
-	.viewer-frame .player-dock .control-bar-inner > .timeline-container {
-		z-index: 1;
-	}
-
-	.viewer-frame .player-dock .control-bar-inner > .timeline-container {
-		grid-area: pill;
-		align-self: center;
-		margin: 0 108px 0 56px;
-		padding-block: 18px;
-		transition: margin 240ms var(--at-ease);
-	}
-
-	/* Play on the left, speed and mute on the right, all plain glyphs as in Photos. */
-	.viewer-frame .player-dock .playback-controls {
-		display: contents;
-	}
-
-	.viewer-frame .player-dock .control-toolbar .play-btn {
-		grid-area: pill;
-		justify-self: start;
-		align-self: center;
-		width: 48px;
-		height: 48px;
-		margin: 0 0 0 6px;
-		background: transparent;
-		color: #fff;
-	}
-
-	.viewer-frame .player-dock .control-toolbar .play-btn svg {
-		width: 26px;
-		height: 26px;
-	}
-
-	.viewer-frame .player-dock .control-toolbar .playback-extras {
-		grid-area: pill;
-		justify-self: end;
-		align-self: center;
-		gap: 0;
-		margin: 0 6px 0 0;
-	}
-
-	.viewer-frame .player-dock .playback-extras .frame-btn {
-		margin-block: 0;
-		color: #fff;
-	}
-
-	.viewer-frame .player-dock .playback-extras .rate-btn {
-		min-width: 48px;
-		height: 44px;
-		padding: 0 4px;
-		background: transparent;
-		font-family: var(--photos-font);
-		font-size: 15px;
-		font-weight: 600;
-	}
-
-	.viewer-frame .player-dock .playback-extras .rate-btn.slowed {
-		color: hsl(var(--at-warning));
-	}
-
-	.viewer-frame .player-dock .playback-extras .frame-btn svg {
-		width: 22px;
-		height: 22px;
-	}
-
-	/* The row above the pill: a frame step at each end, Takeoff and Landing between,
-	   each a glass button of its own. */
-	.viewer-frame .player-dock .control-toolbar .step-btn {
-		grid-area: tools;
-		align-self: center;
-		width: 52px;
-		height: 52px;
-		margin: 0;
-		border: 1px solid var(--glass-rim);
-		border-radius: 50%;
-		background: var(--glass);
-		color: #fff;
-		backdrop-filter: blur(20px) saturate(1.4);
-		-webkit-backdrop-filter: blur(20px) saturate(1.4);
-	}
-
-	.viewer-frame .player-dock .control-toolbar .step-btn:first-child {
-		justify-self: start;
-	}
-
-	.viewer-frame .player-dock .control-toolbar .step-btn:last-child {
-		justify-self: end;
-	}
-
-	.viewer-frame .player-dock .control-toolbar .step-btn svg {
-		width: 24px;
-		height: 24px;
-	}
-
-	.viewer-frame .player-dock .control-toolbar .step-btn:active:not(:disabled),
-	.viewer-frame .player-dock .mark-action:active {
-		background: var(--glass-pressed);
-	}
-
-	.viewer-frame .player-dock .mark-actions {
-		grid-area: tools;
-		align-self: center;
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 10px;
-		margin: 0 62px;
-	}
-
-	.viewer-frame .player-dock .mark-action {
-		grid-area: auto;
-		justify-self: stretch;
-		justify-content: center;
-		min-width: 0;
-	}
-
-	/* The editor bar's decorations, ticks and running time have no place here, at
-	   any width up to a tablet held upright. */
-	.viewer-frame .player-dock .transport-dock,
-	.viewer-frame .player-dock .context-strip,
-	.viewer-frame .player-dock .timeline-ticks,
-	.viewer-frame .player-dock .time-separator,
-	.viewer-frame .player-dock .time-duration,
-	.viewer-frame .player-dock .time-frame,
-	.viewer-frame .player-dock .mark-action kbd {
-		display: none;
-	}
-
-	.viewer-frame .player-dock .control-toolbar > .time-readout {
-		display: contents;
-	}
-
-	.viewer-frame .player-dock .mark-action {
-		height: 52px;
-		border: 1px solid var(--glass-rim);
-		border-radius: 26px;
-		background: var(--glass);
-		font-family: var(--photos-font);
-		font-size: 16px;
-		font-weight: 600;
-		backdrop-filter: blur(20px) saturate(1.4);
-		-webkit-backdrop-filter: blur(20px) saturate(1.4);
-	}
-
-	.viewer-frame .player-dock .mark-action.on-frame {
-		border-color: color-mix(in srgb, var(--mark-color) 60%, transparent);
-		background: color-mix(in srgb, var(--mark-color) 22%, var(--glass));
-	}
-
-	.viewer-frame .player-dock .mark-action.next:not(.on-frame) {
-		border-color: color-mix(in srgb, var(--mark-color) 75%, transparent);
-		background: color-mix(in srgb, var(--mark-color) 12%, var(--glass));
-	}
-
-	.viewer-frame .player-dock .control-bar-inner > .control-toolbar {
-		display: contents;
-	}
-
-	.viewer-frame .player-dock .control-toolbar > .time-readout,
-	.viewer-frame .player-dock .control-toolbar .step-btn,
-	.viewer-frame .player-dock .mark-actions {
-		margin-bottom: 12px;
-	}
-
-	/* No running time at rest, as in Photos: it shows over the bar while it's held.
-	   The frame rate shows only when it needs a look. */
-	.viewer-frame .player-dock .time-current,
-	.viewer-frame .player-dock .time-fps.clean {
-		display: none;
-	}
-
-	.viewer-frame .player-dock .time-fps {
-		grid-area: status;
-		justify-self: center;
-		margin: 0 0 10px;
-		padding: 4px 10px;
-		border: none;
-		border-radius: 999px;
-		background: var(--glass);
-		font-family: var(--photos-font);
-		translate: none;
-	}
-
-	.viewer-frame .player-dock .control-bar-inner > .time-readout,
-	.viewer-frame .player-dock .control-toolbar > .time-readout {
-		margin-bottom: 0;
-	}
-
-	/* The bar at rest is a thin line, as Photos' is. */
-	.viewer-frame .player-dock .timeline-container .timeline-track {
-		height: 6px;
-		margin-block: 4px;
-		background: hsl(0 0% 100% / 0.28);
-	}
-
-	.viewer-frame .player-dock .timeline-container .timeline-progress {
-		background: #fff;
-	}
-
-	/* Pins stand through the middle of the bar, thin or thick. */
-	.viewer-frame .player-dock .timeline-container .timeline-mark {
-		top: 15px;
-	}
-
-	/* The pill is the capsule here: only its time shows, over the ends of the bar. */
-	.viewer-frame .player-dock .timeline-container .capsule {
-		inset: -26px 0 auto;
-		height: 22px;
-		padding: 0;
-		border: none;
-		background: none;
-		box-shadow: none;
-		backdrop-filter: none;
-		-webkit-backdrop-filter: none;
-		transform: translateY(6px);
-	}
-
-	.viewer-frame .player-dock .timeline-container .capsule-time {
-		font-family: var(--photos-font);
-		font-size: 17px;
-		font-weight: 600;
-		line-height: 22px;
-	}
-
-	.viewer-frame .player-dock .timeline-container .capsule-duration {
-		color: #fff;
-	}
-
-	/* Held: the pill grows up for the time, the bar runs its full width and thickens,
-	   and play, speed, mute, the steps and Takeoff and Landing step aside. */
-	.viewer-frame .player-dock .control-bar-inner:has(> .timeline-container.open)::before {
-		margin-top: -30px;
-	}
-
-	.viewer-frame .player-dock .control-bar-inner > .timeline-container.open {
-		margin-inline: 20px;
-		translate: 0 2px;
-	}
-
-	.viewer-frame .player-dock .timeline-container.open .timeline-track {
-		height: 14px;
-		margin-block: 0;
-	}
-
-	.viewer-frame .player-dock .timeline-container.open .capsule {
-		transform: none;
-	}
-
-	.viewer-frame .player-dock .control-bar-inner:has(> .timeline-container.open) .play-btn,
-	.viewer-frame .player-dock .control-bar-inner:has(> .timeline-container.open) .playback-extras,
-	.viewer-frame .player-dock .control-bar-inner:has(> .timeline-container.open) .step-btn,
-	.viewer-frame .player-dock .control-bar-inner:has(> .timeline-container.open) .mark-actions,
-	.viewer-frame .player-dock .control-bar-inner:has(> .timeline-container.open) .time-fps {
-		opacity: 0;
-		pointer-events: none;
-	}
-
-	.viewer-frame .player-dock .play-btn,
-	.viewer-frame .player-dock .playback-extras,
-	.viewer-frame .player-dock .step-btn,
-	.viewer-frame .player-dock .mark-actions,
-	.viewer-frame .player-dock .time-fps {
-		transition:
-			opacity 180ms var(--at-ease),
-			background 140ms ease,
-			transform 140ms ease;
-	}
-
-	/* The marking guide: a glass card on the black, not a band across it. */
-	.viewer-frame .player-dock .marking-guide {
-		margin: 0 14px 12px;
-		border: 1px solid var(--glass-rim);
-		border-radius: 18px;
-		background: var(--glass);
-		backdrop-filter: blur(20px) saturate(1.4);
-		-webkit-backdrop-filter: blur(20px) saturate(1.4);
-	}
-
-	/* Tapped away: everything but the picture fades out, and nothing moves. */
-	.app-shell:has(> .viewer-stage.has-video) > .app-header,
-	.viewer-frame .player-dock,
-	.viewer-stage.has-video > .marks-panel {
-		transition:
-			opacity 220ms var(--at-ease),
-			visibility 0s;
-	}
-
-	.app-shell:has(.viewer-frame.chrome-hidden) > .app-header,
-	.app-shell:has(.viewer-frame.chrome-hidden) > .backup-reminder,
-	.viewer-frame.chrome-hidden .player-dock,
-	.viewer-stage:has(.viewer-frame.chrome-hidden) > .marks-panel {
-		visibility: hidden;
-		opacity: 0;
-		transition:
-			opacity 220ms var(--at-ease),
-			visibility 0s 220ms;
-	}
-}
-
-@media (max-width: 900px) and (min-height: 501px) and (pointer: coarse) and (prefers-reduced-motion: reduce) {
-	.viewer-frame .player-dock .control-bar-inner::before,
-	.viewer-frame .player-dock .control-bar-inner > .timeline-container {
-		transition: none;
 	}
 }

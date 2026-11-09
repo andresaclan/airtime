@@ -32,6 +32,12 @@
 		activeMarkId?: string | null;
 		/** What each mark type is called in the flags' labels. */
 		markLabels?: Record<MarkType, string>;
+		/** What a placed mark is called, when its type alone doesn't say (a plant step). */
+		markName?: (mark: Mark) => string;
+		/** What a hold sets here, when the type alone doesn't say. */
+		holdLabel?: string;
+		/** Flags point down for a touchdown and up for a takeoff, so the shape tells them apart. */
+		shapedPins?: boolean;
 		/**
 		 * Touch scrubs by how far the finger moves rather than where it is, and the bar
 		 * opens into a capsule with the time while it's held (see `startTouch`).
@@ -39,8 +45,11 @@
 		fineTouch?: boolean;
 		/** The mark a fine-tuning touch that rests on a frame sets there; none when null. */
 		holdMark?: MarkType | null;
-		/** A touch fine-tuned to `frame` and rested there for `HOLD_MS`; false if nothing was set. */
-		onHold?: (frame: number) => boolean;
+		/**
+		 * A touch fine-tuned to `frame` and rested there for `HOLD_MS`; false if nothing was
+		 * set, or the name of what was set when the type alone doesn't say.
+		 */
+		onHold?: (frame: number) => boolean | string;
 		/** A mark's pin was dragged to `frame` and let go; false if it can't go there. */
 		onMoveMark?: (mark: Mark, frame: number) => boolean;
 		/** What the touch is doing, for HoldCue to show over the picture. */
@@ -56,6 +65,9 @@
 		intervals = [],
 		activeMarkId = null,
 		markLabels = { takeoff: 'takeoff', landing: 'landing' },
+		markName = (mark: Mark) => markLabels[mark.type],
+		holdLabel = '',
+		shapedPins = false,
 		fineTouch = false,
 		holdMark = null,
 		onHold,
@@ -99,6 +111,8 @@
 	let holdState: 'idle' | 'filling' = $state('idle');
 	/** The mark just set or moved, while the capsule and its pin say so. */
 	let justSet: MarkType | null = $state(null);
+	/** What the mark just set is called, taken as it was set: a plant step stays one. */
+	let justSetLabel = $state('');
 	/** A hold can mark once the finger fine-tunes, and again only after the frame changes. */
 	let canHold = false;
 	/** The touch set or moved a point, so playback stays paused on it. */
@@ -122,8 +136,9 @@
 		clearTimeout(justSetTimer);
 	});
 
-	function flashSet(type: MarkType) {
+	function flashSet(type: MarkType, label: string) {
 		justSet = type;
+		justSetLabel = label;
 		clearTimeout(justSetTimer);
 		justSetTimer = setTimeout(() => (justSet = null), 1100);
 		navigator.vibrate?.(12);
@@ -143,11 +158,13 @@
 		holdTimer = setTimeout(() => {
 			if (!touch || !holdMark || !onHold) return;
 			const type = holdMark;
+			const label = holdLabel || markLabels[type];
 			holdState = 'idle';
 			canHold = false;
-			if (!onHold(touch.frame)) return;
+			const set = onHold(touch.frame);
+			if (!set) return;
 			keepPaused = true;
-			flashSet(type);
+			flashSet(type, typeof set === 'string' ? set : label);
 		}, HOLD_MS);
 	}
 
@@ -231,9 +248,10 @@
 		draggedPin = null;
 		const pin = ended?.pin;
 		if (!pin || event.type !== 'pointerup' || frameOf(pin.time, timing) === ended.frame) return;
+		const label = markName(pin);
 		if (!onMoveMark?.(pin, ended.frame)) return;
 		keepPaused = true;
-		flashSet(pin.type);
+		flashSet(pin.type, label);
 	}
 
 	function capitalize(text: string): string {
@@ -251,22 +269,24 @@
 	});
 
 	function occupiedText(mark: Mark): string {
-		return `${capitalize(markLabels[mark.type])} is on this frame`;
+		return `${capitalize(markName(mark))} is on this frame`;
 	}
 
 	let touchCue: ScrubCue | null = $derived.by(() => {
-		if (justSet)
-			return { text: `${capitalize(markLabels[justSet])} set`, type: justSet, state: 'set' };
+		if (justSet) return { text: `${capitalize(justSetLabel)} set`, type: justSet, state: 'set' };
 		if (draggedPin) {
-			const type = draggedPin.type;
-			if (occupant) return { text: occupiedText(occupant), type, state: 'hint' };
-			return { text: `Let go to place ${markLabels[type]}`, type, state: 'hint' };
+			const dragged = marks.find((mark) => mark.id === draggedPin!.id);
+			if (occupant) return { text: occupiedText(occupant), type: occupant.type, state: 'hint' };
+			const name = dragged ? markName(dragged) : markLabels[draggedPin.type];
+			return { text: `Let go to place ${name}`, type: draggedPin.type, state: 'hint' };
 		}
-		if (precise && holdMark && occupant)
-			return { text: occupiedText(occupant), type: holdMark, state: 'hint' };
+		// The cue is the colour of the point it's about: the one already here.
+		if (precise && onHold && occupant)
+			return { text: occupiedText(occupant), type: occupant.type, state: 'hint' };
 		if (precise && holdMark) {
 			const state = holdState === 'filling' ? 'filling' : 'hint';
-			return { text: `Pause to set ${markLabels[holdMark]}`, type: holdMark, state };
+			const name = holdLabel || markLabels[holdMark];
+			return { text: `Pause to set ${name}`, type: holdMark, state };
 		}
 		if (precise) return { text: 'Fine-tuning', type: null, state: 'hint' };
 		if (!fineOpen) return null;
@@ -519,13 +539,14 @@
 		<button
 			type="button"
 			class="timeline-mark timeline-mark-{mark.type}"
+			class:shaped={shapedPins}
 			class:active={mark.id === activeMarkId}
 			class:just-set={justSet === mark.type}
 			class:dragged={draggedPin?.id === mark.id}
 			style="left: {percentOf(pinTime(mark))}%;"
 			onclick={() => seekToFrame(frameOf(mark.time, timing))}
-			aria-label="Go to {markLabels[mark.type]}"
-			title="Go to {markLabels[mark.type]}"
+			aria-label="Go to {markName(mark)}"
+			title="Go to {markName(mark)}"
 		></button>
 	{/each}
 </div>
@@ -702,6 +723,21 @@
 		--mark-color: hsl(var(--at-takeoff));
 	}
 
+	/* Shaped flags: a touchdown's head points down at the track, a takeoff's points up
+	   off it, so the two read apart without their colours. */
+	.timeline-mark.shaped::after {
+		top: -1px;
+		width: 10px;
+		height: 8px;
+		border-radius: 0;
+		box-shadow: none;
+		clip-path: polygon(0 0, 100% 0, 50% 100%);
+	}
+
+	.timeline-mark-takeoff.shaped::after {
+		clip-path: polygon(50% 0, 100% 100%, 0 100%);
+	}
+
 	.timeline-mark-landing {
 		--mark-color: hsl(var(--at-landing));
 	}
@@ -843,6 +879,12 @@
 		box-shadow: 0 0 0 2px var(--mark-color);
 		opacity: 0;
 		transform: translate(-50%, -50%);
+	}
+
+	/* Under a fingertip a flag is a pin through the track, with a round ring when held. */
+	.fine .timeline-mark.shaped::after {
+		border-radius: 50%;
+		clip-path: none;
 	}
 
 	/* A pin in the hand stands taller, with a ring around it. */
