@@ -199,9 +199,20 @@ try {
 				say(`Not recording a GitHub status: ${commit.why}`);
 			} else {
 				const description = `Native iOS ${simulator.runtime} Safari: ${passed}/${total} cases`;
-				await $`gh api repos/${commit.slug}/statuses/${commit.sha} -f state=${ok ? 'success' : 'failure'} -f context=${CONTEXT} -f description=${description} --silent`;
-				say(`Recorded ${CONTEXT} = ${ok ? 'success' : 'failure'} on ${commit.sha.slice(0, 7)}`);
-				if (ok && commit.slug) await rerunVerify(commit.slug, commit.sha);
+				const posted =
+					await $`gh api repos/${commit.slug}/statuses/${commit.sha} -f state=${ok ? 'success' : 'failure'} -f context=${CONTEXT} -f description=${description} --silent`
+						.nothrow()
+						.quiet();
+				if (posted.exitCode !== 0) {
+					say(`Could not record the ${CONTEXT} status: ${posted.stderr.toString().trim()}`);
+					say(
+						'The GitHub token needs to write commit statuses (a fine-grained token: Commit statuses, Read and write; a classic token: repo:status).'
+					);
+					exitCode = 1;
+				} else {
+					say(`Recorded ${CONTEXT} = ${ok ? 'success' : 'failure'} on ${commit.sha.slice(0, 7)}`);
+					if (ok && commit.slug) await rerunVerify(commit.slug, commit.sha);
+				}
 			}
 		}
 	} finally {
