@@ -108,3 +108,19 @@ jobs:
           STATIC_RESULT: ${{ needs.static.result }}
           FRAMES_RESULT: ${{ needs.frames.result }}
         run: test "$STATIC_RESULT" = success && test "$FRAMES_RESULT" = success
+      # Native iOS runs on the Mac of whoever changes playback (see AGENTS.md); this
+      # fails a pull request that changes playback without a passing ios-frames status.
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        if: github.event_name == 'pull_request'
+      - name: Require a native iOS run for playback changes
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: bun scripts/check-ios-frames.ts
