@@ -28,7 +28,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-15, browser: chromium }
+          # Branded Chrome only: Playwright's open-source Chromium is a browser no one
+          # uses, and its headless software-decode run was the matrix's only flaky job.
+          # `--project=chromium` still runs locally (docs/frame-stepping.md).
           - { os: macos-15, browser: chrome }
           # AVFoundation/H.264 on macOS; Linux WebKit is not Safari's media stack.
           - { os: macos-15, browser: webkit }
