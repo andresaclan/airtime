@@ -1319,9 +1319,12 @@ body {
 	   controls' row is at least as tall as they are, and the space the picture leaves
 	   is shared between the rows above and below it, so the picture moves up only as
 	   far as it must to clear them. */
+	/* The stage centres its column, so the frame is stretched to full width: sized to
+	   its content, the picture would narrow and move as the video seeks. */
 	.viewer-stage:has(> .marks-panel.sheet.collapsed) .viewer-column > .viewer-frame.landscape {
 		display: grid;
 		flex: 1 1 auto;
+		align-self: stretch;
 		grid-template-columns: minmax(0, 1fr);
 		grid-template-rows: minmax(0, 1fr) auto minmax(auto, 1fr);
 	}
