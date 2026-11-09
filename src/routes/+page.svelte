@@ -9,7 +9,6 @@
 	import MarkButtons from '$lib/components/MarkButtons.svelte';
 	import MarkGlyph from '$lib/components/MarkGlyph.svelte';
 	import HoldCue, { type ScrubCue } from '$lib/components/HoldCue.svelte';
-	import { singleTap } from '$lib/components/singleTap';
 	import { onMount, tick } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
@@ -206,21 +205,9 @@
 
 	// On a touchscreen the bar also marks: scrub to a frame, slide up above the bar to
 	// fine-tune, and pause there. The pause sets what the Mark button names for that
-	// frame. Pins drag and drop. The Mark buttons and the frame
-	// steppers stay for marking frame by frame.
+	// frame. Pins drag and drop. The Mark buttons and the frame steppers stay for
+	// marking frame by frame.
 	const touchScreen = new MediaQuery('(pointer: coarse)');
-
-	// On a phone held upright the player is laid out after iOS Photos (layout.css): a tap
-	// on the picture hides the controls and another brings them back.
-	const phonePlayer = new MediaQuery(
-		'(max-width: 900px) and (min-height: 501px) and (pointer: coarse)'
-	);
-	let chromeHidden = $state(false);
-	const CHROME_TAP_IGNORE = '.player-dock, .zoom-pill, .viewer-overlay, button, a, input, select';
-
-	function toggleChrome() {
-		chromeHidden = phonePlayer.current && !chromeHidden;
-	}
 	let scrubCue: ScrubCue | null = $state(null);
 	let holdMark: MarkType | null = $derived(nextAction?.kind === 'add' ? nextAction.type : null);
 	let holdLabel = $derived(
@@ -332,7 +319,6 @@
 		videoFileName = file.name;
 		isPlaying = false;
 		mediaError = false;
-		chromeHidden = false;
 		currentTime = 0;
 		duration = 0;
 		frameRate = 30;
@@ -907,8 +893,7 @@
 		const first = videoAspect === null;
 		videoAspect = video.videoWidth / video.videoHeight;
 		// Below a landscape video the sheet has room, so open it rather than leave a gap.
-		// The phone player centres the picture instead, with the sheet closed under it.
-		if (first && fitLandscape && !phonePlayer.current) panelOpen = true;
+		if (first && fitLandscape) panelOpen = true;
 	}
 
 	function handleMediaError() {
@@ -1294,12 +1279,7 @@
 			</div>
 		{:else}
 			<div class="viewer-column">
-				<div
-					class="viewer-frame"
-					class:landscape={fitLandscape}
-					class:chrome-hidden={chromeHidden}
-					{@attach singleTap(toggleChrome, CHROME_TAP_IGNORE)}
-				>
+				<div class="viewer-frame" class:landscape={fitLandscape}>
 					<VideoViewer
 						bind:videoElement
 						{videoSrc}
@@ -1364,91 +1344,87 @@
 							<p class="viewer-overlay-title">Drop to replace video</p>
 						</div>
 					{/if}
-					<!-- On a phone the dock rests at the bottom under the centred picture, and a tap
-					     on the picture hides and shows it, as in iOS Photos (see layout.css). -->
-					<div class="player-dock">
-						{#if !mediaError}
-							<MarkingHint
-								action={nextAction}
-								frameRate={markingStatus}
-								{jumpType}
-								hidden={hintHidden}
-								onHide={() => setHint(true)}
+					{#if !mediaError}
+						<MarkingHint
+							action={nextAction}
+							frameRate={markingStatus}
+							{jumpType}
+							hidden={hintHidden}
+							onHide={() => setHint(true)}
+						/>
+					{/if}
+					<div class="control-bar">
+						<div class="control-bar-inner">
+							<VideoScrubber
+								{currentTime}
+								{duration}
+								{timing}
+								{videoElement}
+								{marks}
+								intervals={analysis.intervals}
+								activeMarkId={activeMark?.id ?? null}
+								{markName}
+								shapedPins
+								fineTouch={touchScreen.current}
+								holdMark={touchScreen.current ? holdMark : null}
+								{holdLabel}
+								onHold={handleHold}
+								onMoveMark={handleMoveMark}
+								bind:cue={scrubCue}
 							/>
-						{/if}
-						<div class="control-bar">
-							<div class="control-bar-inner">
-								<VideoScrubber
+
+							<div class="control-toolbar">
+								<!-- One segmented group behind the frame controls and the Mark buttons. -->
+								<span class="transport-dock" aria-hidden="true"></span>
+								<!-- The context strip under the controls: where, how fast, how loud. -->
+								<span class="context-strip" aria-hidden="true"></span>
+								<div class="time-readout">
+									<span class="time-current">{formatFrameClock(playheadLabel, timing)}</span>
+									<span class="time-separator">/</span>
+									<span class="time-duration">{formatDuration()}</span>
+									<span class="time-frame">frame {playheadLabel + 1}</span>
+									{#if !mediaError}<span
+											class="time-fps"
+											class:clean={sourceFrameRate && !variableFrameRate}
+											><span class="fps-dot" class:uncertain={!sourceFrameRate}
+											></span>{#if sourceFrameRate && variableFrameRate}
+												<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps · variable</span>
+											{:else if sourceFrameRate}
+												{sourceFrameRate} fps
+											{:else if playbackFrameRate}
+												<span
+													title="Couldn't read the frame rate from the file; estimated from playback"
+												>
+													~{playbackFrameRate} fps · estimated
+												</span>
+											{:else if frameRateFailed}
+												<span title={FRAME_RATE_FAILED}>Frame rate unknown</span>
+											{:else}
+												Detecting fps…
+											{/if}</span
+										>{/if}
+								</div>
+
+								<VideoControls
+									{isPlaying}
 									{currentTime}
 									{duration}
 									{timing}
 									{videoElement}
-									{marks}
-									intervals={analysis.intervals}
-									activeMarkId={activeMark?.id ?? null}
-									{markName}
-									shapedPins
-									fineTouch={touchScreen.current}
-									holdMark={touchScreen.current ? holdMark : null}
-									{holdLabel}
-									onHold={handleHold}
-									onMoveMark={handleMoveMark}
-									bind:cue={scrubCue}
+									bind:volume
+									bind:isMuted
+									{playbackRate}
+									onCyclePlaybackRate={cyclePlaybackRate}
 								/>
 
-								<div class="control-toolbar">
-									<!-- One segmented group behind the frame controls and the Mark buttons. -->
-									<span class="transport-dock" aria-hidden="true"></span>
-									<!-- The context strip under the controls: where, how fast, how loud. -->
-									<span class="context-strip" aria-hidden="true"></span>
-									<div class="time-readout">
-										<span class="time-current">{formatFrameClock(playheadLabel, timing)}</span>
-										<span class="time-separator">/</span>
-										<span class="time-duration">{formatDuration()}</span>
-										<span class="time-frame">frame {playheadLabel + 1}</span>
-										{#if !mediaError}<span
-												class="time-fps"
-												class:clean={sourceFrameRate && !variableFrameRate}
-												><span class="fps-dot" class:uncertain={!sourceFrameRate}
-												></span>{#if sourceFrameRate && variableFrameRate}
-													<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps · variable</span>
-												{:else if sourceFrameRate}
-													{sourceFrameRate} fps
-												{:else if playbackFrameRate}
-													<span
-														title="Couldn't read the frame rate from the file; estimated from playback"
-													>
-														~{playbackFrameRate} fps · estimated
-													</span>
-												{:else if frameRateFailed}
-													<span title={FRAME_RATE_FAILED}>Frame rate unknown</span>
-												{:else}
-													Detecting fps…
-												{/if}</span
-											>{/if}
-									</div>
-
-									<VideoControls
-										{isPlaying}
-										{currentTime}
-										{duration}
-										{timing}
-										{videoElement}
-										bind:volume
-										bind:isMuted
-										{playbackRate}
-										onCyclePlaybackRate={cyclePlaybackRate}
-									/>
-
-									<MarkButtons
-										bind:this={markButtons}
-										action={nextAction}
-										frameRate={markingStatus}
-										{jumpType}
-										onPress={() => pressMark()}
-										onMark={addMark}
-									/>
-								</div>
+								<MarkButtons
+									bind:this={markButtons}
+									action={nextAction}
+									frameRate={markingStatus}
+									{jumpType}
+									onPress={() => pressMark()}
+									onMark={addMark}
+								/>
 							</div>
 						</div>
 					</div>
