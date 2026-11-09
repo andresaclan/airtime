@@ -19,8 +19,10 @@ const frame = document.querySelector<HTMLIFrameElement>('#app')!;
 const app = () => frame.contentWindow as AppWindow;
 const CASE_MS = 240_000;
 
-const post = (path: string, body: unknown) =>
-	fetch(path, { method: 'POST', body: JSON.stringify(body) }).catch(() => {});
+// Identifies this load, so the runner can ignore one that Safari has replaced.
+const run = crypto.randomUUID();
+const post = (path: string, body: object) =>
+	fetch(path, { method: 'POST', body: JSON.stringify({ ...body, run }) }).catch(() => {});
 
 function navigate(path: string) {
 	return new Promise<void>((resolve, reject) => {

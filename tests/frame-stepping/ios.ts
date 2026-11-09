@@ -62,6 +62,10 @@ async function serve(port: number, script: string) {
 	const results: CaseResult[] = [];
 	let expected: string[] = [];
 	let userAgent = '';
+	// Each page load has its own id. Safari can reload the page during its first
+	// launch on a fresh simulator; only the newest load's cases count, once.
+	let run = '';
+	let restarts = 0;
 	const { promise: done, resolve: finish } = Promise.withResolvers<void>();
 	const { promise: started, resolve: start } = Promise.withResolvers<void>();
 	const page = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -81,10 +85,18 @@ async function serve(port: number, script: string) {
 			if (request.method === 'POST') {
 				const body = await request.json();
 				if (pathname === '/__start') {
+					if (run) {
+						restarts += 1;
+						say(`The test page restarted (${restarts}); counting only the new run`);
+					}
+					run = body.run;
+					results.length = 0;
 					expected = body.cases;
 					userAgent = body.ua;
 					start();
 					say(`Running ${expected.length} cases in ${userAgent}`);
+				} else if (body.run !== run) {
+					// A post from a load that has since been replaced.
 				} else if (pathname === '/__case') {
 					results.push(body);
 					say(`${body.ok ? 'PASS' : 'FAIL'} ${body.name} (${(body.ms / 1000).toFixed(1)} s)`);
@@ -101,7 +113,7 @@ async function serve(port: number, script: string) {
 			return new Response(Bun.file(join(base, 'index.html')));
 		}
 	});
-	return { server, started, done, results, expected: () => expected };
+	return { server, started, done, results, expected: () => expected, restarts: () => restarts };
 }
 
 async function createSimulator() {
@@ -161,7 +173,10 @@ try {
 	say('Building the app');
 	await $`bun run build`.cwd(repo).quiet();
 	const port = await freePort();
-	const { server, started, done, results, expected } = await serve(port, await bundlePage());
+	const { server, started, done, results, expected, restarts } = await serve(
+		port,
+		await bundlePage()
+	);
 	try {
 		simulator = await createSimulator();
 		const url = `http://localhost:${port}/__ios`;
@@ -187,7 +202,9 @@ try {
 		clearTimeout(timer);
 		const passed = results.filter((result) => result.ok).length;
 		const total = expected().length;
-		const ok = total > 0 && passed === total && results.length === total;
+		// One restart is Safari's first launch; more suggests the page is crashing.
+		const ok = total > 0 && passed === total && results.length === total && restarts() <= 1;
+		if (restarts() > 1) say(`The test page restarted ${restarts()} times`);
 		say(
 			`${ok ? 'PASSED' : 'FAILED'}: ${passed}/${total} cases in native iOS ${simulator.runtime} Safari`
 		);
