@@ -43,13 +43,18 @@ prevents it from being merged. No local hook can reliably prevent all PR creatio
 
 | Runner | Browser                            | Coverage                                         |
 | ------ | ---------------------------------- | ------------------------------------------------ |
-| macOS  | Chromium                           | Bundled browser; no HEVC decoder, so HEVC skips  |
 | macOS  | Google Chrome                      | Branded stable channel, including HEVC           |
 | macOS  | Playwright WebKit                  | WebKit with Apple's media frameworks             |
 | macOS  | Playwright WebKit, iPhone profile  | Mobile viewport, touch taps, and shared controls |
 | macOS  | Shipping Safari via `safaridriver` | Installed Safari and its media pipeline          |
 
 The iPhone profile is **emulation, not an iOS Simulator or physical iPhone**.
+
+Playwright's open-source Chromium isn't in the matrix. It isn't a browser anyone
+uses, and it was the only flaky job (a first step that flashes back to frame 0 on
+the VFR and pre-roll clips, #56). It differs from the Chrome job in three
+ways: it decodes in software, runs headless and has no HEVC decoder. Run it
+locally with `--project=chromium` when a change touches those paths.
 
 ## Native iOS Safari: run by whoever changes playback
 
