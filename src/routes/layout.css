@@ -1314,6 +1314,36 @@ body {
 		height: auto;
 		aspect-ratio: var(--video-aspect);
 	}
+	/* Over the collapsed sheet, a landscape video sits in the middle of the height and
+	   the hint and controls rest at the bottom, where a thumb reaches them. The
+	   controls' row is at least as tall as they are, and the space the picture leaves
+	   is shared between the rows above and below it, so the picture moves up only as
+	   far as it must to clear them. */
+	.viewer-stage:has(> .marks-panel.sheet.collapsed) .viewer-column > .viewer-frame.landscape {
+		display: grid;
+		flex: 1 1 auto;
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: minmax(0, 1fr) auto minmax(auto, 1fr);
+	}
+	.viewer-stage:has(> .marks-panel.sheet.collapsed)
+		.viewer-column
+		> .viewer-frame.landscape
+		> :first-child {
+		grid-row: 2;
+	}
+	.viewer-stage:has(> .marks-panel.sheet.collapsed) .viewer-frame.landscape > .player-dock {
+		grid-row: 3;
+		align-self: end;
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+}
+
+/* The hint and the controls, grouped for the layout above. Elsewhere the wrapper
+   dissolves and its parts lay out as they always have. */
+.player-dock {
+	display: contents;
 }
 
 /* Phones, upright or sideways: the logo stands in for "Airtime /", so the file
