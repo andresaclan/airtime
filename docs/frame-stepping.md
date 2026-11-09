@@ -51,29 +51,36 @@ prevents it from being merged. No local hook can reliably prevent all PR creatio
 
 The iPhone profile is **emulation, not an iOS Simulator or physical iPhone**.
 
-## Native iOS Safari runs nightly, not per PR
+## Native iOS Safari: run by whoever changes playback
 
-Native iOS Safari in the iOS Simulator is not part of PR CI. On hosted runners the
-job passed once in its last 13 runs, mostly because SafariDriver could not reach a
-freshly booted simulator (`SessionNotCreatedError`), so it never blocked a merge
-and its red result carried little information.
+Native iOS Safari in the iOS Simulator is not a hosted CI job. On hosted runners it
+passed once in its last 13 runs, mostly because SafariDriver could not reach a
+freshly booted simulator (`SessionNotCreatedError`); on some Macs SafariDriver finds
+no simulator at all. Instead, the agent or person changing playback runs it on
+their Mac, and CI checks that they did.
 
-Instead, `scripts/nightly-ios.sh` runs the same contract on a Mac each night, from
-its own clone. It tries at 2:30, 3:30, 4:30 and 5:30, but only when `main` has
-commits it hasn't tested, and only once the Mac has been idle for 20 minutes: the
-Simulator and SafariDriver can take focus. Each run creates an isolated iPhone on the
-newest iOS runtime (`scripts/frame-ios-simulator.py`) and deletes it afterwards. A
-session that never starts is retried, at most three times per commit, before it is
-reported. A wrong picture is reported at once. Every failure posts a notification;
-a wrong picture also keeps one GitHub issue open until `main` passes again, while
-a problem with the Mac's own setup stays local. Logs stay on the Mac under
-`~/Library/Logs/airtime-nightly-ios/`.
+`bun run test:frames:ios` needs no SafariDriver. It builds the app, serves it with
+a test page (`tests/frame-stepping/ios-page.ts`), creates an isolated iPhone on the
+newest iOS runtime (`scripts/frame-ios-simulator.py`) and opens the page with
+`simctl openurl`. The page loads the app in a same-origin iframe and runs the same
+contract cases as the WebDriver runners, through the same browser-side batch;
+fixture bytes go through the app's real file input, and it accepts the app's
+confirmation prompts as WebDriver's `unhandledPromptBehavior` did. It posts each
+case back, and the simulator is deleted afterwards. The simulator boots headless,
+so no window takes focus. The video is muted before each batch: iOS only plays
+video without a real tap while muted, and the oracle reads pictures, not sound.
+
+With `--post-status`, a clean and pushed `HEAD` gets an `ios-frames` commit status
+(`success` or `failure`, with the iOS version and case count), and a `verify` job
+that already failed on that commit is re-run. CI's `verify` job runs
+`scripts/check-ios-frames.ts` on pull requests: it passes when no playback file
+changed (the pathspecs are listed there; unit tests are excluded), or when a commit
+in the pull request has a passing `ios-frames` status and no playback file changed
+after it. A merge from `main` that doesn't touch playback keeps the receipt.
 
 ```sh
-sudo safaridriver --enable            # once per Mac
-scripts/install-nightly-ios.sh        # install, or --uninstall
-/bin/bash ~/Library/Application\ Support/airtime-nightly-ios/nightly-ios.sh --dry-run  # check the setup
-/bin/bash ~/Library/Application\ Support/airtime-nightly-ios/nightly-ios.sh --force    # run it now
+git push
+bun run test:frames:ios --post-status
 ```
 
 Simulator testing still does not exercise a phone's hardware decoder. A physical
