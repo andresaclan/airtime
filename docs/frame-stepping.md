@@ -36,29 +36,56 @@ whose frames are not evenly spaced. A time readout changing by 1/fps is not proo
 ## What runs for every PR
 
 The existing required check, `verify`, depends on static checks and the browser
-matrix. It fails if a dependency fails, is cancelled, or is skipped. The iOS
-Simulator job is the exception: it runs on every PR and shows its result, but a
-failure doesn't block the merge (`continue-on-error`). The
+matrix. It fails if a dependency fails, is cancelled, or is skipped. The
 workflow has no changed-path filters or automatic retries. It also runs on main
 and for merge queues. A PR can be opened with failing tests; branch protection
 prevents it from being merged. No local hook can reliably prevent all PR creation.
 
-| Runner | Browser                                 | Coverage                                         |
-| ------ | --------------------------------------- | ------------------------------------------------ |
-| macOS  | Chromium                                | Bundled browser; no HEVC decoder, so HEVC skips  |
-| macOS  | Google Chrome                           | Branded stable channel, including HEVC           |
-| macOS  | Playwright WebKit                       | WebKit with Apple's media frameworks             |
-| macOS  | Playwright WebKit, iPhone profile       | Mobile viewport, touch taps, and shared controls |
-| macOS  | Shipping Safari via `safaridriver`      | Installed Safari and its media pipeline          |
-| macOS  | iOS Simulator Safari via `safaridriver` | Native iOS Safari, selected by simulator UDID    |
+| Runner | Browser                            | Coverage                                         |
+| ------ | ---------------------------------- | ------------------------------------------------ |
+| macOS  | Chromium                           | Bundled browser; no HEVC decoder, so HEVC skips  |
+| macOS  | Google Chrome                      | Branded stable channel, including HEVC           |
+| macOS  | Playwright WebKit                  | WebKit with Apple's media frameworks             |
+| macOS  | Playwright WebKit, iPhone profile  | Mobile viewport, touch taps, and shared controls |
+| macOS  | Shipping Safari via `safaridriver` | Installed Safari and its media pipeline          |
 
 The iPhone profile is **emulation, not an iOS Simulator or physical iPhone**.
-A separate `safari-ios` job creates an isolated iPhone on the newest installed iOS
-runtime and requires a native iOS Safari session. Missing runtimes or failed device
-startup fail the job; they never silently skip it. CI waits for the isolated device to finish booting before starting SafariDriver.
+
+## Native iOS Safari: run by whoever changes playback
+
+Native iOS Safari in the iOS Simulator is not a hosted CI job. On hosted runners it
+passed once in its last 13 runs, mostly because SafariDriver could not reach a
+freshly booted simulator (`SessionNotCreatedError`); on some Macs SafariDriver finds
+no simulator at all. Instead, the agent or person changing playback runs it on
+their Mac, and CI checks that they did.
+
+`bun run test:frames:ios` needs no SafariDriver. It builds the app, serves it with
+a test page (`tests/frame-stepping/ios-page.ts`), creates an isolated iPhone on the
+newest iOS runtime (`scripts/frame-ios-simulator.py`) and opens the page with
+`simctl openurl`. The page loads the app in a same-origin iframe and runs the same
+contract cases as the WebDriver runners, through the same browser-side batch;
+fixture bytes go through the app's real file input, and it accepts the app's
+confirmation prompts as WebDriver's `unhandledPromptBehavior` did. It posts each
+case back, and the simulator is deleted afterwards. The simulator boots headless,
+so no window takes focus. The video is muted before each batch: iOS only plays
+video without a real tap while muted, and the oracle reads pictures, not sound.
+
+With `--post-status`, a clean and pushed `HEAD` gets an `ios-frames` commit status
+(`success` or `failure`, with the iOS version and case count), and a `verify` job
+that already failed on that commit is re-run. CI's `verify` job runs
+`scripts/check-ios-frames.ts` on pull requests: it passes when no playback file
+changed (the pathspecs are listed there; unit tests are excluded), or when a commit
+in the pull request has a passing `ios-frames` status and no playback file changed
+after it. A merge from `main` that doesn't touch playback keeps the receipt.
+
+```sh
+git push
+bun run test:frames:ios --post-status
+```
+
 Simulator testing still does not exercise a phone's hardware decoder. A physical
-iOS gate requires a dedicated runner/device or an external device service; do not
-report mobile WebKit results as a physical iPhone pass.
+iOS gate requires a dedicated device or an external device service; do not report
+mobile WebKit results as a physical iPhone pass.
 
 Playwright cases use fresh browser processes; macOS Safari uses fresh WebDriver
 sessions. Native iOS retains one owned session because repeated session creation
@@ -84,11 +111,16 @@ Cases cover constant frame rate, NTSC timestamps over enough frames to cross the
 600 Hz rounding boundary, 240 fps at QuickTime's 600 Hz time base, dropped frames,
 B-frame reordering, slow-motion pre-roll, an edit list trimming partway through a
 frame, and HEVC like an iPhone's default recording (`hvc1`, B-frames, 60 fps on a
-600 Hz timescale). The player walks **every** frame in both
+600 Hz timescale), and portrait video stored as an iPhone stores it: landscape-coded
+frames with a −90° display matrix. The player walks **every** frame in both
 directions using buttons and keyboard shortcuts. Tests also cover boundaries,
 rapid input/reversal, holds and release, playback/pause, mark round trips, and
 replacing a marked video, and stepping with the preview cache disabled. Native video pixels and any visible cache preview must
-agree after settling. Browser logs/traces and failed screenshots are retained as
+agree after settling. Every sample counts, not only the settled one: once the
+picture on screen shows the target frame, it may not flash back to another frame,
+and a visible preview must cover exactly the picture's box (within 2 px), never the
+stretched video element. Opening a file with container timing must not start
+playback. Browser logs/traces and failed screenshots are retained as
 CI artifacts for 14 days. Safari retains capabilities, frame events, a screenshot
 and error text on failure. Each native Safari case has a hard watchdog (120 seconds
 on macOS, 240 on iOS), including startup and cleanup. A wedged IPC channel kills
@@ -119,8 +151,8 @@ For parsed files, the authoritative container timing avoids an unnecessary
 playback probe. Files without readable timing retain the playback probe. It samples
 at quarter speed from the start and restores the user’s speed after pausing, so
 the probe never changes the native decoder’s rate during playback. No browser
-fixture needs the probe (iPhone files always carry readable timing); unit tests
-cover its estimator. A
+fixture needs the probe (iPhone files always carry readable timing), and the
+contract fails if one plays while opening; unit tests cover its estimator. A
 partial-frame edit actively samples a later picture to disambiguate zero, which
 WebKit can report for a clipped partial frame.
 

@@ -12,6 +12,13 @@ These rules apply to every agent working in this repo, whatever the provider.
   and `bun run test:frames --project=webkit --project=webkit-iphone` after building.
   CI's required `verify` includes the full browser matrix, including shipping Safari.
   Do not call the iPhone WebKit profile an iOS Simulator or physical-device pass.
+- If your PR changes playback (the pathspecs in `scripts/check-ios-frames.ts`: the
+  video library, player components, keybinds, the player page and the frame tests),
+  test it in native iOS Safari yourself. After every push that changes those files,
+  run `bun run test:frames:ios --post-status` from a clean worktree. It records an
+  `ios-frames` status on the pushed commit, and CI's `verify` fails without a passing
+  one. Fix failures rather than retrying them. Report the result it prints; only that
+  run counts as an iOS Simulator pass.
 
 ## Dev server
 

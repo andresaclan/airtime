@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 	import { estimatePlaybackFrameRate } from '$lib/video/frameRate';
 	import {
 		frameAt,
@@ -9,6 +9,7 @@
 	} from '$lib/video/frames';
 	import { settledDisplayedFrame, trackPresentedFrames } from '$lib/video/presentedFrame';
 	import { mediaTime, mediaTimelineKnown, MEDIA_TIMELINE_EVENT } from '$lib/video/mediaTime';
+	import { pictureBox } from '$lib/video/pictureBox';
 	import { ScrubCache } from '$lib/video/scrubCache';
 	import {
 		clearSeeks,
@@ -36,6 +37,12 @@
 		currentTime: number;
 		duration: number;
 		sourceFrameRate?: number | null;
+		/**
+		 * Whether the file's own timing has been read (or found unreadable). Frame-rate
+		 * detection waits for it: a playback probe must never run on a file whose
+		 * container already says its frame rate.
+		 */
+		sourceTimingChecked?: boolean;
 		/** Time of every frame, from the file; see frames.ts. */
 		frameTimes?: readonly number[] | null;
 		editGap?: number;
@@ -60,6 +67,7 @@
 		currentTime = $bindable(0),
 		duration = $bindable(0),
 		sourceFrameRate = null,
+		sourceTimingChecked = true,
 		frameTimes = null,
 		editGap = 0,
 		frameRate = $bindable(30),
@@ -259,28 +267,19 @@
 				}
 			}, 150);
 		};
-		// The container centres the video, so its box follows from the two sizes. Computed
-		// sizes keep the fractions that offsetLeft/offsetTop round away. The box is the
-		// picture's, not the element's: Safari can stretch the element across the space
-		// and letterbox the picture inside it (object-fit), and the preview must not.
+		// The container centres the video, so the picture's box follows from the sizes
+		// (see pictureBox). Computed sizes keep the fractions that offsetLeft/offsetTop
+		// round away.
 		const measure = () => {
 			const container = video.parentElement;
 			if (!container) return;
 			const style = getComputedStyle(video);
-			let width = parseFloat(style.width);
-			let height = parseFloat(style.height);
-			elementSize = { width, height };
-			if (video.videoWidth && video.videoHeight) {
-				const scale = Math.min(width / video.videoWidth, height / video.videoHeight);
-				width = video.videoWidth * scale;
-				height = video.videoHeight * scale;
-			}
-			videoBox = {
-				left: (container.clientWidth - width) / 2,
-				top: (container.clientHeight - height) / 2,
-				width,
-				height
-			};
+			elementSize = { width: parseFloat(style.width), height: parseFloat(style.height) };
+			videoBox = pictureBox(
+				{ width: container.clientWidth, height: container.clientHeight },
+				elementSize,
+				{ width: video.videoWidth, height: video.videoHeight }
+			);
 		};
 		const resize = new ResizeObserver(measure);
 		resize.observe(video);
@@ -336,13 +335,33 @@
 		}
 	}
 
+	// Detection starts once per video, when both its metadata and the file's own timing
+	// are in. The file is read in parallel with the video loading, and either can finish
+	// first; starting on metadata alone played a parsed file to measure its frame rate.
+	let metadataLoaded = false;
+	let detectionStarted = false;
+	function startFrameRateDetection() {
+		if (!metadataLoaded || !sourceTimingChecked || detectionStarted) return;
+		detectionStarted = true;
+		detectFrameRate();
+	}
+	$effect(() => {
+		void videoSrc;
+		metadataLoaded = false;
+		detectionStarted = false;
+	});
+	$effect(() => {
+		if (sourceTimingChecked) untrack(startFrameRateDetection);
+	});
+
 	function handleLoadedMetadata() {
 		if (videoElement) {
 			enforceInAppPlayback();
 			duration = mediaTime(videoElement, videoElement.duration);
 			currentTime = mediaTime(videoElement);
 			onDurationChange?.(duration);
-			detectFrameRate();
+			metadataLoaded = true;
+			startFrameRateDetection();
 			// Reset zoom on new video
 			resetZoom();
 		}
