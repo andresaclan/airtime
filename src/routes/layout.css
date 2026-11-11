@@ -1452,6 +1452,14 @@ body {
 	display: none;
 }
 
+/* A wide bar: the Mark buttons keep one width whether or not the other-type button
+   is showing, so the frame controls beside them never shift. */
+@container control-bar (min-width: 701px) {
+	.jump-workspace .step-marks {
+		min-width: var(--mark-slot);
+	}
+}
+
 /* A phone on its side: every row of height goes to the picture. */
 @media (max-height: 500px) {
 	.app-header {

@@ -97,6 +97,12 @@ export function settleWorkspace(state: Workspace, units: JumpUnit[], marks: Mark
 		activeId = active?.id ?? null;
 	}
 	if (selectedId && !marks.some((mark) => mark.id === selectedId)) selectedId = null;
+	// A mark moved out of its jump takes the workspace with it, to the jump it's in now
+	// or to none. A touchdown repeat hops share stays with the hop it was chosen from.
+	if (mode === 'review' && selectedId && !(active && unitStep(active, selectedId))) {
+		active = unitOf(units, selectedId);
+		activeId = active?.id ?? null;
+	}
 	if (emptySlot && (!active || active[emptySlot])) emptySlot = null;
 	if (mode === 'complete' && !active?.flight) mode = 'capture';
 	if (mode === 'review' && !selectedId && !emptySlot) {
@@ -110,4 +116,22 @@ export function settleWorkspace(state: Workspace, units: JumpUnit[], marks: Mark
 		activeId = last && !last.flight ? last.id : null;
 	}
 	return { mode, activeId, selectedId, emptySlot };
+}
+
+/**
+ * Whether adding the mark `markId` gave `unit` its missing `step`: the mark is that
+ * step of the same jump in `after`, the jumps as they are with it. A mark that would
+ * start another jump, or end a different one, doesn't.
+ */
+export function fillsSlot(
+	unit: JumpUnit,
+	step: MarkStep,
+	after: JumpUnit[],
+	markId: string
+): boolean {
+	// A jump keeps its takeoff; one still waiting for a takeoff keeps its plant.
+	const anchor = step === 'takeoff' ? 'plant' : 'takeoff';
+	const kept = unit[anchor];
+	if (!kept || unit[step]) return false;
+	return after.some((filled) => filled[step]?.id === markId && filled[anchor]?.id === kept.id);
 }

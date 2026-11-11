@@ -187,15 +187,20 @@
 		return `Jump ${number}: ready to mark`;
 	});
 
-	// Keeps the jump in the workspace in view among its neighbours.
+	// Keeps the jump in the workspace in view among its neighbours: when it changes, and
+	// when the strip does (a phone turned on its side, a resized window).
 	$effect(() => {
 		void [activeId, mode, units.length, orphan];
-		if (!chipList) return;
-		void tick().then(() =>
-			chipList
-				?.querySelector<HTMLElement>('[aria-current="true"]')
-				?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-		);
+		const list = chipList;
+		if (!list) return;
+		const reveal = () =>
+			list
+				.querySelector<HTMLElement>('[aria-current="true"]')
+				?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+		void tick().then(reveal);
+		const observer = new ResizeObserver(reveal);
+		observer.observe(list);
+		return () => observer.disconnect();
 	});
 
 	/**
@@ -359,17 +364,9 @@
 	{/if}
 {/snippet}
 
-<!-- On a phone Done sits in the strip, beside the marks; in the card it ends the row. -->
-{#snippet panelDone()}
-	{#if !compact}
-		<button
-			class="jw-btn jw-primary jw-end"
-			data-focus="done"
-			onclick={(event) => act(event, onDone, ...AFTER_REVIEW)}>Done</button
-		>
-	{/if}
-{/snippet}
-
+<!-- What the jump's state offers at the frame on screen. It takes the Mark button's
+     place in the bar, in every layout, so it's in one place and under the same thumb
+     or pointer that pressed Mark. -->
 {#snippet actions()}
 	{#if mode === 'complete'}
 		<button
@@ -380,63 +377,57 @@
 		<button class="jw-btn jw-primary" onclick={(event) => act(event, onNext, '.mark-primary')}
 			>Next jump</button
 		>
-	{:else if mode === 'review'}
-		{#if selected}
-			<div class="jw-adjust">
-				<div class="jw-stepper" role="group" aria-label="Move the {selectedLabel.toLowerCase()}">
-					<button
-						class="jw-btn jw-quiet"
-						onclick={() => onNudge(selected.id, -1)}
-						aria-label="Move the {selectedLabel.toLowerCase()} one frame earlier"
-						>−1<span class="jw-wide">frame</span></button
-					>
-					<button
-						class="jw-btn jw-quiet"
-						onclick={() => onNudge(selected.id, 1)}
-						aria-label="Move the {selectedLabel.toLowerCase()} one frame later"
-						>+1<span class="jw-wide">frame</span></button
-					>
-				</div>
-				<button
-					class="jw-btn jw-mark"
-					class:takeoff={selected.type === 'takeoff'}
-					aria-disabled={onOwnFrame}
-					onclick={onSetHere}
-					title={onOwnFrame
-						? `The ${selectedLabel.toLowerCase()} is on this frame`
-						: `Move the ${selectedLabel.toLowerCase()} to this frame`}>Set here</button
-				>
-			</div>
-			<div class="jw-edit">
-				{@render history()}
-				<button
-					class="jw-btn jw-icon jw-remove"
-					onclick={() => onRemove(selected.id)}
-					aria-label="Remove the {selectedLabel.toLowerCase()}"
-					title="Remove this mark"
-				>
-					<svg viewBox="0 0 24 24" aria-hidden="true"
-						><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" /></svg
-					><span class="jw-wide">Remove</span>
-				</button>
-				{@render panelDone()}
-			</div>
-		{:else if emptySlot}
-			<div class="jw-adjust">
-				<button
-					class="jw-btn jw-mark"
-					class:takeoff={emptySlot === 'takeoff'}
-					aria-disabled={!canPlace}
-					onclick={onPlace}
-				>
-					<MarkGlyph type={STEP_MARK[emptySlot]} size={17} />Mark {selectedLabel.toLowerCase()}
-				</button>
-			</div>
-			<div class="jw-edit">
-				{@render history()}
-				{@render panelDone()}
-			</div>
-		{/if}
+	{:else if selected}
+		<div class="jw-stepper" role="group" aria-label="Move the {selectedLabel.toLowerCase()}">
+			<button
+				class="jw-btn jw-quiet"
+				onclick={() => onNudge(selected.id, -1)}
+				aria-label="Move the {selectedLabel.toLowerCase()} one frame earlier"
+				title="One frame earlier">−1</button
+			>
+			<button
+				class="jw-btn jw-quiet"
+				onclick={() => onNudge(selected.id, 1)}
+				aria-label="Move the {selectedLabel.toLowerCase()} one frame later"
+				title="One frame later">+1</button
+			>
+		</div>
+		<button
+			class="jw-btn jw-mark"
+			class:takeoff={selected.type === 'takeoff'}
+			aria-disabled={onOwnFrame}
+			onclick={onSetHere}
+			title={onOwnFrame
+				? `The ${selectedLabel.toLowerCase()} is on this frame`
+				: `Move the ${selectedLabel.toLowerCase()} to this frame`}>Set here</button
+		>
+	{:else if emptySlot}
+		<button
+			class="jw-btn jw-mark"
+			class:takeoff={emptySlot === 'takeoff'}
+			aria-disabled={!canPlace}
+			onclick={onPlace}
+		>
+			<MarkGlyph type={STEP_MARK[emptySlot]} size={17} />Mark {selectedLabel.toLowerCase()}
+		</button>
+	{/if}
+{/snippet}
+
+<!-- Review's housekeeping. A phone keeps it in the same row; the card has room for it
+     under the marks, with Done. -->
+{#snippet edits()}
+	{@render history()}
+	{#if selected}
+		<button
+			class="jw-btn jw-icon jw-remove"
+			onclick={() => onRemove(selected.id)}
+			aria-label="Remove the {selectedLabel.toLowerCase()}"
+			title="Remove this mark"
+		>
+			<svg viewBox="0 0 24 24" aria-hidden="true"
+				><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" /></svg
+			><span class="jw-wide">Remove</span>
+		</button>
 	{/if}
 {/snippet}
 
@@ -486,12 +477,13 @@
 						<span class="context-strip" aria-hidden="true"></span>
 						{@render readout()}
 						{@render controls()}
-						{#if compact && (mode === 'complete' || mode === 'review')}
+						{#if mode === 'complete' || mode === 'review'}
 							<!-- The jump's actions take the Mark button's place, in the same box. -->
 							{#key mode}
 								<div class="jw-actions jw-swap">
 									{#if layout === 'portrait' && mode === 'complete'}{@render hero()}{/if}
 									{@render actions()}
+									{#if compact && mode === 'review'}{@render edits()}{/if}
 								</div>
 							{/key}
 						{:else}
@@ -556,10 +548,15 @@
 						{/each}
 					</div>
 				{/if}
-				{#if mode === 'complete' || mode === 'review'}
-					{#key mode}
-						<div class="jw-actions jw-swap">{@render actions()}</div>
-					{/key}
+				{#if mode === 'review'}
+					<div class="jw-edit jw-swap">
+						{@render edits()}
+						<button
+							class="jw-btn jw-primary jw-end"
+							data-focus="done"
+							onclick={(event) => act(event, onDone, ...AFTER_REVIEW)}>Done</button
+						>
+					</div>
 				{/if}
 			</section>
 		</aside>
@@ -579,8 +576,9 @@
 			bind:notes
 			bind:recordedAt
 			onBack={(event) => act(event, () => onResults(false), '[data-focus="results"]')}
-			onOpenUnit={(unit) => onSelectUnit(unit, true)}
-			onOpenMark={onSelectMark}
+			onOpenUnit={(event, unit) =>
+				act(event, () => onSelectUnit(unit, true), SELECTED, '[data-focus="done"]')}
+			onOpenMark={(event, mark) => act(event, () => onSelectMark(mark), '[data-focus="done"]')}
 		/>
 	{/if}
 </div>
@@ -588,6 +586,8 @@
 <style>
 	.jump-workspace {
 		--mark-color: hsl(var(--at-landing));
+		/* The width of the Mark buttons' slot in a wide control bar. */
+		--mark-slot: 240px;
 		display: flex;
 		flex: 1 1 auto;
 		width: 100%;
@@ -1062,14 +1062,7 @@
 		border-radius: 4px 10px 10px 4px;
 	}
 
-	.jw-actions {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		min-width: 0;
-	}
-
-	.jw-adjust,
+	.jw-actions,
 	.jw-edit {
 		display: flex;
 		align-items: center;
@@ -1106,82 +1099,134 @@
 		}
 	}
 
-	/* ---- Compact: a phone ---- */
+	/* ---- In the bar: the jump's actions take the Mark button's place ---- */
 
-	/* The actions sit in the Mark button's row and box (MarkButtons), so swapping
-	   one for the other moves nothing. */
+	/* A wide bar: the Mark buttons' slot in the transport dock (MarkButtons), one width
+	   whatever it holds, so the frame controls beside it never shift. */
 	.control-toolbar > .jw-actions {
-		grid-area: marks;
-		height: 52px;
-		margin-top: 6px;
+		grid-area: landing;
+		justify-self: start;
+		gap: 4px;
+		width: var(--mark-slot);
+		padding-left: 8px;
 	}
 
 	.control-toolbar > .jw-actions .jw-btn {
-		--h: 52px;
-		padding: 0 16px;
-		border-radius: 14px;
-		font-size: 16px;
+		--h: 32px;
+		flex: 1 1 0;
+		min-width: 0;
+		padding: 0 10px;
+		border-radius: 7px;
+		font-size: 13px;
 	}
 
-	.control-toolbar > .jw-actions .jw-adjust,
-	.control-toolbar > .jw-actions .jw-edit {
-		display: contents;
+	.control-toolbar > .jw-actions .jw-stepper .jw-btn {
+		flex: 0 0 auto;
+		width: 38px;
+		padding: 0;
+	}
+
+	.control-toolbar > .jw-actions .jw-stepper .jw-btn:first-child {
+		border-radius: 7px 3px 3px 7px;
+	}
+
+	.control-toolbar > .jw-actions .jw-stepper .jw-btn:last-child {
+		border-radius: 3px 7px 7px 3px;
 	}
 
 	.control-toolbar > .jw-actions .jw-wide {
 		display: none;
 	}
 
-	.control-toolbar > .jw-actions .jw-icon {
-		width: 46px;
-		padding: 0;
+	@media (pointer: coarse) {
+		.control-toolbar > .jw-actions .jw-btn {
+			--h: 44px;
+			border-radius: 10px;
+			font-size: 15px;
+		}
+		.control-toolbar > .jw-actions .jw-stepper .jw-btn {
+			width: 44px;
+		}
 	}
 
-	.control-toolbar > .jw-actions .jw-icon svg {
-		width: 21px;
-		height: 21px;
-	}
+	/* A phone's bar: the Mark button's row and box, under the thumb. */
+	@container control-bar (max-width: 700px) {
+		.control-toolbar > .jw-actions {
+			grid-area: marks;
+			justify-self: stretch;
+			gap: 8px;
+			width: auto;
+			height: 52px;
+			margin-top: 6px;
+			padding: 0;
+		}
 
-	.control-toolbar > .jw-actions .jw-stepper .jw-btn {
-		width: 48px;
-		padding: 0;
-	}
+		.control-toolbar > .jw-actions .jw-btn {
+			--h: 52px;
+			flex: 0 0 auto;
+			padding: 0 16px;
+			border-radius: 14px;
+			font-size: 16px;
+		}
 
-	.control-toolbar > .jw-actions .jw-stepper .jw-btn:first-child {
-		border-radius: 14px 5px 5px 14px;
-	}
+		.control-toolbar > .jw-actions .jw-icon {
+			width: 46px;
+			padding: 0;
+		}
 
-	.control-toolbar > .jw-actions .jw-stepper .jw-btn:last-child {
-		border-radius: 5px 14px 14px 5px;
-	}
+		.control-toolbar > .jw-actions .jw-icon svg {
+			width: 21px;
+			height: 21px;
+		}
 
-	.control-toolbar > .jw-actions .jw-mark {
-		flex: 1 1 0;
-		min-width: 0;
-		padding: 0 8px;
-	}
+		.control-toolbar > .jw-actions .jw-stepper .jw-btn {
+			width: 48px;
+			padding: 0;
+		}
 
-	.control-toolbar > .jw-actions .jw-edit .jw-btn:first-child {
-		margin-left: 0;
-	}
+		.control-toolbar > .jw-actions .jw-stepper .jw-btn:first-child {
+			border-radius: 14px 5px 5px 14px;
+		}
 
-	/* Upright: flight time and its two actions share the row. */
-	.control-toolbar > .jw-actions .jw-hero {
-		flex: 1 1 auto;
-		gap: 0;
-	}
+		.control-toolbar > .jw-actions .jw-stepper .jw-btn:last-child {
+			border-radius: 5px 14px 14px 5px;
+		}
 
-	.control-toolbar > .jw-actions .jw-hero-value {
-		font-size: 34px;
-		line-height: 36px;
-	}
+		.control-toolbar > .jw-actions .jw-mark {
+			flex: 1 1 0;
+			min-width: 0;
+			padding: 0 8px;
+		}
 
-	.control-toolbar > .jw-actions .jw-hero-what {
-		text-transform: lowercase;
-	}
+		/* Upright: flight time and its two actions share the row. */
+		.control-toolbar > .jw-actions .jw-hero {
+			flex: 1 1 auto;
+			gap: 0;
+		}
 
-	[data-layout='portrait'][data-mode='complete'] .control-toolbar > .jw-actions .jw-btn {
-		padding: 0 18px;
+		.control-toolbar > .jw-actions .jw-hero-value {
+			font-size: 34px;
+			line-height: 36px;
+		}
+
+		.control-toolbar > .jw-actions .jw-hero-what {
+			text-transform: lowercase;
+		}
+
+		[data-layout='portrait'][data-mode='complete'] .control-toolbar > .jw-actions .jw-btn {
+			padding: 0 18px;
+		}
+
+		/* Beside the picture, the two share the rail's width. */
+		.control-toolbar > .jw-actions > .jw-quiet,
+		.control-toolbar > .jw-actions > .jw-primary {
+			flex: 1 1 0;
+		}
+
+		[data-layout='portrait'] .control-toolbar > .jw-actions > .jw-quiet,
+		[data-layout='portrait'] .control-toolbar > .jw-actions > .jw-primary {
+			flex: 0 0 auto;
+		}
 	}
 
 	/* On its side: flight time has the middle of the rail to itself. */
@@ -1206,11 +1251,6 @@
 
 	.jw-middle .jw-seg {
 		height: 44px;
-	}
-
-	[data-layout='rail'] .control-toolbar > .jw-actions > .jw-quiet,
-	[data-layout='rail'] .control-toolbar > .jw-actions > .jw-primary {
-		flex: 1 1 0;
 	}
 
 	/* Small phones: the same row, a little tighter. */
@@ -1458,18 +1498,9 @@
 		outline-offset: -2px;
 	}
 
-	.jw-card .jw-actions {
+	.jw-card .jw-edit {
 		flex-wrap: wrap;
 		margin-top: 16px;
-	}
-
-	.jw-card .jw-adjust,
-	.jw-card .jw-edit {
-		flex: 1 1 100%;
-	}
-
-	.jw-card .jw-mark {
-		flex: 1 1 auto;
 	}
 
 	.jw-card .jw-end {
@@ -1480,20 +1511,11 @@
 		padding: 0 12px 0 10px;
 	}
 
-	.jw-card .jw-stepper .jw-btn {
-		gap: 5px;
-		padding: 0 12px;
-	}
-
-	[data-layout='side'][data-mode='complete'] .jw-card .jw-btn {
-		flex: 1 1 0;
-	}
-
-	/* Under the video the card lies flat: flight time, the marks, then the actions.
+	/* Under the video the card lies flat: flight time, the marks, then review's edits.
 	   It keeps one height in every state, so the picture never resizes. */
 	[data-layout='bottom'] .jw-card {
 		display: grid;
-		grid-template-columns: minmax(150px, 190px) minmax(200px, 1fr) minmax(0, 316px);
+		grid-template-columns: minmax(150px, 190px) minmax(200px, 1fr) minmax(0, 300px);
 		grid-template-rows: 22px auto minmax(0, 1fr);
 		column-gap: 24px;
 		height: 196px;
@@ -1524,24 +1546,12 @@
 		margin-top: 0;
 	}
 
-	[data-layout='bottom'] .jw-card .jw-actions {
+	[data-layout='bottom'] .jw-card .jw-edit {
 		grid-area: 1 / 3 / 4 / 4;
 		align-self: center;
 		align-content: center;
 		justify-content: flex-end;
 		margin-top: 0;
-	}
-
-	[data-layout='bottom'] .jw-card .jw-icon {
-		padding: 0 12px 0 10px;
-	}
-
-	[data-layout='bottom'] .jw-card .jw-stepper .jw-btn {
-		padding: 0 11px;
-	}
-
-	[data-layout='bottom'][data-mode='complete'] .jw-card .jw-actions {
-		flex-wrap: nowrap;
 	}
 
 	[data-layout='bottom'] .jw-hero-value {
@@ -1551,6 +1561,9 @@
 	/* ---- Touch: 44px targets ---- */
 
 	@media (pointer: coarse) {
+		.jump-workspace {
+			--mark-slot: 252px;
+		}
 		.jw-chip::after,
 		.jw-results::after,
 		.jw-done::after {

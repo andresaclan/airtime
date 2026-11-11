@@ -23,8 +23,8 @@
 		notes: string;
 		recordedAt: string;
 		onBack: (event: MouseEvent) => void;
-		onOpenUnit: (unit: JumpUnit) => void;
-		onOpenMark: (mark: Mark) => void;
+		onOpenUnit: (event: MouseEvent, unit: JumpUnit) => void;
+		onOpenMark: (event: MouseEvent, mark: Mark) => void;
 	}
 
 	let {
@@ -163,7 +163,7 @@
 										class="jr-row"
 										class:pending={!unit.flight}
 										aria-label={describe(unit, i + 1)}
-										onclick={() => onOpenUnit(unit)}
+										onclick={(event) => onOpenUnit(event, unit)}
 									>
 										<span class="jr-name"
 											>Jump {i + 1}{#if best?.id === unit.id}<span class="jr-badge">Best</span
@@ -229,7 +229,7 @@
 						<ul class="jr-list">
 							{#each unpaired as mark (mark.id)}
 								<li>
-									<button class="jr-row jr-unpaired" onclick={() => onOpenMark(mark)}>
+									<button class="jr-row jr-unpaired" onclick={(event) => onOpenMark(event, mark)}>
 										<span class="jr-name">{mark.type === 'takeoff' ? 'Takeoff' : 'Landing'}</span>
 										<span class="jr-time">{clock(mark)}</span>
 										<svg class="jr-chevron" viewBox="0 0 16 16" aria-hidden="true"

@@ -3,6 +3,7 @@ import { analyzeMarks, type Mark } from './marks';
 import {
 	averageFlight,
 	bestUnit,
+	fillsSlot,
 	jumpUnits,
 	settleWorkspace,
 	unitMarks,
@@ -182,4 +183,69 @@ test('a gap chosen to be filled is dropped once the mark is there', () => {
 	expect(settleWorkspace(gap, units(filled), filled)).toEqual(
 		workspace({ mode: 'review', activeId: 'takeoff', selectedId: 'takeoff' })
 	);
+});
+
+test('a mark moved into another jump takes the review with it', () => {
+	// Jump 1's landing dragged past jump 2's takeoff: it now ends jump 2's flight.
+	const moved: Mark[] = [
+		{ id: 'plant', type: 'landing', time: 0 },
+		{ id: 'takeoff', type: 'takeoff', time: 0.2 },
+		{ id: 'takeoff-2', type: 'takeoff', time: 1.2 },
+		{ id: 'landing', type: 'landing', time: 1.5 }
+	];
+	const all = units(moved);
+	expect(unitOf(all, 'landing')?.id).toBe('takeoff-2');
+	expect(
+		settleWorkspace(
+			workspace({ mode: 'review', activeId: 'takeoff', selectedId: 'landing' }),
+			all,
+			moved
+		)
+	).toEqual(workspace({ mode: 'review', activeId: 'takeoff-2', selectedId: 'landing' }));
+});
+
+test('repeat hops: the shared touchdown stays with the hop it was chosen from', () => {
+	const hops: Mark[] = [
+		...marks.slice(0, 3),
+		{ id: 'takeoff-2', type: 'takeoff', time: 0.9 },
+		{ id: 'landing-2', type: 'landing', time: 1.3 }
+	];
+	const state = workspace({ mode: 'review', activeId: 'takeoff-2', selectedId: 'landing' });
+	expect(settleWorkspace(state, units(hops, 'repeat-hops'), hops)).toEqual(state);
+});
+
+test('a missing mark is only filled by a mark that lands in the same jump', () => {
+	// Two jumps; the second has no plant step.
+	const before: Mark[] = [
+		...marks.slice(0, 3),
+		{ id: 'takeoff-2', type: 'takeoff', time: 1.5 },
+		{ id: 'landing-2', type: 'landing', time: 1.9 }
+	];
+	const second = units(before)[1];
+	expect(second.plant).toBeUndefined();
+	const withMark = (time: number) => {
+		const next = [...before, { id: 'new', type: 'landing' as const, time }].sort(
+			(a, b) => a.time - b.time
+		);
+		return units(next);
+	};
+	// Between the first landing and the second takeoff: the second jump's plant step.
+	expect(fillsSlot(second, 'plant', withMark(1.3), 'new')).toBe(true);
+	// After the second landing it would start a third jump instead.
+	expect(fillsSlot(second, 'plant', withMark(2.5), 'new')).toBe(false);
+	// A jump that has the mark already has nothing to fill.
+	expect(fillsSlot(units(before)[0], 'plant', withMark(1.3), 'new')).toBe(false);
+});
+
+test('a jump waiting for its takeoff or landing is filled in place', () => {
+	const plantOnly = marks.slice(0, 1);
+	const [waiting] = units(plantOnly);
+	const takeoff = [...plantOnly, { id: 'new', type: 'takeoff' as const, time: 0.2 }];
+	expect(fillsSlot(waiting, 'takeoff', units(takeoff), 'new')).toBe(true);
+
+	const noLanding = marks.slice(0, 2);
+	const [flying] = units(noLanding);
+	const landing = [...noLanding, { id: 'new', type: 'landing' as const, time: 0.7 }];
+	expect(fillsSlot(flying, 'landing', units(landing), 'new')).toBe(true);
+	expect(fillsSlot(flying, 'takeoff', units(landing), 'new')).toBe(false);
 });

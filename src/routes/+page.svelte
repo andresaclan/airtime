@@ -4,6 +4,7 @@
 	import VideoControls from '$lib/components/VideoControls.svelte';
 	import JumpWorkspace from '$lib/components/JumpWorkspace.svelte';
 	import {
+		fillsSlot,
 		jumpUnits,
 		settleWorkspace,
 		unitOf,
@@ -854,23 +855,39 @@
 		}
 	}
 
+	/**
+	 * Review: the marks as they'd be with the active jump's missing mark added on `frame`,
+	 * or null when a mark there wouldn't be that jump's (it would start or end another).
+	 */
+	function fillEmptySlot(frame: number): Mark[] | null {
+		const unit = units.find((candidate) => candidate.id === activeJumpId);
+		if (!unit || !emptySlot || !frameRateKnown || mediaError) return null;
+		const action = markAction(marks, frame, timing, jumpType);
+		if (action.kind !== 'add' || action.step !== emptySlot) return null;
+		const next = placeMark(marks, action.type, frameStartTime(frame, timing), timing);
+		const added = next.find((mark) => !marks.some((old) => old.id === mark.id));
+		const after = jumpUnits(next, analyzeMarks(next, timing, timeScale, jumpType));
+		return added && fillsSlot(unit, emptySlot, after, added.id) ? next : null;
+	}
+	let canFillEmptySlot = $derived(fillEmptySlot(frameAt(currentTime, timing)) !== null);
+
 	/** Review: adds the active jump's missing mark on the frame on screen, if it can go there. */
 	async function markEmptySlot() {
 		const step = emptySlot;
 		const frame = await frameToMark();
 		if (!step || frame === null) return;
-		const action = markAction(marks, frame, timing, jumpType);
-		if (action.kind === 'add' && action.step === step) {
-			commitMarks(placeMark(marks, action.type, frameStartTime(frame, timing), timing));
+		const next = fillEmptySlot(frame);
+		if (next) {
+			commitMarks(next);
 			return;
 		}
-		const name = stepLabel(step, jumpType).toLowerCase();
+		const plant = stepLabel('plant', jumpType).toLowerCase();
 		showNotice(
 			step === 'plant'
-				? `The ${name} goes before this jump's takeoff, after the landing before it. Step back to it first.`
+				? `The ${plant} goes before this jump's takeoff, after the landing before it. Step back to it first.`
 				: step === 'takeoff'
-					? `The takeoff goes after the ${stepLabel('plant', jumpType).toLowerCase()}. Step forward to it first.`
-					: 'The landing goes after the takeoff. Step forward to it first.'
+					? `The takeoff goes after this jump's ${plant}. Step forward to it first.`
+					: "The landing goes after this jump's takeoff, before the next mark. Step to it first."
 		);
 	}
 
@@ -1424,7 +1441,7 @@
 				selectedId={selectedMarkId}
 				{emptySlot}
 				frame={frameAt(currentTime, timing)}
-				canPlace={nextAction?.kind === 'add' && nextAction.step === emptySlot}
+				canPlace={canFillEmptySlot}
 				bind:jumpType
 				bind:timeScale
 				bind:title={sessionTitle}
