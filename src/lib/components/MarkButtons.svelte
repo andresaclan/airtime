@@ -336,6 +336,9 @@
 		.mark-alt {
 			min-height: 44px;
 		}
+		.mark-alt {
+			min-width: 44px;
+		}
 	}
 
 	/* A phone: one big button under the thumb, the other type a square beside it. */

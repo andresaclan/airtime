@@ -468,103 +468,23 @@ body {
 	padding: var(--stage-pad);
 }
 
-.viewer-frame {
-	position: relative;
-	width: 100%;
-	height: 100%;
-	overflow: hidden;
-	border: 1px solid hsl(var(--at-border));
-	border-radius: var(--at-radius-lg);
-	background: hsl(var(--at-stage));
+/* With a video open the jump workspace (JumpWorkspace) fills the stage, flush
+   with the header. */
+.viewer-stage.has-video {
+	gap: 0;
+	padding: 0;
+	align-items: stretch;
 }
 
-/* Desktop: flush panes split by hairlines, as in an editor. The video column
-   fills the height under the header, the picture letterboxed on the dark stage
-   with its controls docked along the bottom; the analysis panel runs the full
-   height on the right and scrolls inside. */
-/* Also phones held sideways: too short to stack the panel under the video. */
-@media (min-width: 901px), (max-height: 500px) {
-	.viewer-stage.has-video {
-		--bar-h: 132px;
-		--frame-h: 100%;
-		gap: 0;
-		padding: 0;
-		align-items: stretch;
-	}
-
-	.viewer-stage.has-video .viewer-frame {
-		border: none;
-		border-radius: 0;
-	}
-
-	.viewer-column {
-		display: flex;
-		flex: 1 1 0;
-		min-width: 0;
-		height: var(--frame-h);
-	}
-
-	.viewer-column > .viewer-frame {
-		display: flex;
-		flex-direction: column;
-	}
-
-	.viewer-column > .viewer-frame > :first-child {
-		flex: 1 1 0;
-		min-height: 0;
-	}
-
-	.viewer-column .control-bar {
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		height: var(--bar-h);
-	}
-
-	/* A phone held sideways: the bar is narrow, so its buttons wrap to a second row. */
-	@media (max-height: 500px) {
-		.viewer-column .control-bar {
-			height: auto;
-		}
-	}
-
-	.viewer-stage.has-video > .marks-panel {
-		height: 100%;
-		border-width: 0 0 0 1px;
-		border-radius: 0;
-	}
-
-	/* With the panel open, the panel runs from the top of the window, its own
-	   header in the same band as the app header (as an editor's side panel
-	   does), and the app header spans only the video column. */
-	.app-shell:has(> .viewer-stage.has-video.panel-open) {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		grid-template-rows: auto auto minmax(0, 1fr);
-	}
-
-	.app-shell:has(> .viewer-stage.has-video.panel-open) > .app-header {
-		grid-area: 1 / 1;
-		min-width: 0;
-	}
-
-	.app-shell:has(> .viewer-stage.has-video.panel-open) > .backup-reminder {
-		grid-area: 2 / 1;
-	}
-
-	.viewer-stage.has-video.panel-open {
-		display: contents;
-	}
-
-	.viewer-stage.panel-open > .viewer-column {
-		grid-area: 3 / 1;
-		height: 100%;
-		min-height: 0;
-	}
-
-	.viewer-stage.panel-open > .marks-panel {
-		grid-area: 1 / 2 / 4 / 3;
-	}
+/* Pinches anywhere over the video and its controls zoom the video (VideoViewer),
+   never the page, and long presses don't select text or open callouts. */
+.viewer-frame {
+	position: relative;
+	overflow: hidden;
+	touch-action: none;
+	user-select: none;
+	-webkit-user-select: none;
+	-webkit-touch-callout: none;
 }
 
 /* The frame rate sits in the context strip, after the frame number. */
@@ -684,15 +604,6 @@ body {
 
 .control-bar-inner > .timeline-container {
 	grid-area: scrub;
-}
-
-/* Pinches anywhere over the video and its controls zoom the video (VideoViewer),
-   never the page, and long presses don't select text or open callouts. */
-.viewer-stage.has-video .viewer-frame {
-	touch-action: none;
-	user-select: none;
-	-webkit-user-select: none;
-	-webkit-touch-callout: none;
 }
 
 .control-toolbar {
@@ -891,6 +802,29 @@ body {
 	.control-bar .control-toolbar .step-btn svg {
 		width: 28px;
 		height: 28px;
+	}
+}
+
+/* Small phones: the transport closes up so the row fits the screen; the smallest
+   leave mute to the phone's own buttons. */
+@container control-bar (max-width: 380px) {
+	.control-bar-inner {
+		column-gap: 4px;
+	}
+	.control-bar .control-toolbar .playback-controls {
+		gap: 2px;
+	}
+	.control-bar .control-toolbar .step-btn {
+		width: 44px;
+	}
+	.control-bar .control-toolbar .playback-extras {
+		gap: 2px;
+	}
+}
+
+@container control-bar (max-width: 340px) {
+	.control-bar .control-toolbar .volume-section {
+		display: none;
 	}
 }
 
@@ -1275,78 +1209,12 @@ body {
    Responsive
    ======================================== */
 
+/* The start screen stacks from the top on a narrow window. */
 @media (max-width: 900px) and (min-height: 501px) {
-	.viewer-stage {
+	.viewer-stage:not(.has-video) {
 		flex-direction: column;
 		justify-content: flex-start;
 	}
-
-	/* Stacked: the frame takes the full width; see .landscape below. */
-	.viewer-column {
-		display: contents;
-	}
-	.viewer-column > .viewer-frame {
-		width: auto;
-		height: 100%;
-		max-height: none;
-	}
-	.viewer-column > .viewer-frame > :first-child {
-		flex: 1 1 auto;
-		height: auto;
-		min-height: 0;
-	}
-	.viewer-column .control-bar {
-		height: auto;
-	}
-	.viewer-frame {
-		display: flex;
-		flex: 1 1 auto;
-		flex-direction: column;
-		min-height: 0;
-	}
-	/* A landscape video is sized to fit rather than letterboxed in a tall frame. */
-	.viewer-column > .viewer-frame.landscape {
-		flex: 0 0 auto;
-		height: auto;
-	}
-	.viewer-column > .viewer-frame.landscape > :first-child {
-		flex: 0 0 auto;
-		height: auto;
-		aspect-ratio: var(--video-aspect);
-	}
-	/* Over the collapsed sheet, a landscape video sits in the middle of the height and
-	   the hint and controls rest at the bottom, where a thumb reaches them. The
-	   controls' row is at least as tall as they are, and the space the picture leaves
-	   is shared between the rows above and below it, so the picture moves up only as
-	   far as it must to clear them. */
-	/* The stage centres its column, so the frame is stretched to full width: sized to
-	   its content, the picture would narrow and move as the video seeks. */
-	.viewer-stage:has(> .marks-panel.sheet.collapsed) .viewer-column > .viewer-frame.landscape {
-		display: grid;
-		flex: 1 1 auto;
-		align-self: stretch;
-		grid-template-columns: minmax(0, 1fr);
-		grid-template-rows: minmax(0, 1fr) auto minmax(auto, 1fr);
-	}
-	.viewer-stage:has(> .marks-panel.sheet.collapsed)
-		.viewer-column
-		> .viewer-frame.landscape
-		> :first-child {
-		grid-row: 2;
-	}
-	.viewer-stage:has(> .marks-panel.sheet.collapsed) .viewer-frame.landscape > .player-dock {
-		grid-row: 3;
-		align-self: end;
-		display: flex;
-		flex-direction: column;
-		min-width: 0;
-	}
-}
-
-/* The hint and the controls, grouped for the layout above. Elsewhere the wrapper
-   dissolves and its parts lay out as they always have. */
-.player-dock {
-	display: contents;
 }
 
 /* Phones, upright or sideways: the logo stands in for "Airtime /", so the file
@@ -1391,7 +1259,6 @@ body {
 	   menu, which leaves room for the file name and its save state. */
 	.header-wide,
 	.header-divider,
-	.header-analysis,
 	.header-status-detail {
 		display: none;
 	}
@@ -1421,19 +1288,9 @@ body {
 	.backup-reminder-text {
 		flex: 1;
 	}
-	.viewer-stage {
+	.viewer-stage:not(.has-video) {
 		--stage-pad: 8px;
 		gap: 8px;
-	}
-	/* With a video open the picture runs edge to edge, as a phone's own player
-	   does, rather than sitting in a bordered pane. */
-	.viewer-stage.has-video {
-		--stage-pad: 0px;
-		gap: 0;
-	}
-	.viewer-stage.has-video .viewer-frame {
-		border: none;
-		border-radius: 0;
 	}
 	.control-bar-inner {
 		padding: 0 16px 10px;
@@ -1553,5 +1410,59 @@ body {
 	}
 	.context-strip {
 		min-height: 48px;
+	}
+	/* The dock holds 44px buttons. */
+	.transport-dock {
+		height: 52px;
+	}
+}
+
+/* ========================================
+   Jump workspace
+   ======================================== */
+
+/* How the shared control bar sits in each of JumpWorkspace's layouts. Its own parts
+   are styled in the component. */
+
+/* A phone on its side: the bar is a narrow rail beside the picture, so it keeps to
+   what a thumb needs there. The time and mute step aside; a frame-rate warning stays. */
+.jump-workspace[data-layout='rail'] .control-bar {
+	border-top: none;
+}
+
+.jump-workspace[data-layout='rail'] .control-bar-inner {
+	row-gap: 4px;
+	padding-inline: 14px;
+}
+
+.jump-workspace[data-layout='rail'] .time-current,
+.jump-workspace[data-layout='rail'] .time-fps.clean,
+.jump-workspace[data-layout='rail'] .volume-section {
+	display: none;
+}
+
+.jump-workspace[data-layout='rail'] .control-toolbar .play-btn {
+	width: 48px;
+	height: 48px;
+}
+
+/* The rail has room to spare beside the picture, so the hint only needs to be there
+   while a jump is being marked. Upright it stays, so the picture never resizes. */
+.jump-workspace[data-layout='rail']:not([data-mode='capture']) .marking-hint:not(.failed) {
+	display: none;
+}
+
+/* A wide bar: the Mark buttons keep one width whether or not the other-type button
+   is showing, so the frame controls beside them never shift. */
+@container control-bar (min-width: 701px) {
+	.jump-workspace .step-marks {
+		min-width: var(--mark-slot);
+	}
+}
+
+/* A phone on its side: every row of height goes to the picture. */
+@media (max-height: 500px) {
+	.app-header {
+		height: 44px;
 	}
 }

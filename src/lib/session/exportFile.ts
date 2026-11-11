@@ -207,7 +207,7 @@ function mean(values: number[], digits: number): number | null {
 function exportSession(session: Session): ExportedSession {
 	const fps = session.frameRate.value;
 	const marks = sortMarks(session.marks);
-	const analysis = analyzeMarks(marks, fps, session.timeScale);
+	const analysis = analyzeMarks(marks, fps, session.timeScale, session.jumpType);
 	const intervals: ExportedInterval[] = analysis.intervals.map((interval) => ({
 		kind: interval.kind,
 		fromMarkId: interval.from.id,

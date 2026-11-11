@@ -778,7 +778,7 @@
 <div
 	bind:this={containerRef}
 	class="relative flex h-full w-full items-center justify-center"
-	style="background: hsl(var(--at-stage)); overflow: hidden; touch-action: none;"
+	style="background: hsl(var(--at-stage)); overflow: hidden; touch-action: none; container-type: size;"
 	onwheel={handleWheel}
 	onmousedown={handleMouseDown}
 	ondblclick={handleDoubleClick}
@@ -803,7 +803,7 @@
 			onpause={handlePause}
 			onvolumechange={handleVolumeChange}
 			onerror={onError}
-			class="max-h-full max-w-full object-contain"
+			class="h-full w-full object-contain"
 			style="{transformStyle} transform-origin: center center; cursor: {zoomLevel > 1
 				? isPanning
 					? 'grabbing'
@@ -825,7 +825,8 @@
 			class="scrub-preview"
 			class:visible={previewFrame !== null}
 			aria-hidden="true"
-			style="left: {videoBox.left}px; top: {videoBox.top}px; width: {videoBox.width}px; height: {videoBox.height}px; {transformStyle} transform-origin: center center;"
+			style="--picture-aspect: {videoBox.width / videoBox.height ||
+				1}; {transformStyle} transform-origin: center center;"
 		></canvas>
 
 		{#if overlay}
@@ -875,6 +876,15 @@
 <style>
 	/* Covers the video exactly, and lets pointer events through to it. */
 	.scrub-preview {
+		/* Let layout fit the cached picture in the same pass as the native video.
+		   ResizeObserver measurements arrive too late when a correction bar opens. */
+		left: 50%;
+		top: 50%;
+		translate: -50% -50%;
+		width: min(100cqw, calc(100cqh * var(--picture-aspect)));
+		height: min(100cqh, calc(100cqw / var(--picture-aspect)));
+		max-width: 100%;
+		max-height: 100%;
 		position: absolute;
 		visibility: hidden;
 		pointer-events: none;

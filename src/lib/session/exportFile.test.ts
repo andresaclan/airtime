@@ -81,7 +81,7 @@ describe('derived numbers in the export match analyzeMarks', () => {
 	test.each(sessions.map((s) => [s.id, s] as const))('%s', (_, source) => {
 		const fps = source.frameRate.value;
 		const marks = sortMarks(source.marks);
-		const analysis = analyzeMarks(marks, fps, source.timeScale);
+		const analysis = analyzeMarks(marks, fps, source.timeScale, source.jumpType);
 		const grouped = groupJumps(marks, analysis);
 		const out = exported.sessions.find((s) => s.id === source.id);
 		if (!out) throw new Error(`missing ${source.id}`);

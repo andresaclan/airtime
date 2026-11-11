@@ -2,16 +2,24 @@
 	import VideoViewer from '$lib/components/VideoViewer.svelte';
 	import VideoScrubber from '$lib/components/VideoScrubber.svelte';
 	import VideoControls from '$lib/components/VideoControls.svelte';
-	import MarksPanel from '$lib/components/MarksPanel.svelte';
+	import JumpWorkspace from '$lib/components/JumpWorkspace.svelte';
+	import {
+		fillsSlot,
+		jumpUnits,
+		settleWorkspace,
+		unitOf,
+		unitStep,
+		type JumpUnit,
+		type WorkspaceMode
+	} from '$lib/video/jumpUnits';
 	import KeybindsDialog from '$lib/components/KeybindsDialog.svelte';
 	import SessionsDialog from '$lib/components/SessionsDialog.svelte';
 	import MarkingHint from '$lib/components/MarkingHint.svelte';
 	import MarkButtons from '$lib/components/MarkButtons.svelte';
 	import MarkGlyph from '$lib/components/MarkGlyph.svelte';
 	import HoldCue, { type ScrubCue } from '$lib/components/HoldCue.svelte';
-	import { onMount, tick } from 'svelte';
+	import { onMount } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
-	import { innerHeight, innerWidth } from 'svelte/reactivity/window';
 	import { resolve } from '$app/paths';
 	import { isApplePlatform } from '$lib/keybinds';
 	import { detectSourceTimingFromFile } from '$lib/video/frameRate';
@@ -33,7 +41,9 @@
 		markStep,
 		noteMeasuredJump,
 		setHintHidden,
-		stepLabel
+		stepDefinition,
+		stepLabel,
+		type MarkStep
 	} from '$lib/video/guide';
 	import {
 		analyzeMarks,
@@ -120,11 +130,17 @@
 	let marks: Mark[] = $state([]);
 	let markHistory: Mark[][] = $state([]);
 	let markFuture: Mark[][] = $state([]);
-	// Below 900px the panel stacks under the video as a sheet (keep in sync with
-	// layout.css). There panelOpen means expanded; collapsed it is a one-line summary.
-	// A phone held sideways is too short to stack: it gets the side-by-side layout.
-	const stacked = new MediaQuery('(max-width: 900px) and (min-height: 501px)');
-	let panelOpen = $state(true);
+	// The workspace is built around one jump at a time (JumpWorkspace): marking it,
+	// its flight time once it lands, correcting its marks, or the session's results.
+	let workspaceMode = $state<WorkspaceMode>('capture');
+	/** Where Results was opened from, to go back to. */
+	let modeBeforeResults: WorkspaceMode = 'capture';
+	/** The jump in the workspace; null while the next one has no marks yet. */
+	let activeJumpId: string | null = $state(null);
+	/** Review: the mark being corrected. It stays selected while the playhead moves away. */
+	let selectedMarkId: string | null = $state(null);
+	/** Review: the active jump's missing mark chosen to be added, instead of a mark. */
+	let emptySlot: MarkStep | null = $state(null);
 	let keybindsOpen = $state(false);
 	let sessionsOpen = $state(false);
 	let backup: BackupStatus | null = $state(null);
@@ -185,13 +201,31 @@
 		frameTimes: sourceFrameRate ? frameTimes : null,
 		editGap
 	});
-	let analysis = $derived(analyzeMarks(marks, timing, timeScale));
+	let analysis = $derived(analyzeMarks(marks, timing, timeScale, jumpType));
 	let activeMark = $derived(markAtFrame(marks, currentTime, timing));
+	let units = $derived(jumpUnits(marks, analysis));
+
+	// Marks change under the workspace (an undo, a removed mark, a restored draft), so
+	// what it points at is kept on things that still exist.
+	$effect(() => {
+		const settled = settleWorkspace(
+			{ mode: workspaceMode, activeId: activeJumpId, selectedId: selectedMarkId, emptySlot },
+			units,
+			marks
+		);
+		workspaceMode = settled.mode;
+		activeJumpId = settled.activeId;
+		selectedMarkId = settled.selectedId;
+		emptySlot = settled.emptySlot;
+	});
+
+	$effect(() => {
+		if (workspaceMode === 'results' && isPlaying) videoElement?.pause();
+	});
 
 	// The Mark button names the step that belongs at the frame on screen (guide.ts), and
 	// a one-line hint under the picture says which frame that is, until it retires.
 	let hintHidden = $state(false);
-	let showHint = $derived(!hintHidden && !mediaError);
 	let markingStatus: 'detecting' | 'known' | 'failed' = $derived(
 		frameRateKnown && !mediaError ? 'known' : frameRateFailed || mediaError ? 'failed' : 'detecting'
 	);
@@ -201,7 +235,6 @@
 			: null
 	);
 	let markButtons: ReturnType<typeof MarkButtons> | undefined = $state();
-	let marksPanel: ReturnType<typeof MarksPanel> | undefined = $state();
 
 	// On a touchscreen the bar also marks: scrub to a frame, slide up above the bar to
 	// fine-tune, and pause there. The pause sets what the Mark button names for that
@@ -243,22 +276,18 @@
 		setHintHidden(hidden);
 	}
 
-	// Width over height, once the video's metadata is in. On narrow screens a landscape
-	// video is sized to fit and the analysis sheet takes the room left underneath, as
-	// long as the controls still fit below it. A phone held sideways has no such room:
-	// there the video letterboxes in what's left, so the controls stay on screen.
-	let videoAspect: number | null = $state(null);
-	// Header, stage padding, control bar and the collapsed sheet, roughly; the
-	// marking hint adds its line.
-	const STACKED_CHROME_PX = 300;
-	const HINT_PX = 46;
-	let fitLandscape = $derived.by(() => {
-		if (!stacked.current || !((videoAspect ?? 0) > 1)) return false;
-		const width = innerWidth.current ?? 0;
-		const height = innerHeight.current ?? 0;
-		const chrome = STACKED_CHROME_PX + (showHint ? HINT_PX : 0);
-		return width / videoAspect! <= height - chrome;
-	});
+	// The hint line also says what each of a jump's other states is for, until it retires.
+	let stateHint = $derived(
+		workspaceMode === 'complete'
+			? 'Check a mark with Review, or go on to your next jump.'
+			: workspaceMode !== 'review'
+				? undefined
+				: emptySlot
+					? `${stepDefinition(emptySlot, jumpType)} Step there, then mark it.`
+					: selectedMarkId && !unitOf(units, selectedMarkId)
+						? "This mark isn't part of a jump. Move it to the frame it belongs on, or remove it."
+						: 'Step to the frame it belongs on, then Set here. −1 and +1 move it a frame.'
+	);
 
 	let saveShortcut = $state('⌘S');
 	// Phones fold Open video, Sessions and Shortcuts into one menu.
@@ -331,10 +360,13 @@
 		frameRateSettled = false;
 
 		marks = [];
+		workspaceMode = 'capture';
+		activeJumpId = null;
+		selectedMarkId = null;
+		emptySlot = null;
 		markHistory = [];
 		markFuture = [];
 		zoomLevel = 1;
-		videoAspect = null;
 
 		videoFile = file;
 		sessionId = null;
@@ -393,6 +425,12 @@
 		sessionRecordedAt = session.recordedAt;
 		timeScale = session.timeScale;
 		marks = sortMarks(session.marks);
+		// Opens on the last jump: its flight time if it landed, else ready for its next mark.
+		const last = jumpUnits(marks, analyzeMarks(marks, timing, timeScale, jumpType)).at(-1);
+		activeJumpId = last?.id ?? null;
+		workspaceMode = last?.flight ? 'complete' : 'capture';
+		selectedMarkId = null;
+		emptySlot = null;
 		markHistory = [];
 		markFuture = [];
 	}
@@ -509,8 +547,6 @@
 	onMount(() => {
 		saveShortcut = isApplePlatform() ? '⌘S' : 'Ctrl S';
 		hintHidden = isHintHidden();
-		// Phones start with the sheet collapsed so the video gets the height.
-		if (stacked.current) panelOpen = false;
 		void refreshBackup();
 	});
 
@@ -673,14 +709,30 @@
 	}
 
 	function flightCount(list: Mark[]): number {
-		return analyzeMarks(list, timing, timeScale).intervals.filter((i) => i.kind === 'flight')
-			.length;
+		return analyzeMarks(list, timing, timeScale, jumpType).intervals.filter(
+			(i) => i.kind === 'flight'
+		).length;
 	}
 
 	function commitMarks(next: Mark[]) {
 		// Each newly measured jump counts towards retiring the marking hint.
 		if (!hintHidden && flightCount(next) > flightCount(marks) && noteMeasuredJump()) {
 			hintHidden = true;
+		}
+		// A new mark brings its jump into the workspace: a landing shows the flight time,
+		// and while correcting, the new mark is the one selected.
+		const added = next.find((mark) => !marks.some((old) => old.id === mark.id));
+		const unit = added
+			? unitOf(jumpUnits(next, analyzeMarks(next, timing, timeScale, jumpType)), added.id)
+			: undefined;
+		if (added && unit) {
+			activeJumpId = unit.id;
+			if (workspaceMode === 'review') {
+				selectedMarkId = added.id;
+				emptySlot = null;
+			} else if (workspaceMode !== 'results') {
+				workspaceMode = unit.flight ? 'complete' : 'capture';
+			}
 		}
 		markHistory = [...markHistory, marks];
 		markFuture = [];
@@ -716,31 +768,152 @@
 		}
 		// Brings the playhead onto that frame, so the panel and the button agree on it.
 		seekToFrame(frame);
-		if (action.kind === 'on-frame') await editActiveMark();
-		else markButtons?.openChoice(fromKey);
+		// The key toggles: pressing it on a marked frame takes the mark off again.
+		if (action.kind === 'on-frame') {
+			if (fromKey) commitMarks(removeMark(marks, action.mark.id));
+			else selectReviewMark(action.mark);
+		} else markButtons?.openChoice(fromKey);
 	}
 
-	/** Pressing Mark on a marked frame opens that mark's controls in the panel. */
-	async function editActiveMark() {
-		panelOpen = true;
-		await tick();
-		marksPanel?.showMark();
+	/** Review: selects a mark to correct, and brings its jump into the workspace. */
+	function selectReviewMark(mark: Mark) {
+		selectedMarkId = mark.id;
+		emptySlot = null;
+		// Repeat hops share a touchdown: it stays with the hop it was chosen from.
+		const current = units.find((unit) => unit.id === activeJumpId);
+		if (!current || !unitStep(current, mark.id)) {
+			activeJumpId = unitOf(units, mark.id)?.id ?? null;
+		}
+		workspaceMode = 'review';
+	}
+
+	function reviewMark(mark: Mark) {
+		selectReviewMark(mark);
+		seekToMark(mark.time);
+	}
+
+	/**
+	 * Opens a jump to be corrected, on its takeoff. With `fill`, a measured jump that has
+	 * no plant step opens on that gap instead, a little before the takeoff.
+	 */
+	function reviewUnit(unit: JumpUnit, fill = false) {
+		if (fill && unit.takeoff && unit.flight && !unit.plant) {
+			activeJumpId = unit.id;
+			selectedMarkId = null;
+			emptySlot = 'plant';
+			workspaceMode = 'review';
+			seekToMark(Math.max(0, unit.takeoff.time - 0.2));
+			return;
+		}
+		const mark = unit.takeoff ?? unit.plant;
+		if (mark) reviewMark(mark);
+	}
+
+	function reviewActiveJump() {
+		const unit = units.find((candidate) => candidate.id === activeJumpId);
+		if (unit) reviewUnit(unit);
+	}
+
+	/** Review: chooses one of the active jump's missing marks, to add it. */
+	function selectEmptySlot(step: MarkStep) {
+		selectedMarkId = null;
+		emptySlot = step;
+		workspaceMode = 'review';
+	}
+
+	function finishReview() {
+		selectedMarkId = null;
+		emptySlot = null;
+		workspaceMode = units.find((unit) => unit.id === activeJumpId)?.flight ? 'complete' : 'capture';
+	}
+
+	/** Goes on marking: the jump still waiting for a mark, or a new one after the last. */
+	function nextJump() {
+		const last = units.at(-1);
+		workspaceMode = 'capture';
+		activeJumpId = last && !last.flight ? last.id : null;
+		selectedMarkId = null;
+		emptySlot = null;
+		// Moves off the last mark, so the Mark button names the next step rather than
+		// that mark. A playhead already past it stays where the athlete left it.
+		const lastMark = marks.at(-1);
+		if (!lastMark || !videoElement) return;
+		const lastFrame = frameOf(lastMark.time, timing);
+		if (displayedFrame(videoElement, timing) <= lastFrame) seekToFrame(lastFrame + 1);
+	}
+
+	/** Review: moves the selected mark to the frame on screen. */
+	async function setSelectedHere() {
+		const id = selectedMarkId;
+		const frame = await frameToMark();
+		const mark = marks.find((mark) => mark.id === id);
+		if (!mark || frame === null) return;
+		if (frameOf(mark.time, timing) === frame) {
+			showNotice('Step to the frame it belongs on first, then Set here.');
+		} else if (!handleMoveMark(mark, frame)) {
+			showNotice('That frame already has a mark. Step to an empty frame.');
+		}
+	}
+
+	/**
+	 * Review: the marks as they'd be with the active jump's missing mark added on `frame`,
+	 * or null when a mark there wouldn't be that jump's (it would start or end another).
+	 */
+	function fillEmptySlot(frame: number): Mark[] | null {
+		const unit = units.find((candidate) => candidate.id === activeJumpId);
+		if (!unit || !emptySlot || !frameRateKnown || mediaError) return null;
+		const action = markAction(marks, frame, timing, jumpType);
+		if (action.kind !== 'add' || action.step !== emptySlot) return null;
+		const next = placeMark(marks, action.type, frameStartTime(frame, timing), timing);
+		const added = next.find((mark) => !marks.some((old) => old.id === mark.id));
+		const after = jumpUnits(next, analyzeMarks(next, timing, timeScale, jumpType));
+		return added && fillsSlot(unit, emptySlot, after, added.id) ? next : null;
+	}
+	let canFillEmptySlot = $derived(fillEmptySlot(frameAt(currentTime, timing)) !== null);
+
+	/** Review: adds the active jump's missing mark on the frame on screen, if it can go there. */
+	async function markEmptySlot() {
+		const step = emptySlot;
+		const frame = await frameToMark();
+		if (!step || frame === null) return;
+		const next = fillEmptySlot(frame);
+		if (next) {
+			commitMarks(next);
+			return;
+		}
+		const plant = stepLabel('plant', jumpType).toLowerCase();
+		showNotice(
+			step === 'plant'
+				? `The ${plant} goes before this jump's takeoff, after the landing before it. Step back to it first.`
+				: step === 'takeoff'
+					? `The takeoff goes after this jump's ${plant}. Step forward to it first.`
+					: "The landing goes after this jump's takeoff, before the next mark. Step to it first."
+		);
+	}
+
+	function showResults(show = workspaceMode !== 'results') {
+		if (show === (workspaceMode === 'results')) return;
+		if (show) {
+			modeBeforeResults = workspaceMode;
+			videoElement?.pause();
+			workspaceMode = 'results';
+		} else {
+			// The effect above settles this if the marks changed meanwhile.
+			workspaceMode = modeBeforeResults;
+		}
 	}
 
 	function nudgeMark(id: string, frames: number) {
 		const mark = marks.find((candidate) => candidate.id === id);
 		if (!mark || !canMark()) return;
 		const frame = clampFrame(frameOf(mark.time, timing) + frames, duration, timing);
+		if (frameTaken(frame, id)) return;
 		commitMarks(moveMark(marks, id, frameStartTime(frame, timing)));
 		seekToFrame(frame);
 	}
 
 	function deleteMark(id: string) {
 		commitMarks(removeMark(marks, id));
-	}
-
-	function clearMarks() {
-		if (marks.length) commitMarks([]);
 	}
 
 	function undoMarks() {
@@ -821,6 +994,15 @@
 			return;
 		}
 		const key = event.key.toLowerCase();
+		// Results has no video on screen: its keys go back to it, and nothing marks unseen.
+		if (workspaceMode === 'results') {
+			const plain = !event.metaKey && !event.ctrlKey;
+			if (plain && (key === 'a' || key === 'escape') && !keybindsOpen && !sessionsOpen) {
+				event.preventDefault();
+				showResults(false);
+			}
+			return;
+		}
 		if ((event.metaKey || event.ctrlKey) && key === 'z') {
 			event.preventDefault();
 			if (event.shiftKey) redoMarks();
@@ -847,7 +1029,7 @@
 			seekAdjacentMark(key === ']' ? 1 : -1);
 		} else if (key === 'a') {
 			event.preventDefault();
-			panelOpen = !panelOpen;
+			showResults();
 		} else if (key === 'r') {
 			event.preventDefault();
 			cyclePlaybackRate();
@@ -885,14 +1067,6 @@
 		event.preventDefault();
 		// A null relatedTarget means the drag left the window (or the browser doesn't report it).
 		if (!event.relatedTarget) isDragging = false;
-	}
-
-	function handleVideoMetadata() {
-		const video = videoElement;
-		if (!video?.videoWidth || !video.videoHeight) return;
-		// The sheet stays collapsed under a landscape video: the picture sits in the
-		// middle of the height and the controls low, where a thumb reaches (layout.css).
-		videoAspect = video.videoWidth / video.videoHeight;
 	}
 
 	function handleMediaError() {
@@ -1024,24 +1198,6 @@
 					/><path d="M8 7h.01M8 17h.01" /></svg
 				>{#if backup?.due}<span class="header-more-dot" aria-label="Backup recommended"></span>{/if}
 			</button>
-			{#if videoSrc}
-				<button
-					class="btn btn-icon header-analysis"
-					onclick={() => (panelOpen = !panelOpen)}
-					aria-pressed={panelOpen}
-					aria-label="Analysis panel"
-					title="Toggle analysis panel (A)"
-				>
-					<svg
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.7"
-						aria-hidden="true"
-						><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M15 4v16" /></svg
-					>
-				</button>
-			{/if}
 			{#if videoSrc}<span class="header-divider" aria-hidden="true"></span>{/if}
 			<button
 				onclick={openFilePicker}
@@ -1134,8 +1290,6 @@
 		class="viewer-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
 		class:overflow-y-auto={!videoSrc}
 		class:has-video={videoSrc}
-		class:panel-open={panelOpen && !stacked.current}
-		style:--video-aspect={videoAspect ?? undefined}
 	>
 		{#if !videoSrc}
 			<div class="empty">
@@ -1277,8 +1431,40 @@
 				</p>
 			</div>
 		{:else}
-			<div class="viewer-column">
-				<div class="viewer-frame" class:landscape={fitLandscape}>
+			<JumpWorkspace
+				{units}
+				{marks}
+				{timing}
+				{variableFrameRate}
+				mode={workspaceMode}
+				activeId={activeJumpId}
+				selectedId={selectedMarkId}
+				{emptySlot}
+				frame={frameAt(currentTime, timing)}
+				canPlace={canFillEmptySlot}
+				bind:jumpType
+				bind:timeScale
+				bind:title={sessionTitle}
+				titlePlaceholder={defaultTitle}
+				bind:notes={sessionNotes}
+				bind:recordedAt={sessionRecordedAt}
+				canUndo={markHistory.length > 0}
+				canRedo={markFuture.length > 0}
+				onSelectUnit={reviewUnit}
+				onSelectMark={reviewMark}
+				onSelectSlot={selectEmptySlot}
+				onReview={reviewActiveJump}
+				onDone={finishReview}
+				onResults={showResults}
+				onNext={nextJump}
+				onNudge={nudgeMark}
+				onSetHere={setSelectedHere}
+				onPlace={markEmptySlot}
+				onUndo={undoMarks}
+				onRedo={redoMarks}
+				onRemove={deleteMark}
+			>
+				{#snippet stage()}
 					<VideoViewer
 						bind:videoElement
 						{videoSrc}
@@ -1297,7 +1483,6 @@
 						bind:zoomLevel
 						{playbackRate}
 						onFrameRateDetected={() => (frameRateSettled = true)}
-						onDurationChange={handleVideoMetadata}
 						onError={handleMediaError}
 					>
 						{#snippet overlay()}
@@ -1324,7 +1509,6 @@
 						</div>
 					{/if}
 
-					<!-- Drag overlay -->
 					{#if isDragging}
 						<div class="viewer-overlay drop z-20">
 							<span class="viewer-overlay-icon" aria-hidden="true">
@@ -1343,124 +1527,95 @@
 							<p class="viewer-overlay-title">Drop to replace video</p>
 						</div>
 					{/if}
-					<!-- The hint and the controls, kept together so a phone can rest them low under a
-					     landscape video (see layout.css). Elsewhere the wrapper dissolves. -->
-					<div class="player-dock">
-						{#if !mediaError}
-							<MarkingHint
-								action={nextAction}
-								frameRate={markingStatus}
-								{jumpType}
-								hidden={hintHidden}
-								onHide={() => setHint(true)}
-							/>
-						{/if}
-						<div class="control-bar">
-							<div class="control-bar-inner">
-								<VideoScrubber
-									{currentTime}
-									{duration}
-									{timing}
-									{videoElement}
-									{marks}
-									intervals={analysis.intervals}
-									activeMarkId={activeMark?.id ?? null}
-									{markName}
-									shapedPins
-									fineTouch={touchScreen.current}
-									holdMark={touchScreen.current ? holdMark : null}
-									{holdLabel}
-									onHold={handleHold}
-									onMoveMark={handleMoveMark}
-									bind:cue={scrubCue}
-								/>
+				{/snippet}
 
-								<div class="control-toolbar">
-									<!-- One segmented group behind the frame controls and the Mark buttons. -->
-									<span class="transport-dock" aria-hidden="true"></span>
-									<!-- The context strip under the controls: where, how fast, how loud. -->
-									<span class="context-strip" aria-hidden="true"></span>
-									<div class="time-readout">
-										<span class="time-current">{formatFrameClock(playheadLabel, timing)}</span>
-										<span class="time-separator">/</span>
-										<span class="time-duration">{formatDuration()}</span>
-										<span class="time-frame">frame {playheadLabel + 1}</span>
-										{#if !mediaError}<span
-												class="time-fps"
-												class:clean={sourceFrameRate && !variableFrameRate}
-												><span class="fps-dot" class:uncertain={!sourceFrameRate}
-												></span>{#if sourceFrameRate && variableFrameRate}
-													<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps · variable</span>
-												{:else if sourceFrameRate}
-													{sourceFrameRate} fps
-												{:else if playbackFrameRate}
-													<span
-														title="Couldn't read the frame rate from the file; estimated from playback"
-													>
-														~{playbackFrameRate} fps · estimated
-													</span>
-												{:else if frameRateFailed}
-													<span title={FRAME_RATE_FAILED}>Frame rate unknown</span>
-												{:else}
-													Detecting fps…
-												{/if}</span
-											>{/if}
-									</div>
+				{#snippet hint()}
+					{#if !mediaError}
+						<MarkingHint
+							action={nextAction}
+							frameRate={markingStatus}
+							{jumpType}
+							text={stateHint}
+							hidden={hintHidden}
+							onHide={() => setHint(true)}
+						/>
+					{/if}
+				{/snippet}
 
-									<VideoControls
-										{isPlaying}
-										{currentTime}
-										{duration}
-										{timing}
-										{videoElement}
-										bind:volume
-										bind:isMuted
-										{playbackRate}
-										onCyclePlaybackRate={cyclePlaybackRate}
-									/>
+				{#snippet scrubber()}
+					<VideoScrubber
+						{currentTime}
+						{duration}
+						{timing}
+						{videoElement}
+						{marks}
+						intervals={analysis.intervals}
+						activeMarkId={selectedMarkId ?? activeMark?.id ?? null}
+						{markName}
+						shapedPins
+						fineTouch={touchScreen.current}
+						holdMark={touchScreen.current ? holdMark : null}
+						{holdLabel}
+						onHold={handleHold}
+						onMoveMark={handleMoveMark}
+						onSelectMark={selectReviewMark}
+						bind:cue={scrubCue}
+					/>
+				{/snippet}
 
-									<MarkButtons
-										bind:this={markButtons}
-										action={nextAction}
-										frameRate={markingStatus}
-										{jumpType}
-										onPress={() => pressMark()}
-										onMark={addMark}
-									/>
-								</div>
-							</div>
-						</div>
+				{#snippet readout()}
+					<div class="time-readout">
+						<span class="time-current">{formatFrameClock(playheadLabel, timing)}</span>
+						<span class="time-separator">/</span>
+						<span class="time-duration">{formatDuration()}</span>
+						<span class="time-frame">frame {playheadLabel + 1}</span>
+						{#if !mediaError}<span
+								class="time-fps"
+								class:clean={sourceFrameRate && !variableFrameRate}
+								><span class="fps-dot" class:uncertain={!sourceFrameRate}
+								></span>{#if sourceFrameRate && variableFrameRate}
+									<span title={VARIABLE_FRAME_RATE}>{sourceFrameRate} fps · variable</span>
+								{:else if sourceFrameRate}
+									{sourceFrameRate} fps
+								{:else if playbackFrameRate}
+									<span title="Couldn't read the frame rate from the file; estimated from playback">
+										~{playbackFrameRate} fps · estimated
+									</span>
+								{:else if frameRateFailed}
+									<span title={FRAME_RATE_FAILED}>Frame rate unknown</span>
+								{:else}
+									Detecting fps…
+								{/if}</span
+							>{/if}
 					</div>
-				</div>
-			</div>
-			{#if panelOpen || stacked.current}
-				<MarksPanel
-					bind:this={marksPanel}
-					{marks}
-					{analysis}
-					{timing}
-					{variableFrameRate}
-					bind:title={sessionTitle}
-					bind:notes={sessionNotes}
-					bind:recordedAt={sessionRecordedAt}
-					bind:timeScale
-					bind:jumpType
-					titlePlaceholder={defaultTitle}
-					activeMarkId={activeMark?.id ?? null}
-					canUndo={markHistory.length > 0}
-					canRedo={markFuture.length > 0}
-					onSeek={seekToMark}
-					onNudge={nudgeMark}
-					onRemove={deleteMark}
-					onUndo={undoMarks}
-					onRedo={redoMarks}
-					onClear={clearMarks}
-					sheet={stacked.current}
-					fill={fitLandscape}
-					expanded={panelOpen}
-					onToggle={() => (panelOpen = !panelOpen)}
-				/>
-			{/if}
+				{/snippet}
+
+				{#snippet controls()}
+					<VideoControls
+						{isPlaying}
+						{currentTime}
+						{duration}
+						{timing}
+						{videoElement}
+						bind:volume
+						bind:isMuted
+						{playbackRate}
+						shortcuts={workspaceMode !== 'results'}
+						onCyclePlaybackRate={cyclePlaybackRate}
+					/>
+				{/snippet}
+
+				{#snippet mark()}
+					<MarkButtons
+						bind:this={markButtons}
+						action={nextAction}
+						frameRate={markingStatus}
+						{jumpType}
+						onPress={() => pressMark()}
+						onMark={addMark}
+					/>
+				{/snippet}
+			</JumpWorkspace>
 		{/if}
 	</div>
 

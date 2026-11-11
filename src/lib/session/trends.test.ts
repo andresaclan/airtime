@@ -72,6 +72,21 @@ describe('trendPoint', () => {
 		expect(point?.time).toBe(Date.parse('2026-10-01T09:00:00.000Z'));
 	});
 
+	test.each(['approach', 'drop-jump', null] as const)(
+		'%s best jump cannot borrow contact from another jump',
+		(jumpType) => {
+			const point = trendPoint(
+				session('separate', {
+					jumpType,
+					marks: marksAt(100, ['L0', 0], ['T1', 20], ['L1', 70], ['T2', 200], ['L2', 280])
+				})
+			);
+			expect(point?.best.flightMs).toBeCloseTo(800);
+			expect(point?.best.contactMs).toBeNull();
+			expect(point?.jumps[0].contactMs).toBeCloseTo(200);
+		}
+	);
+
 	test('timings are real time for slow-motion footage', () => {
 		const point = trendPoint(
 			session('slow', { timeScale: 0.25, marks: marksAt(100, ['T1', 100], ['L1', 420]) })

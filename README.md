@@ -11,7 +11,7 @@ Airtime turns a clip of a jump into flight time, contact time and jump height. O
 - Open a video from the file picker or drag and drop it into the app.
 - Step one frame at a time, and slow playback to ½× or ¼× to find the moment quickly.
 - Mark **takeoff** and **landing** frames; marks show on the timeline and can be nudged a frame at a time.
-- Report flight time, contact time, jump height and RSI for every jump in the clip, with the best jump highlighted.
+- Show each jump's flight time as it lands, and the session's results: flight time, contact time and RSI for every jump in the clip, with the best jump highlighted.
 - Correct for slow-motion footage (2×, 4×, 8×) so times are real-world.
 - Detect the source frame rate from MP4, M4V and MOV files, or measure it during playback for other formats. A video whose frame rate can't be read or measured can be watched but not marked.
 - Save sessions to the browser, reopen them by opening the same video again, and export or import them as JSON.
@@ -48,10 +48,11 @@ Airtime is built around an approach jump: three marks give contact time, flight 
 2. Play (press `R` to slow down) until you're near your last step before the jump, then pause.
 3. **Plant step:** step with `,` and `.` to the first frame your plant foot touches the ground and press **Mark plant step** (`M`).
 4. **Takeoff:** step forward to the first frame both feet are off the ground and press **Mark takeoff** (`M`).
-5. **Landing:** step forward to the first frame your feet touch back down and press **Mark landing** (`M`). The analysis panel shows the jump.
-6. Press `⌘S` / `Ctrl+S` to save. Open the same file later to pick up where you left off.
+5. **Landing:** step forward to the first frame your feet touch back down and press **Mark landing** (`M`). The jump's flight time appears, with **Review** to correct a mark and **Next jump** to carry on.
+6. **Results** lists every jump in the session, with its contact time and RSI. Each jump needs its own plant step for those; only repeat hops share a touchdown.
+7. Press `⌘S` / `Ctrl+S` to save. Open the same file later to pick up where you left off.
 
-The arrow button beside **Mark** marks the other type instead (`T` for a takeoff, `L` for a touchdown or landing). Pressing **Mark** on a frame that's already marked opens that mark's controls, to nudge it a frame or remove it. The line under the video retires itself after three measured jumps, or hide it sooner with **Got it**; bring it back from the keyboard shortcuts dialog (`?`).
+The arrow button beside **Mark** marks the other type instead (`T` for a takeoff, `L` for a touchdown or landing). Pressing **Mark** on a frame that's already marked opens that jump for review, with the mark selected: step to the frame it belongs on and press **Set here**, move it a frame at a time, or remove it. The mark stays selected while you step away from it. Pressing `M` there removes the mark instead. The line under the video retires itself after three measured jumps, or hide it sooner with **Got it**; bring it back from the keyboard shortcuts dialog (`?`).
 
 ## Keyboard shortcuts
 
@@ -72,7 +73,7 @@ Press `?` in the app to see these at any time.
 | `Backspace` / `Delete`       | Delete the mark at the playhead      |
 | `⌘` / `Ctrl` + `Z`           | Undo a mark change                   |
 | `⌘` / `Ctrl` + `Shift` + `Z` | Redo a mark change                   |
-| `A`                          | Show or hide the analysis panel      |
+| `A`                          | Show or hide the session's results   |
 | `⌘` / `Ctrl` + `S`           | Save the session to this browser     |
 | `←` / `→`, `Home` / `End`    | Scrub the timeline when it has focus |
 
@@ -148,7 +149,7 @@ These checks also run in GitHub Actions for pull requests targeting `main`.
 ```text
 src/
 ├── lib/
-│   ├── components/       # Video viewer, controls, scrubber, analysis panel, dialogs
+│   ├── components/       # Video viewer, controls, scrubber, jump workspace, dialogs
 │   ├── session/          # Saved sessions (IndexedDB), fingerprinting, export/import
 │   └── video/            # Frame-rate detection, timecode, marks and jump analysis
 └── routes/

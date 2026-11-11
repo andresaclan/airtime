@@ -52,6 +52,8 @@
 		onHold?: (frame: number) => boolean | string;
 		/** A mark's pin was dragged to `frame` and let go; false if it can't go there. */
 		onMoveMark?: (mark: Mark, frame: number) => boolean;
+		/** Keep this mark selected while reviewing nearby frames. */
+		onSelectMark?: (mark: Mark) => void;
 		/** What the touch is doing, for HoldCue to show over the picture. */
 		cue?: ScrubCue | null;
 	}
@@ -72,6 +74,7 @@
 		holdMark = null,
 		onHold,
 		onMoveMark,
+		onSelectMark,
 		cue = $bindable(null)
 	}: Props = $props();
 
@@ -185,6 +188,7 @@
 			pin
 		};
 		if (pin) {
+			onSelectMark?.(pin);
 			seek(video, frameSeek(frame), timing);
 			draggedPin = { id: pin.id, type: pin.type, time: pin.time };
 		}
@@ -392,6 +396,7 @@
 		// On a mark: its exact frame, until the press moves off into a drag.
 		const mark = markNear(event.clientX, event.clientY, event.pointerType);
 		markPressX = mark ? event.clientX : null;
+		if (mark) onSelectMark?.(mark);
 		const newTime = mark
 			? frameSeek(frameOf(mark.time, timing))
 			: getTimeFromPosition(event.clientX);
@@ -544,7 +549,10 @@
 			class:just-set={justSet === mark.type}
 			class:dragged={draggedPin?.id === mark.id}
 			style="left: {percentOf(pinTime(mark))}%;"
-			onclick={() => seekToFrame(frameOf(mark.time, timing))}
+			onclick={() => {
+				onSelectMark?.(mark);
+				seekToFrame(frameOf(mark.time, timing));
+			}}
 			aria-label="Go to {markName(mark)}"
 			title="Go to {markName(mark)}"
 		></button>

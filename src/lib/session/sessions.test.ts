@@ -41,16 +41,23 @@ describe('importing old exports', () => {
 		expect(drop.frameRate).toEqual({ value: 240, source: 'playback-estimate' });
 	});
 
-	test('timings recomputed from a v1 export match what it recorded', () => {
+	test('legacy flight timings and marks survive while borrowed contact is removed', () => {
 		const recomputed = buildExport(parseImport(v1Text));
-		// jumpType arrived in v3; v1 rows don't have it, and every other column is unchanged.
+		// Unknown legacy types no longer borrow the landing of a previous flight.
+		// The old export's second contact in cmj-set1.mov spanned two separate jumps.
 		expect(recomputed.tables.intervals.map((row) => ({ ...row, jumpType: undefined }))).toEqual(
-			exportV1.tables.intervals.map((row) => ({ ...row, jumpType: undefined }))
+			exportV1.tables.intervals
+				.filter(
+					(row) => !(row.fileName === 'cmj-set1.mov' && row.kind === 'contact' && row.index === 2)
+				)
+				.map((row) => ({ ...row, jumpType: undefined }))
 		);
-		// Renamed in v2; the values are unchanged.
+		// Renamed in v2; contact aggregates now exclude the borrowed contact.
 		const { lowTrustSessionIds, ...overview } = exportV1.overview;
 		expect(recomputed.overview).toEqual({
 			...overview,
+			contactCount: 1,
+			meanContactRealSeconds: 0.25,
 			assumedFrameRateSessionIds: lowTrustSessionIds
 		});
 	});
@@ -223,7 +230,8 @@ describe('exported jumps and unpaired marks', () => {
 		expect(cmj.derived.jumps).toHaveLength(2);
 		for (const jump of cmj.derived.jumps) {
 			expect(jump.incomplete).toBe(false);
-			expect(jump.rsi).toBeCloseTo(jump.heightCm! / 100 / jump.contactRealSeconds!, 2);
+			if (jump.contactRealSeconds === null) expect(jump.rsi).toBeNull();
+			else expect(jump.rsi).toBeCloseTo(jump.heightCm! / 100 / jump.contactRealSeconds, 2);
 		}
 
 		const [exported] = buildExport([
