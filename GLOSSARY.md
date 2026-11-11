@@ -38,8 +38,11 @@ Why a mark is unpaired when no mark comes before or after it, such as a single l
 ### Jumps
 
 **Jump**:
-A takeoff and the flight that follows it, plus the contact before it when there is one.
+A takeoff and the flight that follows it, plus the contact before it when there is one. The athlete marks, reviews and reads one jump at a time.
 _Avoid_: Attempt, rep
+
+**Plant step**:
+The landing that starts a jump's contact: an approach jump's last step, a drop jump's landing from the box, a hop's touchdown. Each jump needs its own. Only repeat hops share one, where a hop's landing is also the next hop's plant step.
 
 **Incomplete jump**:
 A jump whose takeoff has no landing after it yet.
@@ -49,7 +52,7 @@ The time from a takeoff to the next landing.
 _Avoid_: Air time, hang time
 
 **Contact**:
-The time from a landing to the next takeoff, while the feet are on the ground. It only means something for approach jumps, drop jumps and repeat hops.
+The time from a jump's plant step to its takeoff, while the feet are on the ground. A jump without its own plant step has no contact. It only means something for approach jumps, drop jumps and repeat hops.
 _Avoid_: Ground time
 
 **Jump height**:
@@ -79,7 +82,7 @@ A jump that starts standing, dips down, then drives straight up. No longer offer
 A jump that starts from a held squat, with no dip beforehand. No longer offered; sessions saved with it now have no jump type.
 
 **Best jump**:
-The jump with the greatest jump height in a session.
+The jump with the longest flight in a session, which is also the one with the greatest jump height.
 
 **Best height**:
 The greatest jump height across several sessions.

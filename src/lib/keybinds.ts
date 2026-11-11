@@ -31,7 +31,7 @@ export const KEYBIND_GROUPS: KeybindGroup[] = [
 			{ keys: 'Backspace / Delete', action: 'Delete mark at playhead' },
 			{ keys: 'Ctrl / ⌘ + Z', action: 'Undo mark change' },
 			{ keys: 'Ctrl / ⌘ + Shift + Z', action: 'Redo mark change' },
-			{ keys: 'A', action: 'Show / hide analysis panel' }
+			{ keys: 'A', action: 'Show / hide session results' }
 		]
 	},
 	{

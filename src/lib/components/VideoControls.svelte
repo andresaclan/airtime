@@ -19,6 +19,8 @@
 		isMuted: boolean;
 		videoElement: HTMLVideoElement | null;
 		playbackRate?: number;
+		/** Off while the video isn't on screen, so its keys can't play or step it unseen. */
+		shortcuts?: boolean;
 		onCyclePlaybackRate?: () => void;
 	}
 
@@ -31,6 +33,7 @@
 		isMuted = $bindable(false),
 		videoElement,
 		playbackRate = 1,
+		shortcuts = true,
 		onCyclePlaybackRate
 	}: Props = $props();
 
@@ -171,6 +174,7 @@
 	}
 
 	function handleKeyDown(event: KeyboardEvent) {
+		if (!shortcuts) return;
 		const target = event.target;
 		if (
 			target instanceof HTMLElement &&

@@ -9,15 +9,18 @@
 		action: MarkAction | null;
 		frameRate: 'detecting' | 'known' | 'failed';
 		jumpType: JumpType | null;
+		/** Said instead of the step, when the jump isn't being marked (its result, a correction). */
+		text?: string;
 		hidden: boolean;
 		onHide: () => void;
 	}
 
-	let { action, frameRate, jumpType, hidden, onHide }: Props = $props();
+	let { action, frameRate, jumpType, text: override, hidden, onHide }: Props = $props();
 
 	let text = $derived.by(() => {
 		if (frameRate === 'detecting')
 			return "Reading the video's frame rate. Marking unlocks in a moment.";
+		if (override) return override;
 		if (!action) return '';
 		if (action.kind === 'choose') {
 			return 'Nothing new belongs between these marks. Choose a type to mark anyway, or move a mark.';
@@ -113,8 +116,9 @@
 		}
 	}
 
-	/* A phone: two lines of room, so a definition never gets cut off. */
-	@media (max-width: 480px) {
+	/* A phone, upright or in the rail beside a sideways picture: two lines of room, so
+	   a definition never gets cut off. */
+	@container jump-dock (max-width: 480px) {
 		.marking-hint:not(.failed) {
 			height: 46px;
 			padding-left: 16px;
