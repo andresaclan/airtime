@@ -761,6 +761,11 @@
 		font-weight: 500;
 	}
 
+	/* A phone's strip keeps to the times; Results says which jump is best. */
+	.jw-dock .jw-chip-best {
+		display: none;
+	}
+
 	/* A jump being marked shows which of its three marks it has. */
 	.jw-pips {
 		display: inline-flex;
@@ -960,7 +965,8 @@
 	/* Not landed yet: dashes hold the number's place. */
 	.jw-hero.pending .jw-hero-value,
 	.jw-hero.pending .jw-hero-unit {
-		color: hsl(var(--at-fg) / 0.26);
+		color: hsl(var(--at-fg) / 0.3);
+		font-weight: 400;
 	}
 
 	/* ---- Buttons: one family, sized by the layout ---- */
