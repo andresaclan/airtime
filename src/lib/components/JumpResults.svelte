@@ -350,7 +350,7 @@
 		border: none;
 		border-radius: 999px;
 		background: transparent;
-		color: hsl(var(--at-accent-fg));
+		color: hsl(var(--at-emphasis-fg));
 		font: inherit;
 		font-size: 15px;
 		font-weight: 500;
@@ -616,7 +616,7 @@
 	}
 
 	.jr-missing {
-		color: hsl(var(--at-accent-hover));
+		color: hsl(var(--at-emphasis-strong));
 	}
 
 	.jr-chevron {
@@ -672,10 +672,10 @@
 		height: 44px;
 		margin-top: 10px;
 		padding: 0 18px;
-		border: 1px solid hsl(var(--at-accent) / 0.55);
+		border: 1px solid hsl(var(--at-emphasis) / 0.55);
 		border-radius: 12px;
-		background: hsl(var(--at-accent) / 0.24);
-		color: hsl(var(--at-accent-fg));
+		background: hsl(var(--at-emphasis) / 0.24);
+		color: hsl(var(--at-emphasis-fg));
 		font: inherit;
 		font-size: 15px;
 		font-weight: 600;
@@ -787,7 +787,7 @@
 	.jr-prop:focus-within,
 	.jr-notes:focus-within {
 		background: hsl(var(--at-fg) / 0.03);
-		box-shadow: inset 0 0 0 2px hsl(var(--at-accent));
+		box-shadow: inset 0 0 0 2px hsl(var(--at-emphasis));
 	}
 
 	.jr-group:has(.jr-prop:first-child:focus-within) .jr-prop:first-child {
@@ -828,7 +828,7 @@
 			color: hsl(var(--at-fg-secondary));
 		}
 		.jr-empty-action:hover {
-			background: hsl(var(--at-accent) / 0.34);
+			background: hsl(var(--at-emphasis) / 0.34);
 			color: hsl(var(--at-fg));
 		}
 	}

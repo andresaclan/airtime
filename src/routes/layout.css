@@ -25,10 +25,11 @@
 	--at-border: 0 0% 13%;
 	--at-border-hover: 0 0% 19%;
 
-	/* Accent: focus rings and primary actions only */
-	--at-accent: 217 72% 53%;
-	--at-accent-hover: 217 80% 60%;
-	--at-accent-fg: 217 90% 84%;
+	/* Emphasis: focus rings, primary actions and links. Neutral on purpose: hue
+	   is kept for colors that mean something (movement events, status). */
+	--at-emphasis: 0 0% 88%;
+	--at-emphasis-strong: 0 0% 100%;
+	--at-emphasis-fg: 0 0% 97%;
 
 	/* Semantic Colors */
 	--at-success: 160 84% 45%;
@@ -79,11 +80,11 @@ body {
 }
 
 ::selection {
-	background: hsl(var(--at-accent) / 0.35);
+	background: hsl(var(--at-emphasis) / 0.35);
 }
 
 :focus-visible {
-	outline: 2px solid hsl(var(--at-accent));
+	outline: 2px solid hsl(var(--at-emphasis));
 	outline-offset: 2px;
 	border-radius: var(--at-radius);
 }
@@ -146,15 +147,15 @@ body {
 }
 
 .btn-primary {
-	border-color: hsl(var(--at-accent) / 0.5);
-	background: hsl(var(--at-accent) / 0.18);
-	color: hsl(var(--at-accent-fg));
+	border-color: hsl(var(--at-emphasis) / 0.5);
+	background: hsl(var(--at-emphasis) / 0.18);
+	color: hsl(var(--at-emphasis-fg));
 }
 
 @media (hover: hover) {
 	.btn-primary:hover:not(:disabled) {
-		border-color: hsl(var(--at-accent-hover) / 0.7);
-		background: hsl(var(--at-accent) / 0.28);
+		border-color: hsl(var(--at-emphasis-strong) / 0.7);
+		background: hsl(var(--at-emphasis) / 0.28);
 		color: hsl(var(--at-fg));
 	}
 }
@@ -174,7 +175,7 @@ body {
 	margin-right: -2px;
 	padding: 0;
 	background: none;
-	color: hsl(var(--at-accent-fg) / 0.8);
+	color: hsl(var(--at-emphasis-fg) / 0.8);
 	font:
 		600 10px/1 var(--at-font-mono),
 		monospace;
@@ -279,14 +280,14 @@ body {
 	background: hsl(var(--at-success));
 }
 
-/* Neutral, so it can't be mistaken for a landing mark's orange. */
+/* Neutral, so it can't be mistaken for a landing mark's orange or the saved dot's green. */
 .header-status.unsaved {
 	background: hsl(var(--at-fg) / 0.08);
 	color: hsl(var(--at-fg));
 }
 
 .header-status.unsaved::before {
-	background: hsl(var(--at-accent-hover));
+	background: hsl(var(--at-emphasis-strong));
 }
 
 .header-actions {
@@ -412,7 +413,7 @@ body {
 	width: 6px;
 	height: 6px;
 	border-radius: 50%;
-	background: hsl(var(--at-accent));
+	background: hsl(var(--at-emphasis));
 }
 
 /* Copy that differs between keyboard-and-mouse and touch-only devices. */
@@ -556,7 +557,7 @@ body {
 }
 
 .viewer-overlay.drop {
-	border: 2px dashed hsl(var(--at-accent) / 0.7);
+	border: 2px dashed hsl(var(--at-emphasis) / 0.7);
 	border-radius: var(--at-radius-lg);
 }
 
@@ -920,8 +921,8 @@ body {
 }
 
 .dropzone.dragging {
-	background: hsl(var(--at-accent) / 0.1);
-	box-shadow: inset 0 0 0 1px hsl(var(--at-accent) / 0.6);
+	background: hsl(var(--at-emphasis) / 0.1);
+	box-shadow: inset 0 0 0 1px hsl(var(--at-emphasis) / 0.6);
 }
 
 .dropzone-icon {
@@ -1125,7 +1126,7 @@ body {
 	padding: 0;
 	border: none;
 	background: none;
-	color: hsl(var(--at-accent-hover));
+	color: hsl(var(--at-emphasis-strong));
 	font: inherit;
 	font-weight: 500;
 	cursor: pointer;
