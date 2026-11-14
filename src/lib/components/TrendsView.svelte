@@ -402,10 +402,10 @@
 </div>
 
 <style>
-	/* The takeoff and landing hues, darkened so lines and dots sit evenly on the dark surface. */
+	/* Neutral, like the takeoff and landing marks: flight is the bright series it's read for. */
 	.trends {
-		--trend-flight: hsl(168 76% 37%);
-		--trend-contact: hsl(31 72% 47%);
+		--trend-flight: hsl(0 0% 86%);
+		--trend-contact: hsl(0 0% 50%);
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
@@ -472,7 +472,7 @@
 	}
 
 	.trends-plot:focus-visible {
-		box-shadow: 0 0 0 2px hsl(var(--at-accent) / 0.6);
+		box-shadow: 0 0 0 2px hsl(var(--at-emphasis) / 0.6);
 	}
 
 	.trends-panel-head {
@@ -674,7 +674,7 @@
 		padding: 0;
 		border: none;
 		background: none;
-		color: hsl(var(--at-accent-hover));
+		color: hsl(var(--at-emphasis-strong));
 		font: inherit;
 		font-weight: 600;
 		cursor: pointer;

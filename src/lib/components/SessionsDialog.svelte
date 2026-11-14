@@ -515,7 +515,7 @@
 		padding: 0;
 		border: none;
 		background: none;
-		color: hsl(var(--at-accent-hover));
+		color: hsl(var(--at-emphasis-strong));
 		font: inherit;
 		font-weight: 600;
 		cursor: pointer;
@@ -754,13 +754,13 @@
 	}
 
 	.primary-btn {
-		border: 1px solid hsl(var(--at-accent) / 0.5);
-		background: hsl(var(--at-accent) / 0.18);
-		color: hsl(var(--at-accent-fg));
+		border: 1px solid hsl(var(--at-emphasis) / 0.5);
+		background: hsl(var(--at-emphasis) / 0.18);
+		color: hsl(var(--at-emphasis-fg));
 	}
 
 	.primary-btn:hover:not(:disabled) {
-		background: hsl(var(--at-accent) / 0.28);
+		background: hsl(var(--at-emphasis) / 0.28);
 		color: hsl(var(--at-fg));
 	}
 
