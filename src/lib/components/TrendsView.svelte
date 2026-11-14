@@ -402,10 +402,10 @@
 </div>
 
 <style>
-	/* The takeoff and landing hues, darkened so lines and dots sit evenly on the dark surface. */
+	/* Neutral, like the takeoff and landing marks: flight is the bright series it's read for. */
 	.trends {
-		--trend-flight: hsl(168 76% 37%);
-		--trend-contact: hsl(31 72% 47%);
+		--trend-flight: hsl(0 0% 86%);
+		--trend-contact: hsl(0 0% 50%);
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
