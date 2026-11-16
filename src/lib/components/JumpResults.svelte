@@ -52,6 +52,18 @@
 	let typeLabel = $derived(
 		JUMP_TYPES.find((type) => type.value === jumpType)?.label ?? 'Jump type not set'
 	);
+	let recordedValue = $derived.by(() => {
+		const date = new Date(recordedAt);
+		return Number.isNaN(date.getTime())
+			? ''
+			: date.toLocaleString(undefined, {
+					month: 'short',
+					day: 'numeric',
+					year: 'numeric',
+					hour: 'numeric',
+					minute: '2-digit'
+				});
+	});
 	let recordedLabel = $derived.by(() => {
 		const date = new Date(recordedAt);
 		return Number.isNaN(date.getTime())
@@ -71,6 +83,9 @@
 			? `${frameMs.toFixed(1)}–${longestFrameMs.toFixed(1)}`
 			: frameMs.toFixed(1)
 	);
+
+	// The completed jumps side by side, on one scale from zero to the longest flight.
+	let longestFlight = $derived(Math.max(...completed.map((unit) => unit.flight!.realSeconds)));
 
 	const ms = (seconds: number) => Math.round(seconds * 1000);
 	const clock = (mark: Mark) =>
@@ -103,6 +118,23 @@
 	function fromLocalInput(value: string) {
 		const date = new Date(value);
 		if (!Number.isNaN(date.getTime())) recordedAt = date.toISOString();
+	}
+
+	// The date field sits invisibly over its designed value. A tap on it opens the
+	// platform's picker by itself on phones; desktop browsers open it on request.
+	function openPicker(event: Event) {
+		try {
+			(event.currentTarget as HTMLInputElement).showPicker();
+		} catch {
+			// Already open, or the browser can't: the field still edits from the keyboard.
+		}
+	}
+
+	function pickerKey(event: KeyboardEvent) {
+		if (event.key === 'Enter' || event.key === ' ') {
+			event.preventDefault();
+			openPicker(event);
+		}
 	}
 </script>
 
@@ -222,6 +254,25 @@
 					{/if}
 				</section>
 
+				{#if best}
+					<section class="jr-section jr-compare" aria-labelledby="jr-compare">
+						<h2 id="jr-compare" class="jr-heading">Flight by jump</h2>
+						<ol class="jr-bars">
+							{#each completed as unit (unit.id)}
+								{@const flight = unit.flight!.realSeconds}
+								<li class="jr-bar-row" class:jr-bar-best={best.id === unit.id}>
+									<span class="jr-bar-name">Jump {units.indexOf(unit) + 1}</span>
+									<span class="jr-bar-track" aria-hidden="true"
+										><span class="jr-bar-fill" style:width="{(flight / longestFlight) * 100}%"
+										></span></span
+									>
+									<span class="jr-bar-value">{ms(flight)}<span class="jr-unit">ms</span></span>
+								</li>
+							{/each}
+						</ol>
+					</section>
+				{/if}
+
 				{#if unpaired.length}
 					<section class="jr-section" aria-labelledby="jr-unpaired">
 						<h2 id="jr-unpaired" class="jr-heading">Unpaired marks</h2>
@@ -286,10 +337,20 @@
 					</label>
 					<label class="jr-prop">
 						<span class="jr-prop-name">Recorded</span>
-						<input
-							type="datetime-local"
-							bind:value={() => toLocalInput(recordedAt), fromLocalInput}
-						/>
+						<span class="jr-select jr-date">
+							<span class="jr-date-value" class:jr-date-empty={!recordedValue} aria-hidden="true"
+								>{recordedValue || 'Not set'}</span
+							>
+							<input
+								type="datetime-local"
+								bind:value={() => toLocalInput(recordedAt), fromLocalInput}
+								onclick={openPicker}
+								onkeydown={pickerKey}
+							/>
+							<svg viewBox="0 0 16 16" aria-hidden="true"
+								><path d="m5 6.5 3-3 3 3M5 9.5l3 3 3-3" /></svg
+							>
+						</span>
 					</label>
 				</div>
 				<label class="jr-group jr-notes">
@@ -738,22 +799,9 @@
 		text-overflow: ellipsis;
 	}
 
-	/* The date keeps the width of its own text, so it sits against the right edge too. */
-	.jr-prop input[type='datetime-local'] {
-		flex: 0 1 auto;
-		margin-left: auto;
-		font-variant-numeric: tabular-nums;
-	}
-
 	.jr-prop input::placeholder,
 	.jr-notes textarea::placeholder {
 		color: hsl(var(--at-fg-muted));
-	}
-
-	.jr-prop input[type='datetime-local']::-webkit-calendar-picker-indicator {
-		margin-left: 6px;
-		opacity: 0.55;
-		cursor: pointer;
 	}
 
 	.jr-select {
@@ -782,6 +830,36 @@
 		color: hsl(var(--at-fg-muted));
 		transform: translateY(-50%);
 		pointer-events: none;
+	}
+
+	/* The date shows as written words; the platform's own field lies invisibly over them
+	   and takes the tap, the click or the keys. */
+	.jr-date {
+		align-items: center;
+		height: 46px;
+	}
+
+	.jr-date-value {
+		overflow: hidden;
+		padding-right: 22px;
+		color: hsl(var(--at-fg));
+		font-size: 16px;
+		font-variant-numeric: tabular-nums;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.jr-date-empty {
+		color: hsl(var(--at-fg-muted));
+	}
+
+	.jr-prop .jr-date input {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		opacity: 0;
+		cursor: pointer;
 	}
 
 	.jr-prop:focus-within,
@@ -814,6 +892,73 @@
 		line-height: 1.45;
 		resize: none;
 		field-sizing: content;
+	}
+
+	/* ---- Flight by jump: each finished jump's flight on one scale from zero ---- */
+
+	/* A phone already has every flight in the list above it; the bars wait for room. */
+	.jr-compare {
+		display: none;
+	}
+
+	.jr-bars {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		margin: 0;
+		padding: 12px 16px;
+		border: 1px solid hsl(var(--at-border-hover));
+		border-radius: 14px;
+		background: hsl(var(--at-bg-elevated));
+		list-style: none;
+	}
+
+	.jr-bar-row {
+		display: grid;
+		grid-template-columns: 64px minmax(0, 1fr) 64px;
+		align-items: center;
+		column-gap: 16px;
+		height: 32px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 14px;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.jr-bar-track {
+		height: 6px;
+		border-radius: 999px;
+		background: hsl(var(--at-fg) / 0.06);
+	}
+
+	.jr-bar-fill {
+		display: block;
+		height: 100%;
+		min-width: 6px;
+		border-radius: inherit;
+		background: hsl(var(--at-fg) / 0.3);
+	}
+
+	.jr-bar-value {
+		color: hsl(var(--at-fg-secondary));
+		font-weight: 500;
+		text-align: right;
+	}
+
+	.jr-bar-value .jr-unit {
+		font-size: 0.8em;
+	}
+
+	.jr-bar-best .jr-bar-name,
+	.jr-bar-best .jr-bar-value {
+		color: hsl(var(--at-fg));
+	}
+
+	.jr-bar-best .jr-bar-value {
+		font-weight: 600;
+	}
+
+	.jr-bar-best .jr-bar-fill {
+		background: hsl(var(--at-fg) / 0.88);
 	}
 
 	@media (hover: hover) {
@@ -942,6 +1087,10 @@
 		.jr-unpaired {
 			grid-template-areas: 'name flight . . chevron';
 		}
+
+		.jr-compare {
+			display: flex;
+		}
 	}
 
 	/* Desktop: the session's details beside the results, staying in view. */
@@ -983,8 +1132,13 @@
 		}
 
 		.jr-prop input,
-		.jr-prop select {
+		.jr-prop select,
+		.jr-date {
 			height: 42px;
+		}
+
+		.jr-date-value {
+			font-size: 14px;
 		}
 	}
 
