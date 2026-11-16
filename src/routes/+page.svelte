@@ -711,16 +711,9 @@
 		workspace?.focusMarkControls();
 	}
 
-	/**
-	 * Results: back to the video on a jump. A measured jump with no plant step opens a
-	 * little before its takeoff, where the Mark button names the plant step.
-	 */
+	/** Results: back to the video on a jump's takeoff. */
 	function openUnit(unit: JumpUnit) {
 		showResults(false);
-		if (unit.takeoff && unit.flight && !unit.plant) {
-			seekToMark(Math.max(0, unit.takeoff.time - 0.2));
-			return;
-		}
 		const mark = unit.takeoff ?? unit.plant;
 		if (mark) seekToMark(mark.time);
 	}
