@@ -829,8 +829,8 @@
 
 	.jw-done {
 		padding: 0 14px;
-		background: hsl(var(--at-accent) / 0.2);
-		color: hsl(var(--at-accent-fg));
+		background: hsl(var(--at-emphasis) / 0.2);
+		color: hsl(var(--at-emphasis-fg));
 		font-weight: 600;
 	}
 
@@ -1024,9 +1024,9 @@
 	}
 
 	.jw-primary {
-		border-color: hsl(var(--at-accent) / 0.55);
-		background: hsl(var(--at-accent) / 0.24);
-		color: hsl(var(--at-accent-fg));
+		border-color: hsl(var(--at-emphasis) / 0.55);
+		background: hsl(var(--at-emphasis) / 0.24);
+		color: hsl(var(--at-emphasis-fg));
 	}
 
 	/* Moves or adds a mark: filled in the mark's colour, as the Mark button is. */
@@ -1080,7 +1080,7 @@
 		}
 		.jw-done:hover,
 		.jw-primary:hover {
-			background: hsl(var(--at-accent) / 0.34);
+			background: hsl(var(--at-emphasis) / 0.34);
 			color: hsl(var(--at-fg));
 		}
 		.jw-seg-item:hover:not([aria-pressed='true']) {
@@ -1476,7 +1476,7 @@
 	}
 
 	.jw-slot.unset:not(:disabled) .jw-slot-time {
-		color: hsl(var(--at-accent-hover));
+		color: hsl(var(--at-emphasis-strong));
 		font-weight: 500;
 	}
 
