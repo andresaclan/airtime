@@ -797,11 +797,22 @@
 
 	.fine .timeline-progress {
 		border-radius: inherit;
-		background: hsl(var(--at-fg) / 0.88);
+		background: hsl(var(--at-fg) / 0.5);
 	}
 
+	/* The jump's spans stay readable over the bright fill: flight brightest, contact
+	   dimmer, each edged in the background colour. */
 	.fine .timeline-band {
 		border-radius: 2px;
+		box-shadow: 0 0 0 1px hsl(var(--at-bg));
+	}
+
+	.fine .timeline-band-flight {
+		background: hsl(var(--at-takeoff));
+	}
+
+	.fine .timeline-band-contact {
+		background: hsl(var(--at-landing) / 0.7);
 	}
 
 	/* The fill's edge is the playhead, as in iOS. */
