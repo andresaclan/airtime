@@ -4,27 +4,20 @@
 	import MarkGlyph from './MarkGlyph.svelte';
 	import JumpResults from './JumpResults.svelte';
 	import { frameOf, type Mark } from '$lib/video/marks';
-	import {
-		bestUnit,
-		unitStep,
-		unpairedMarks,
-		type JumpUnit,
-		type WorkspaceMode
-	} from '$lib/video/jumpUnits';
+	import { bestUnit, unpairedMarks, type JumpUnit } from '$lib/video/jumpUnits';
 	import { GUIDE_STEPS, STEP_MARK, stepLabel, type MarkStep } from '$lib/video/guide';
 	import { frameLabel, type FrameTiming } from '$lib/video/frames';
 	import { formatFrameClock } from '$lib/video/timecode';
 	import type { JumpType } from '$lib/session/schema';
 
-	// The workspace around one jump. The video and its controls stay where they are;
-	// what changes is the jump's own part: marking it (capture), its flight time once it
-	// lands (complete), correcting its marks (review), and the session's results.
+	// The video and its controls, with the jump at the playhead beside them: its flight
+	// time, contact and marks. The mark on the frame on screen can be moved a frame or
+	// removed. Results opens the whole session on its own page.
 	//
 	// Four layouts, one set of parts:
-	// - portrait: a phone upright. The jumps sit in a strip under the picture and the
-	//   jump's actions take the Mark button's place, so the picture never resizes.
+	// - portrait: a phone upright. The jump sits in one line under the picture.
 	// - rail: a phone on its side. The same parts in a column beside the picture.
-	// - bottom: a tablet upright. The whole jump as a card under the controls.
+	// - bottom: a tablet upright. The jump as a card under the controls.
 	// - side: a desktop or a tablet on its side. The card as a panel beside the video.
 	interface Props {
 		/** The picture, with anything laid over it. */
@@ -42,17 +35,14 @@
 		marks: Mark[];
 		timing: FrameTiming;
 		variableFrameRate: boolean;
-		mode: WorkspaceMode;
-		/** The jump in the workspace; null for a jump with no marks yet. */
-		activeId: string | null;
-		/** The mark being corrected. It stays selected while the playhead moves away. */
-		selectedId: string | null;
-		/** Review only: the active jump's missing mark chosen to be added. */
-		emptySlot: MarkStep | null;
-		/** The frame on screen. */
-		frame: number;
-		/** Whether the frame on screen can take the mark `emptySlot` names. */
-		canPlace: boolean;
+		/** The session's results are open, in place of the video. */
+		results: boolean;
+		/** The jump at the playhead, or the last one it passed. */
+		active: JumpUnit | undefined;
+		/** The mark on the frame on screen. */
+		onFrame: Mark | null;
+		/** What a mark is called: its step, lower case. */
+		markName: (mark: Mark) => string;
 		jumpType: JumpType | null;
 		timeScale: number;
 		title: string;
@@ -61,17 +51,13 @@
 		recordedAt: string;
 		canUndo: boolean;
 		canRedo: boolean;
-		/** Opens a jump to be corrected; `fill` opens it on its missing plant step, if it has none. */
-		onSelectUnit: (unit: JumpUnit, fill?: boolean) => void;
-		onSelectMark: (mark: Mark) => void;
-		onSelectSlot: (step: MarkStep) => void;
-		onReview: () => void;
-		onDone: () => void;
+		onSeek: (mark: Mark) => void;
+		/** From results: back to the video on this jump. */
+		onOpenUnit: (unit: JumpUnit) => void;
+		/** From results: back to the video on this mark. */
+		onOpenMark: (mark: Mark) => void;
 		onResults: (show: boolean) => void;
-		onNext: () => void;
 		onNudge: (id: string, frames: number) => void;
-		onSetHere: () => void;
-		onPlace: () => void;
 		onUndo: () => void;
 		onRedo: () => void;
 		onRemove: (id: string) => void;
@@ -88,12 +74,10 @@
 		marks,
 		timing,
 		variableFrameRate,
-		mode,
-		activeId,
-		selectedId,
-		emptySlot,
-		frame,
-		canPlace,
+		results,
+		active,
+		onFrame,
+		markName,
 		jumpType = $bindable(),
 		timeScale = $bindable(),
 		title = $bindable(),
@@ -102,16 +86,11 @@
 		recordedAt = $bindable(),
 		canUndo,
 		canRedo,
-		onSelectUnit,
-		onSelectMark,
-		onSelectSlot,
-		onReview,
-		onDone,
+		onSeek,
+		onOpenUnit,
+		onOpenMark,
 		onResults,
-		onNext,
 		onNudge,
-		onSetHere,
-		onPlace,
 		onUndo,
 		onRedo,
 		onRemove
@@ -130,21 +109,12 @@
 	let compact = $derived(layout === 'portrait' || layout === 'rail');
 
 	let root: HTMLDivElement | null = $state(null);
-	let chipList: HTMLDivElement | null = $state(null);
-	let chipsScrolled = $state(false);
 
-	let active = $derived(units.find((unit) => unit.id === activeId));
-	let number = $derived(active ? units.indexOf(active) + 1 : units.length + 1);
+	let number = $derived(active ? units.indexOf(active) + 1 : 1);
 	let completed = $derived(units.filter((unit) => unit.flight));
 	// "Best" only means something once there's a jump to beat.
 	let best = $derived(completed.length > 1 ? bestUnit(units) : undefined);
 	let unpaired = $derived(unpairedMarks(marks, units));
-	let selected = $derived(marks.find((item) => item.id === selectedId));
-	let selectedStep = $derived(
-		emptySlot ?? (active && selected ? (unitStep(active, selected.id) ?? null) : null)
-	);
-	/** A mark that belongs to no jump is being corrected. */
-	let orphan = $derived(mode === 'review' && !!selected && !selectedStep);
 	let slots = $derived(
 		GUIDE_STEPS.map((step) => ({
 			step,
@@ -156,57 +126,31 @@
 	let nextStep: MarkStep | null = $derived(
 		!active?.takeoff ? (active?.plant ? 'takeoff' : 'plant') : active.landing ? null : 'landing'
 	);
-	let selectedLabel = $derived(
-		selectedStep
-			? stepLabel(selectedStep, jumpType)
-			: selected?.type === 'takeoff'
-				? 'Takeoff'
-				: 'Landing'
-	);
-	let onOwnFrame = $derived(!!selected && frameOf(selected.time, timing) === frame);
-	/** A new jump can start once the last one has landed. */
-	let canStartJump = $derived(!units.length || !!units.at(-1)?.flight);
-	let reviewTitle = $derived(orphan ? `Unpaired ${selectedLabel.toLowerCase()}` : `Jump ${number}`);
+	let onFrameName = $derived(onFrame ? markName(onFrame) : '');
 
 	const ms = (seconds: number) => Math.round(seconds * 1000);
 	const clock = (item: Mark) =>
 		formatFrameClock(frameLabel(frameOf(item.time, timing), timing), timing);
+	const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
-	// What a screen reader hears as the workspace moves between states.
-	let status = $derived.by(() => {
-		if (mode === 'results') return 'Session results';
-		if (mode === 'complete' && active?.flight) {
-			return `Jump ${number}: flight time ${ms(active.flight.realSeconds)} milliseconds`;
-		}
-		if (mode === 'review' && selected) {
-			return `${reviewTitle}: ${orphan ? 'selected' : `${selectedLabel.toLowerCase()} selected`}, frame ${frameOf(selected.time, timing) + 1}`;
-		}
-		if (mode === 'review' && emptySlot) {
-			return `Jump ${number}: ${selectedLabel.toLowerCase()} not marked`;
-		}
-		return `Jump ${number}: ready to mark`;
-	});
+	// What a screen reader hears as the playhead moves between jumps.
+	let status = $derived(
+		results
+			? 'Session results'
+			: active?.flight
+				? `Jump ${number}: flight time ${ms(active.flight.realSeconds)} milliseconds`
+				: ''
+	);
 
-	// Keeps the jump in the workspace in view among its neighbours: when it changes, and
-	// when the strip does (a phone turned on its side, a resized window).
-	$effect(() => {
-		void [activeId, mode, units.length, orphan];
-		const list = chipList;
-		if (!list) return;
-		const reveal = () =>
-			list
-				.querySelector<HTMLElement>('[aria-current="true"]')
-				?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-		void tick().then(reveal);
-		const observer = new ResizeObserver(reveal);
-		observer.observe(list);
-		return () => observer.disconnect();
-	});
+	/** Pressing Mark on a marked frame: focus goes to that mark's controls. */
+	export function focusMarkControls() {
+		root?.querySelector<HTMLElement>('[data-focus="mark"]')?.focus();
+	}
 
 	/**
-	 * Runs a control that replaces itself (Review becomes the marks, Done the result).
-	 * From the keyboard, focus follows to what took its place; a pointer leaves focus
-	 * on the page, so Space still plays the video rather than pressing a button.
+	 * Runs a control that replaces the page (Results, and back). From the keyboard,
+	 * focus follows to what took its place; a pointer leaves focus on the page, so Space
+	 * still plays the video rather than pressing a button.
 	 */
 	function act(event: MouseEvent, run: () => void, ...focus: string[]) {
 		const fromKeyboard = event.detail === 0;
@@ -219,72 +163,7 @@
 			}
 		});
 	}
-
-	const SELECTED = '.jw-seg [aria-pressed="true"], .jw-slot[aria-pressed="true"]';
-	const AFTER_REVIEW = ['[data-focus="review"]', '.mark-primary', '[data-focus="results"]'];
 </script>
-
-{#snippet pips(unit: JumpUnit | undefined)}
-	<span class="jw-pips" aria-hidden="true">
-		{#each GUIDE_STEPS as step (step)}
-			<span class="jw-pip" class:takeoff={step === 'takeoff'} class:set={!!unit?.[step]}></span>
-		{/each}
-	</span>
-{/snippet}
-
-{#snippet chips()}
-	<div
-		class="jw-chips"
-		class:scrolled={chipsScrolled}
-		bind:this={chipList}
-		onscroll={(event) => (chipsScrolled = event.currentTarget.scrollLeft > 4)}
-	>
-		{#each units as unit, i (unit.id)}
-			{@const current = mode !== 'results' && activeId === unit.id && !orphan}
-			<button
-				class="jw-chip"
-				aria-current={current ? 'true' : undefined}
-				aria-label={unit.flight
-					? `Jump ${i + 1}, flight ${ms(unit.flight.realSeconds)} milliseconds${best?.id === unit.id ? ', best' : ''}`
-					: `Jump ${i + 1}, not finished`}
-				onclick={(event) => act(event, () => onSelectUnit(unit), SELECTED)}
-			>
-				<span class="jw-chip-name">J{i + 1}</span>
-				{#if unit.flight}
-					<span class="jw-chip-value">{ms(unit.flight.realSeconds)} ms</span>
-					{#if best?.id === unit.id}<span class="jw-chip-best">Best</span>{/if}
-				{:else}
-					{@render pips(unit)}
-				{/if}
-			</button>
-		{/each}
-		{#if canStartJump}
-			{@const current = mode === 'capture' && !activeId}
-			<button
-				class="jw-chip jw-chip-new"
-				aria-current={current ? 'true' : undefined}
-				aria-label="Jump {units.length + 1}, new jump"
-				onclick={(event) => act(event, onNext, '.mark-primary')}
-			>
-				<span class="jw-chip-name">J{units.length + 1}</span>
-				{@render pips(undefined)}
-			</button>
-		{/if}
-		{#if unpaired.length}
-			<button
-				class="jw-chip jw-chip-unpaired"
-				aria-current={orphan ? 'true' : undefined}
-				aria-label="{unpaired.length} unpaired {unpaired.length === 1
-					? 'mark'
-					: 'marks'}. Review the first"
-				onclick={(event) => act(event, () => onSelectMark(unpaired[0]), '[data-focus="done"]')}
-			>
-				<span class="jw-chip-dot" aria-hidden="true"></span>
-				{unpaired.length} unpaired
-			</button>
-		{/if}
-	</div>
-{/snippet}
 
 {#snippet resultsButton()}
 	<button
@@ -295,32 +174,6 @@
 		Results
 		<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5" /></svg>
 	</button>
-{/snippet}
-
-{#snippet doneButton()}
-	<button class="jw-done" data-focus="done" onclick={(event) => act(event, onDone, ...AFTER_REVIEW)}
-		>Done</button
-	>
-{/snippet}
-
-<!-- The jump's three marks as one control: the selected one is being corrected. -->
-{#snippet segments()}
-	<div class="jw-seg" role="group" aria-label="Marks of jump {number}">
-		{#each slots as slot (slot.step)}
-			<button
-				class="jw-seg-item"
-				class:takeoff={slot.step === 'takeoff'}
-				class:unset={!slot.mark}
-				aria-pressed={selectedStep === slot.step}
-				aria-label={slot.mark ? slot.label : `${slot.label}, not marked`}
-				onclick={() => (slot.mark ? onSelectMark(slot.mark) : onSelectSlot(slot.step))}
-			>
-				{#if !slot.mark}<svg class="jw-plus" viewBox="0 0 12 12" aria-hidden="true"
-						><path d="M6 2v8M2 6h8" /></svg
-					>{/if}<span>{slot.label}</span>
-			</button>
-		{/each}
-	</div>
 {/snippet}
 
 {#snippet hero()}
@@ -336,6 +189,18 @@
 			>
 		{/key}
 	</div>
+{/snippet}
+
+<!-- One line for a phone: the jump's number and flight time. -->
+{#snippet summary()}
+	<span class="jw-sum" class:pending={!active?.flight}>
+		<span class="jw-sum-name">J{number}</span>
+		<span class="jw-sum-value"
+			>{active?.flight ? ms(active.flight.realSeconds) : '--'}<span class="jw-sum-unit">ms</span
+			></span
+		>
+		{#if active && best?.id === active.id}<span class="jw-sum-best">Best</span>{/if}
+	</span>
 {/snippet}
 
 {#snippet history()}
@@ -364,74 +229,35 @@
 	{/if}
 {/snippet}
 
-<!-- What the jump's state offers at the frame on screen. It takes the Mark button's
-     place in the bar, in every layout, so it's in one place and under the same thumb
-     or pointer that pressed Mark. -->
-{#snippet actions()}
-	{#if mode === 'complete'}
+<!-- The mark on the frame on screen: a frame either way, or off. -->
+{#snippet markControls(item: Mark)}
+	<div class="jw-stepper" role="group" aria-label="Move the {onFrameName}">
 		<button
 			class="jw-btn jw-quiet"
-			data-focus="review"
-			onclick={(event) => act(event, onReview, SELECTED)}>Review</button
+			data-focus="mark"
+			onclick={() => onNudge(item.id, -1)}
+			aria-label="Move the {onFrameName} one frame earlier"
+			title="One frame earlier">−1</button
 		>
-		<button class="jw-btn jw-primary" onclick={(event) => act(event, onNext, '.mark-primary')}
-			>Next jump</button
-		>
-	{:else if selected}
-		<div class="jw-stepper" role="group" aria-label="Move the {selectedLabel.toLowerCase()}">
-			<button
-				class="jw-btn jw-quiet"
-				onclick={() => onNudge(selected.id, -1)}
-				aria-label="Move the {selectedLabel.toLowerCase()} one frame earlier"
-				title="One frame earlier">−1</button
-			>
-			<button
-				class="jw-btn jw-quiet"
-				onclick={() => onNudge(selected.id, 1)}
-				aria-label="Move the {selectedLabel.toLowerCase()} one frame later"
-				title="One frame later">+1</button
-			>
-		</div>
 		<button
-			class="jw-btn jw-mark"
-			class:takeoff={selected.type === 'takeoff'}
-			aria-disabled={onOwnFrame}
-			onclick={onSetHere}
-			title={onOwnFrame
-				? `The ${selectedLabel.toLowerCase()} is on this frame`
-				: `Move the ${selectedLabel.toLowerCase()} to this frame`}>Set here</button
+			class="jw-btn jw-quiet"
+			onclick={() => onNudge(item.id, 1)}
+			aria-label="Move the {onFrameName} one frame later"
+			title="One frame later">+1</button
 		>
-	{:else if emptySlot}
-		<button
-			class="jw-btn jw-mark"
-			class:takeoff={emptySlot === 'takeoff'}
-			aria-disabled={!canPlace}
-			onclick={onPlace}
-		>
-			<MarkGlyph type={STEP_MARK[emptySlot]} size={17} />Mark {selectedLabel.toLowerCase()}
-		</button>
-	{/if}
+	</div>
+	<button
+		class="jw-btn jw-icon jw-remove"
+		onclick={() => onRemove(item.id)}
+		aria-label="Remove the {onFrameName}"
+		title="Remove this mark (Backspace)"
+	>
+		<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" /></svg
+		><span class="jw-wide">Remove</span>
+	</button>
 {/snippet}
 
-<!-- Review's housekeeping. A phone keeps it in the same row; the card has room for it
-     under the marks, with Done. -->
-{#snippet edits()}
-	{@render history()}
-	{#if selected}
-		<button
-			class="jw-btn jw-icon jw-remove"
-			onclick={() => onRemove(selected.id)}
-			aria-label="Remove the {selectedLabel.toLowerCase()}"
-			title="Remove this mark"
-		>
-			<svg viewBox="0 0 24 24" aria-hidden="true"
-				><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" /></svg
-			><span class="jw-wide">Remove</span>
-		</button>
-	{/if}
-{/snippet}
-
-<div class="jump-workspace" data-layout={layout} data-mode={mode} class:orphan bind:this={root}>
+<div class="jump-workspace" data-layout={layout} data-results={results} bind:this={root}>
 	<p class="sr-only" role="status">{status}</p>
 
 	<div class="jw-main viewer-frame">
@@ -439,32 +265,21 @@
 		<div class="jw-dock">
 			{@render hint()}
 			{#if compact}
-				<nav class="jw-strip" aria-label="Jumps">
-					{#if mode === 'review'}
-						<div class="jw-strip-in jw-swap">
-							<span class="jw-review-title"
-								>{#if orphan}{reviewTitle}{:else}<span class="jw-short">J{number}</span><span
-										class="jw-long">Jump {number}</span
-									>{/if}</span
+				<nav class="jw-strip" aria-label="Jump {number}">
+					<div class="jw-strip-in">
+						{@render summary()}
+						{#if onFrame}
+							<span class="jw-strip-edit" class:takeoff={onFrame.type === 'takeoff'}
+								>{@render markControls(onFrame)}</span
 							>
-							{#if layout === 'portrait' && !orphan}{@render segments()}{/if}
-							{@render doneButton()}
-						</div>
-					{:else}
-						<div class="jw-strip-in jw-swap">
-							{@render chips()}
-							{@render resultsButton()}
-						</div>
-					{/if}
+						{:else}
+							<span class="jw-strip-edit">{@render history()}</span>
+						{/if}
+						{@render resultsButton()}
+					</div>
 				</nav>
 				{#if layout === 'rail'}
-					<div class="jw-middle">
-						{#if mode === 'complete'}
-							{@render hero()}
-						{:else if mode === 'review' && !orphan}
-							<div class="jw-swap">{@render segments()}</div>
-						{/if}
-					</div>
+					<div class="jw-middle">{@render hero()}</div>
 				{/if}
 			{/if}
 			<div class="control-bar">
@@ -477,18 +292,7 @@
 						<span class="context-strip" aria-hidden="true"></span>
 						{@render readout()}
 						{@render controls()}
-						{#if mode === 'complete' || mode === 'review'}
-							<!-- The jump's actions take the Mark button's place, in the same box. -->
-							{#key mode}
-								<div class="jw-actions jw-swap">
-									{#if layout === 'portrait' && mode === 'complete'}{@render hero()}{/if}
-									{@render actions()}
-									{#if compact && mode === 'review'}{@render edits()}{/if}
-								</div>
-							{/key}
-						{:else}
-							{@render mark()}
-						{/if}
+						{@render mark()}
 					</div>
 				</div>
 			</div>
@@ -496,73 +300,57 @@
 	</div>
 
 	{#if !compact}
-		<aside class="jw-panel" aria-label="Jumps">
-			<nav class="jw-strip" aria-label="Jumps">
-				<h2 class="jw-panel-title">Jumps</h2>
-				{@render chips()}
-				{@render resultsButton()}
-			</nav>
-			<section class="jw-card" aria-label={reviewTitle}>
+		<aside class="jw-panel" aria-label="Jump {number}">
+			<section class="jw-card">
 				<div class="jw-card-head">
-					<h3 class="jw-card-title">{reviewTitle}</h3>
+					<h2 class="jw-card-title">Jump {number}</h2>
 					{#if active && best?.id === active.id}<span class="jw-badge">Best</span>{/if}
 				</div>
-				{#if orphan}
-					<p class="jw-note">
-						This mark isn't part of a jump. Move it to the frame it belongs on, or remove it.
-					</p>
-				{:else}
-					{@render hero()}
-					<p class="jw-secondary">
-						{#if active?.contact}
-							<span>Contact <strong>{ms(active.contact.realSeconds)} ms</strong></span>
-						{:else if active?.flight}
-							<span>No {slots[0].label.toLowerCase()} · contact not measured</span>
-						{:else}
-							<span>{nextStep ? `Next: ${stepLabel(nextStep, jumpType).toLowerCase()}` : ''}</span>
-						{/if}
-					</p>
-					<div class="jw-slots" role="group" aria-label="Marks of jump {number}">
-						{#each slots as slot (slot.step)}
-							<button
-								class="jw-slot"
-								class:takeoff={slot.step === 'takeoff'}
-								class:unset={!slot.mark}
-								disabled={!slot.mark && !active}
-								aria-pressed={mode === 'review' ? selectedStep === slot.step : undefined}
-								onclick={(event) =>
-									act(
-										event,
-										() => (slot.mark ? onSelectMark(slot.mark) : onSelectSlot(slot.step)),
-										SELECTED
-									)}
-							>
-								<span class="jw-slot-glyph"
-									><MarkGlyph type={STEP_MARK[slot.step]} size={16} /></span
-								>
-								<span class="jw-slot-label">{slot.label}</span>
-								<span class="jw-slot-time"
-									>{slot.mark ? clock(slot.mark) : active ? 'Add' : 'Not marked'}</span
-								>
-							</button>
-						{/each}
-					</div>
-				{/if}
-				{#if mode === 'review'}
-					<div class="jw-edit jw-swap">
-						{@render edits()}
+				<div class="jw-card-results">{@render resultsButton()}</div>
+				{@render hero()}
+				<p class="jw-secondary">
+					{#if active?.contact}
+						<span>Contact <strong>{ms(active.contact.realSeconds)} ms</strong></span>
+					{:else if active?.flight}
+						<span>No {slots[0].label.toLowerCase()} · contact not measured</span>
+					{:else}
+						<span>{nextStep ? `Next: ${stepLabel(nextStep, jumpType).toLowerCase()}` : ''}</span>
+					{/if}
+				</p>
+				<div class="jw-slots" role="group" aria-label="Marks of jump {number}">
+					{#each slots as slot (slot.step)}
 						<button
-							class="jw-btn jw-primary jw-end"
-							data-focus="done"
-							onclick={(event) => act(event, onDone, ...AFTER_REVIEW)}>Done</button
+							class="jw-slot"
+							class:takeoff={slot.step === 'takeoff'}
+							class:unset={!slot.mark}
+							disabled={!slot.mark}
+							aria-current={slot.mark && slot.mark.id === onFrame?.id ? 'true' : undefined}
+							title={slot.mark ? 'Go to this frame' : undefined}
+							onclick={() => slot.mark && onSeek(slot.mark)}
 						>
-					</div>
-				{/if}
+							<span class="jw-slot-glyph"><MarkGlyph type={STEP_MARK[slot.step]} size={16} /></span>
+							<span class="jw-slot-label">{slot.label}</span>
+							<span class="jw-slot-time">{slot.mark ? clock(slot.mark) : 'Not marked'}</span>
+						</button>
+					{/each}
+				</div>
+				<div class="jw-edit">
+					{#if onFrame}
+						<!-- A mark of this jump is lit in the list above; any other says what it is. -->
+						{#if !slots.some((slot) => slot.mark?.id === onFrame.id)}
+							<span class="jw-edit-name" class:takeoff={onFrame.type === 'takeoff'}
+								>{capital(onFrameName)}</span
+							>
+						{/if}
+						{@render markControls(onFrame)}
+					{/if}
+					<span class="jw-end">{@render history()}</span>
+				</div>
 			</section>
 		</aside>
 	{/if}
 
-	{#if mode === 'results'}
+	{#if results}
 		<JumpResults
 			{units}
 			{unpaired}
@@ -577,8 +365,9 @@
 			bind:recordedAt
 			onBack={(event) => act(event, () => onResults(false), '[data-focus="results"]')}
 			onOpenUnit={(event, unit) =>
-				act(event, () => onSelectUnit(unit, true), SELECTED, '[data-focus="done"]')}
-			onOpenMark={(event, mark) => act(event, () => onSelectMark(mark), '[data-focus="done"]')}
+				act(event, () => onOpenUnit(unit), '[data-focus="mark"]', '.mark-primary')}
+			onOpenMark={(event, item) =>
+				act(event, () => onOpenMark(item), '[data-focus="mark"]', '.mark-primary')}
 		/>
 	{/if}
 </div>
@@ -601,8 +390,8 @@
 		flex-direction: column;
 	}
 
-	.jump-workspace[data-mode='results'] > .jw-main,
-	.jump-workspace[data-mode='results'] > .jw-panel {
+	.jump-workspace[data-results='true'] > .jw-main,
+	.jump-workspace[data-results='true'] > .jw-panel {
 		display: none;
 	}
 
@@ -656,7 +445,7 @@
 		scrollbar-width: none;
 	}
 
-	/* ---- The strip: the session's jumps, or the jump being corrected ---- */
+	/* ---- A phone's strip: the jump at the playhead ---- */
 
 	.jw-strip {
 		display: flex;
@@ -684,121 +473,101 @@
 		padding: 0 12px 0 16px;
 	}
 
-	/* Scrolls sideways when there are many jumps, fading out under Results. */
-	.jw-chips {
-		display: flex;
-		flex: 1 1 auto;
-		align-items: center;
-		gap: 6px;
-		min-width: 0;
-		padding: 4px 16px 4px 0;
-		overflow-x: auto;
-		overscroll-behavior-x: contain;
-		scrollbar-width: none;
-		touch-action: pan-x;
-		mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
-	}
-
-	.jw-chips.scrolled {
-		mask-image: linear-gradient(
-			to right,
-			transparent,
-			#000 20px,
-			#000 calc(100% - 16px),
-			transparent
-		);
-	}
-
-	.jw-chips::-webkit-scrollbar {
-		display: none;
-	}
-
-	.jw-chip {
-		position: relative;
+	/* The jump's number and flight time, then the mark's controls and Results. */
+	.jw-sum {
 		display: inline-flex;
-		flex: 0 0 auto;
-		align-items: center;
-		gap: 7px;
-		height: 36px;
-		padding: 0 12px;
-		border: 1px solid transparent;
-		border-radius: 999px;
-		background: hsl(var(--at-fg) / 0.06);
-		color: hsl(var(--at-fg-secondary));
-		font: inherit;
-		font-size: 14px;
+		flex: 1 1 auto;
+		align-items: baseline;
+		gap: 8px;
+		min-width: 0;
+		overflow: hidden;
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
-		cursor: pointer;
-		transition:
-			background 140ms var(--at-ease),
-			border-color 140ms var(--at-ease),
-			color 140ms var(--at-ease);
 	}
 
-	.jw-chip-name {
+	.jw-sum-name {
 		color: hsl(var(--at-fg-muted));
+		font-size: 14px;
 		font-weight: 600;
 	}
 
-	.jw-chip-value {
+	.jw-sum-value {
+		color: hsl(var(--at-fg));
+		font-size: 20px;
+		font-weight: 600;
+		letter-spacing: -0.01em;
+	}
+
+	.jw-sum-unit {
+		margin-left: 2px;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 13px;
 		font-weight: 500;
+		letter-spacing: 0;
 	}
 
-	.jw-chip[aria-current='true'] {
-		border-color: hsl(var(--at-fg) / 0.2);
-		background: hsl(var(--at-fg) / 0.13);
-		color: hsl(var(--at-fg));
+	.jw-sum.pending .jw-sum-value,
+	.jw-sum.pending .jw-sum-unit {
+		color: hsl(var(--at-fg) / 0.3);
+		font-weight: 400;
 	}
 
-	.jw-chip[aria-current='true'] .jw-chip-name {
-		color: hsl(var(--at-fg));
-	}
-
-	.jw-chip-best {
+	.jw-sum-best {
 		color: hsl(var(--at-fg-muted));
 		font-size: 11px;
 		font-weight: 500;
 	}
 
-	/* A phone's strip keeps to the times; Results says which jump is best. */
-	.jw-dock .jw-chip-best {
+	.jw-strip-edit {
+		display: flex;
+		flex: 0 0 auto;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.jw-strip-edit .jw-wide {
 		display: none;
 	}
 
-	/* A jump being marked shows which of its three marks it has. */
-	.jw-pips {
-		display: inline-flex;
-		align-items: center;
-		gap: 3px;
+	.jw-strip-edit .jw-icon,
+	.jw-strip-edit .jw-stepper .jw-btn {
+		width: 40px;
+		padding: 0;
 	}
 
-	.jw-pip {
-		width: 6px;
-		height: 6px;
-		border: 1.5px solid hsl(var(--at-fg) / 0.32);
-		border-radius: 50%;
+	@media (pointer: coarse) {
+		.jw-strip-edit .jw-btn {
+			--h: 44px;
+		}
+		.jw-strip-edit .jw-icon,
+		.jw-strip-edit .jw-stepper .jw-btn {
+			width: 44px;
+		}
 	}
 
-	.jw-pip.set {
-		border-color: var(--mark-color);
-		background: var(--mark-color);
+	/* Small phones: the jump's number and Best give way to the controls. */
+	@container jump-dock (max-width: 380px) {
+		.jw-sum-best {
+			display: none;
+		}
 	}
 
-	.jw-chip-new {
-		background: transparent;
-		border-color: hsl(var(--at-fg) / 0.12);
+	@container jump-dock (max-width: 340px) {
+		.jw-sum-name {
+			display: none;
+		}
+		.jw-strip-edit .jw-icon,
+		.jw-strip-edit .jw-stepper .jw-btn {
+			width: 40px;
+		}
 	}
 
-	.jw-chip-dot {
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: hsl(var(--at-warning));
+	/* The rail has the flight time in its middle; its strip keeps to the controls. */
+	[data-layout='rail'] .jw-sum {
+		visibility: hidden;
 	}
 
-	.jw-results,
-	.jw-done {
+	.jw-results {
 		position: relative;
 		display: inline-flex;
 		flex: 0 0 auto;
@@ -825,101 +594,6 @@
 		stroke-width: 1.8;
 		stroke-linecap: round;
 		stroke-linejoin: round;
-	}
-
-	.jw-done {
-		padding: 0 14px;
-		background: hsl(var(--at-emphasis) / 0.2);
-		color: hsl(var(--at-emphasis-fg));
-		font-weight: 600;
-	}
-
-	.jw-review-title {
-		flex: 0 0 auto;
-		color: hsl(var(--at-fg));
-		font-size: 14px;
-		font-weight: 600;
-		font-variant-numeric: tabular-nums;
-	}
-
-	.orphan .jw-review-title {
-		flex: 1 1 auto;
-	}
-
-	.jw-long,
-	[data-layout='rail'] .jw-short {
-		display: none;
-	}
-
-	[data-layout='rail'] .jw-long {
-		display: inline;
-	}
-
-	[data-layout='rail'] .jw-review-title {
-		flex: 1 1 auto;
-	}
-
-	/* ---- The jump's three marks ---- */
-
-	.jw-seg {
-		display: flex;
-		flex: 1 1 auto;
-		gap: 2px;
-		min-width: 0;
-		height: 40px;
-		padding: 2px;
-		border-radius: 12px;
-		background: hsl(var(--at-fg) / 0.06);
-	}
-
-	.jw-seg-item {
-		position: relative;
-		display: inline-flex;
-		flex: 1 1 0;
-		align-items: center;
-		justify-content: center;
-		gap: 4px;
-		min-width: 0;
-		padding: 0 4px;
-		border: none;
-		border-radius: 10px;
-		background: transparent;
-		color: hsl(var(--at-fg-secondary));
-		font: inherit;
-		font-size: 13px;
-		font-weight: 500;
-		cursor: pointer;
-		transition:
-			background 140ms var(--at-ease),
-			color 140ms var(--at-ease);
-	}
-
-	.jw-seg-item span {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.jw-seg-item.unset {
-		color: hsl(var(--at-fg-muted));
-	}
-
-	/* Selected: raised, and underlined in the mark's colour. */
-	.jw-seg-item[aria-pressed='true'] {
-		background: hsl(var(--at-fg) / 0.14);
-		box-shadow: inset 0 -2px 0 var(--mark-color);
-		color: hsl(var(--at-fg));
-		font-weight: 600;
-	}
-
-	.jw-plus {
-		flex: 0 0 auto;
-		width: 11px;
-		height: 11px;
-		fill: none;
-		stroke: currentColor;
-		stroke-width: 1.6;
-		stroke-linecap: round;
 	}
 
 	/* ---- Flight time ---- */
@@ -1023,23 +697,6 @@
 		background: hsl(var(--at-fg) / 0.07);
 	}
 
-	.jw-primary {
-		border-color: hsl(var(--at-emphasis) / 0.55);
-		background: hsl(var(--at-emphasis) / 0.24);
-		color: hsl(var(--at-emphasis-fg));
-	}
-
-	/* Moves or adds a mark: filled in the mark's colour, as the Mark button is. */
-	.jw-mark {
-		background: var(--mark-color);
-		color: hsl(var(--at-bg));
-	}
-
-	.jw-mark[aria-disabled='true'] {
-		background: hsl(var(--at-fg) / 0.06);
-		color: hsl(var(--at-fg-muted));
-	}
-
 	.jw-remove {
 		color: hsl(var(--at-error));
 	}
@@ -1062,7 +719,6 @@
 		border-radius: 4px 10px 10px 4px;
 	}
 
-	.jw-actions,
 	.jw-edit {
 		display: flex;
 		align-items: center;
@@ -1071,161 +727,15 @@
 	}
 
 	@media (hover: hover) {
-		.jw-chip:hover:not([aria-current='true']) {
-			background: hsl(var(--at-fg) / 0.1);
-			color: hsl(var(--at-fg));
-		}
 		.jw-results:hover {
 			background: hsl(var(--at-fg) / 0.08);
-		}
-		.jw-done:hover,
-		.jw-primary:hover {
-			background: hsl(var(--at-emphasis) / 0.34);
-			color: hsl(var(--at-fg));
-		}
-		.jw-seg-item:hover:not([aria-pressed='true']) {
-			background: hsl(var(--at-fg) / 0.07);
-			color: hsl(var(--at-fg));
 		}
 		.jw-quiet:hover:not(:disabled),
 		.jw-icon:hover:not(:disabled) {
 			background: hsl(var(--at-fg) / 0.13);
 		}
-		.jw-mark:hover:not([aria-disabled='true']) {
-			background: color-mix(in srgb, var(--mark-color) 86%, hsl(var(--at-fg)));
-		}
-		.jw-slot:hover:not(:disabled):not([aria-pressed='true']) {
+		.jw-slot:hover:not(:disabled):not([aria-current='true']) {
 			background: hsl(var(--at-fg) / 0.05);
-		}
-	}
-
-	/* ---- In the bar: the jump's actions take the Mark button's place ---- */
-
-	/* A wide bar: the Mark buttons' slot in the transport dock (MarkButtons), one width
-	   whatever it holds, so the frame controls beside it never shift. */
-	.control-toolbar > .jw-actions {
-		grid-area: landing;
-		justify-self: start;
-		gap: 4px;
-		width: var(--mark-slot);
-		padding-left: 8px;
-	}
-
-	.control-toolbar > .jw-actions .jw-btn {
-		--h: 32px;
-		flex: 1 1 0;
-		min-width: 0;
-		padding: 0 10px;
-		border-radius: 7px;
-		font-size: 13px;
-	}
-
-	.control-toolbar > .jw-actions .jw-stepper .jw-btn {
-		flex: 0 0 auto;
-		width: 38px;
-		padding: 0;
-	}
-
-	.control-toolbar > .jw-actions .jw-stepper .jw-btn:first-child {
-		border-radius: 7px 3px 3px 7px;
-	}
-
-	.control-toolbar > .jw-actions .jw-stepper .jw-btn:last-child {
-		border-radius: 3px 7px 7px 3px;
-	}
-
-	.control-toolbar > .jw-actions .jw-wide {
-		display: none;
-	}
-
-	@media (pointer: coarse) {
-		.control-toolbar > .jw-actions .jw-btn {
-			--h: 44px;
-			border-radius: 10px;
-			font-size: 15px;
-		}
-		.control-toolbar > .jw-actions .jw-stepper .jw-btn {
-			width: 44px;
-		}
-	}
-
-	/* A phone's bar: the Mark button's row and box, under the thumb. */
-	@container control-bar (max-width: 700px) {
-		.control-toolbar > .jw-actions {
-			grid-area: marks;
-			justify-self: stretch;
-			gap: 8px;
-			width: auto;
-			height: 52px;
-			margin-top: 6px;
-			padding: 0;
-		}
-
-		.control-toolbar > .jw-actions .jw-btn {
-			--h: 52px;
-			flex: 0 0 auto;
-			padding: 0 16px;
-			border-radius: 14px;
-			font-size: 16px;
-		}
-
-		.control-toolbar > .jw-actions .jw-icon {
-			width: 46px;
-			padding: 0;
-		}
-
-		.control-toolbar > .jw-actions .jw-icon svg {
-			width: 21px;
-			height: 21px;
-		}
-
-		.control-toolbar > .jw-actions .jw-stepper .jw-btn {
-			width: 48px;
-			padding: 0;
-		}
-
-		.control-toolbar > .jw-actions .jw-stepper .jw-btn:first-child {
-			border-radius: 14px 5px 5px 14px;
-		}
-
-		.control-toolbar > .jw-actions .jw-stepper .jw-btn:last-child {
-			border-radius: 5px 14px 14px 5px;
-		}
-
-		.control-toolbar > .jw-actions .jw-mark {
-			flex: 1 1 0;
-			min-width: 0;
-			padding: 0 8px;
-		}
-
-		/* Upright: flight time and its two actions share the row. */
-		.control-toolbar > .jw-actions .jw-hero {
-			flex: 1 1 auto;
-			gap: 0;
-		}
-
-		.control-toolbar > .jw-actions .jw-hero-value {
-			font-size: 34px;
-			line-height: 36px;
-		}
-
-		.control-toolbar > .jw-actions .jw-hero-what {
-			text-transform: lowercase;
-		}
-
-		[data-layout='portrait'][data-mode='complete'] .control-toolbar > .jw-actions .jw-btn {
-			padding: 0 18px;
-		}
-
-		/* Beside the picture, the two share the rail's width. */
-		.control-toolbar > .jw-actions > .jw-quiet,
-		.control-toolbar > .jw-actions > .jw-primary {
-			flex: 1 1 0;
-		}
-
-		[data-layout='portrait'] .control-toolbar > .jw-actions > .jw-quiet,
-		[data-layout='portrait'] .control-toolbar > .jw-actions > .jw-primary {
-			flex: 0 0 auto;
 		}
 	}
 
@@ -1247,43 +757,6 @@
 	.jw-middle .jw-hero-value {
 		font-size: clamp(34px, 12vh, 48px);
 		transform-origin: center;
-	}
-
-	.jw-middle .jw-seg {
-		height: 44px;
-	}
-
-	/* Small phones: the same row, a little tighter. */
-	@container jump-dock (max-width: 380px) {
-		.control-toolbar > .jw-actions {
-			gap: 6px;
-		}
-		.control-toolbar > .jw-actions .jw-icon,
-		.control-toolbar > .jw-actions .jw-stepper .jw-btn {
-			width: 44px;
-		}
-		.control-toolbar > .jw-actions .jw-mark {
-			padding: 0 4px;
-		}
-		[data-layout='portrait'][data-mode='complete'] .control-toolbar > .jw-actions .jw-btn {
-			padding: 0 14px;
-		}
-	}
-
-	@container jump-dock (max-width: 340px) {
-		[data-layout='portrait'] .control-toolbar > .jw-actions .jw-redo,
-		.control-toolbar > .jw-actions .jw-hero-jump {
-			display: none;
-		}
-		.control-toolbar > .jw-actions .jw-hero-what {
-			text-transform: none;
-		}
-		[data-layout='portrait'][data-mode='complete'] .control-toolbar > .jw-actions .jw-btn {
-			padding: 0 12px;
-		}
-		.control-toolbar > .jw-actions .jw-hero-value {
-			font-size: 28px;
-		}
 	}
 
 	/* ---- Regular: the jump as a card, beside or under the video ---- */
@@ -1308,52 +781,23 @@
 		border-top: 1px solid hsl(var(--at-border));
 	}
 
-	.jw-panel .jw-strip {
-		gap: 10px;
-		padding: 0 12px 0 20px;
-		border-bottom: 1px solid hsl(var(--at-border));
-	}
-
-	.jw-panel-title {
-		flex: 0 0 auto;
-		margin: 0;
-		color: hsl(var(--at-fg));
-		font-size: 14px;
-		font-weight: 600;
-	}
-
-	/* Beside the video the jumps wrap onto as many rows as they need. */
-	[data-layout='side'] .jw-panel .jw-strip {
+	/* The jump's head with Results beside it, then everything else at full width. */
+	.jw-card {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;
-		row-gap: 0;
-		padding-block: 10px 14px;
-	}
-
-	[data-layout='side'] .jw-panel-title {
-		height: 36px;
-		line-height: 36px;
-	}
-
-	[data-layout='side'] .jw-chips {
-		grid-column: 1 / -1;
-		grid-row: 2;
-		flex-wrap: wrap;
-		padding: 4px 0 0;
-		overflow: visible;
-		mask-image: none;
-	}
-
-	[data-layout='bottom'] .jw-panel .jw-strip {
-		height: 56px;
-	}
-
-	.jw-card {
-		display: flex;
-		flex-direction: column;
 		min-width: 0;
-		padding: 20px;
+		padding: 14px 20px 20px;
+	}
+
+	.jw-card > :not(.jw-card-head, .jw-card-results) {
+		grid-column: 1 / -1;
+	}
+
+	.jw-card-results {
+		display: flex;
+		justify-content: flex-end;
+		margin-right: -8px;
 	}
 
 	.jw-card-head {
@@ -1408,13 +852,6 @@
 	.jw-secondary strong {
 		color: hsl(var(--at-fg));
 		font-weight: 600;
-	}
-
-	.jw-note {
-		margin: 12px 0 0;
-		color: hsl(var(--at-fg-secondary));
-		font-size: 14px;
-		line-height: 1.5;
 	}
 
 	.jw-slots {
@@ -1475,21 +912,17 @@
 		font-size: 13px;
 	}
 
-	.jw-slot.unset:not(:disabled) .jw-slot-time {
-		color: hsl(var(--at-emphasis-strong));
-		font-weight: 500;
-	}
-
 	.jw-slot:disabled {
 		cursor: default;
 	}
 
-	.jw-slot[aria-pressed='true'] {
+	/* The mark on the frame on screen. */
+	.jw-slot[aria-current='true'] {
 		background: hsl(var(--at-fg) / 0.09);
 		box-shadow: inset 2px 0 0 var(--mark-color);
 	}
 
-	.jw-slot[aria-pressed='true'] .jw-slot-label {
+	.jw-slot[aria-current='true'] .jw-slot-label {
 		color: hsl(var(--at-fg));
 		font-weight: 600;
 	}
@@ -1500,7 +933,14 @@
 
 	.jw-card .jw-edit {
 		flex-wrap: wrap;
+		min-height: 36px;
 		margin-top: 16px;
+	}
+
+	.jw-edit-name {
+		color: var(--mark-color);
+		font-size: 13px;
+		font-weight: 600;
 	}
 
 	.jw-card .jw-end {
@@ -1511,8 +951,8 @@
 		padding: 0 12px 0 10px;
 	}
 
-	/* Under the video the card lies flat: flight time, the marks, then review's edits.
-	   It keeps one height in every state, so the picture never resizes. */
+	/* Under the video the card lies flat: flight time, the marks, then Results and the
+	   mark's controls. It keeps one height, so the picture never resizes. */
 	[data-layout='bottom'] .jw-card {
 		display: grid;
 		grid-template-columns: minmax(150px, 190px) minmax(200px, 1fr) minmax(0, 300px);
@@ -1535,9 +975,8 @@
 		grid-area: 3 / 1;
 	}
 
-	[data-layout='bottom'] .jw-note {
-		grid-area: 2 / 1 / 4 / 3;
-		max-width: 420px;
+	[data-layout='bottom'] .jw-card-results {
+		grid-area: 1 / 3;
 	}
 
 	[data-layout='bottom'] .jw-slots {
@@ -1547,7 +986,7 @@
 	}
 
 	[data-layout='bottom'] .jw-card .jw-edit {
-		grid-area: 1 / 3 / 4 / 4;
+		grid-area: 2 / 3 / 4 / 4;
 		align-self: center;
 		align-content: center;
 		justify-content: flex-end;
@@ -1564,20 +1003,10 @@
 		.jump-workspace {
 			--mark-slot: 252px;
 		}
-		.jw-chip::after,
-		.jw-results::after,
-		.jw-done::after {
+		.jw-results::after {
 			content: '';
 			position: absolute;
 			inset: -4px 0;
-		}
-		.jw-seg {
-			height: 44px;
-		}
-		.jw-seg-item::after {
-			content: '';
-			position: absolute;
-			inset: -2px 0;
 		}
 		.jw-panel .jw-btn {
 			--h: 44px;
@@ -1592,24 +1021,9 @@
 
 	/* ---- Motion ---- */
 
-	.jw-swap {
-		animation: jw-in 200ms var(--at-ease) both;
-	}
-
 	.jw-pop {
 		display: inline-block;
 		animation: jw-pop 320ms var(--at-ease) both;
-	}
-
-	@keyframes jw-in {
-		from {
-			opacity: 0;
-			transform: translateY(4px);
-		}
-		to {
-			opacity: 1;
-			transform: none;
-		}
 	}
 
 	@keyframes jw-pop {
@@ -1624,13 +1038,10 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.jw-swap,
 		.jw-pop {
 			animation: none;
 		}
-		.jw-btn,
-		.jw-chip,
-		.jw-seg-item {
+		.jw-btn {
 			transition: none;
 		}
 	}
