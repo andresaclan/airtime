@@ -862,6 +862,29 @@
 		cursor: pointer;
 	}
 
+	/* Editing from the keyboard shows the platform's field itself, so the part the arrow
+	   keys change and a half-typed value can be seen. */
+	.jr-prop .jr-date input:focus-visible {
+		padding: 0 22px 0 0;
+		border: none;
+		background: none;
+		color: hsl(var(--at-fg));
+		color-scheme: dark;
+		font: inherit;
+		font-variant-numeric: tabular-nums;
+		text-align: right;
+		opacity: 1;
+		outline: none;
+	}
+
+	.jr-prop .jr-date input:focus-visible::-webkit-calendar-picker-indicator {
+		display: none;
+	}
+
+	.jr-date:has(input:focus-visible) .jr-date-value {
+		visibility: hidden;
+	}
+
 	.jr-prop:focus-within,
 	.jr-notes:focus-within {
 		background: hsl(var(--at-fg) / 0.03);
