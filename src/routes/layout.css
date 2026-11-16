@@ -409,6 +409,18 @@ body {
 	transform: translate(-50%, 0);
 }
 
+/* Results has its own bar under the header, so the notice rises from the bottom. */
+.app-notice.app-notice-low {
+	position: fixed;
+	top: auto;
+	bottom: calc(24px + env(safe-area-inset-bottom));
+	transform: translate(-50%, 6px);
+}
+
+.app-notice.app-notice-low.visible {
+	transform: translate(-50%, 0);
+}
+
 .app-notice::before {
 	content: '';
 	flex: 0 0 auto;

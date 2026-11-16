@@ -1105,7 +1105,9 @@
 				</div>
 			{/if}
 		</div>
-		<div class="app-notice" class:visible={notice} role="status">{notice ?? ''}</div>
+		<div class="app-notice" class:visible={notice} class:app-notice-low={resultsOpen} role="status">
+			{notice ?? ''}
+		</div>
 	</header>
 	{#if showBackupReminder && backup}
 		<section class="backup-reminder" aria-label="Backup reminder">
