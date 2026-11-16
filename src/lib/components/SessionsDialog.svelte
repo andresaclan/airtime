@@ -25,9 +25,19 @@
 		onImported: () => void;
 		/** Asks for the session's video; the session restores once the matching file is opened. */
 		onOpen: (session: Session) => void;
+		/** Which tab shows: the session list or the trends. */
+		view?: 'list' | 'trends';
 	}
 
-	let { isOpen, currentSessionId, onClose, onDeleted, onImported, onOpen }: Props = $props();
+	let {
+		isOpen,
+		currentSessionId,
+		onClose,
+		onDeleted,
+		onImported,
+		onOpen,
+		view = $bindable('list')
+	}: Props = $props();
 
 	let sessions: Session[] = $state([]);
 	let loading = $state(false);
@@ -39,7 +49,6 @@
 	let lastBackup: string | null = $state(null);
 	let sessionsReadAt = '';
 	let unreadableIds: string[] = $state([]);
-	let view: 'list' | 'trends' = $state('list');
 	let trendsView: ReturnType<typeof TrendsView> | undefined = $state();
 	let backup = $derived(backupStatus(sessions, lastBackup, { unreadable: unreadableIds.length }));
 

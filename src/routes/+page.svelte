@@ -9,6 +9,7 @@
 	import MarkingHint from '$lib/components/MarkingHint.svelte';
 	import MarkButtons from '$lib/components/MarkButtons.svelte';
 	import MarkGlyph from '$lib/components/MarkGlyph.svelte';
+	import HomeHistory from '$lib/components/HomeHistory.svelte';
 	import HoldCue, { type ScrubCue } from '$lib/components/HoldCue.svelte';
 	import { onMount, tick } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
@@ -125,10 +126,15 @@
 	let workspace: ReturnType<typeof JumpWorkspace> | undefined = $state();
 	let keybindsOpen = $state(false);
 	let sessionsOpen = $state(false);
+	let sessionsView: 'list' | 'trends' = $state('list');
+	// The marking guide, folded away once the athlete has saved sessions.
+	let guideOpen = $state(false);
 	let backup: BackupStatus | null = $state(null);
 	// Kept loaded so Back up now can open the share sheet without awaiting storage first.
 	let savedSessions: Session[] | null = $state(null);
 	let savedSessionsReadAt = '';
+	// Whether storage has answered once, with sessions or without.
+	let sessionsRead = $state(false);
 	let reminderDismissed = $state(false);
 	let showBackupReminder = $derived(needsBackup(backup) && !reminderDismissed);
 	let isAppEmpty = $derived.by(() => savedSessions?.length === 0 && backup?.unreadable === 0);
@@ -456,6 +462,8 @@
 		} catch {
 			savedSessions = null;
 			backup = null;
+		} finally {
+			sessionsRead = true;
 		}
 		return backup;
 	}
@@ -497,6 +505,19 @@
 		hintHidden = isHintHidden();
 		void refreshBackup();
 	});
+
+	let guideCard: HTMLElement | null = $state(null);
+
+	async function toggleGuide() {
+		guideOpen = !guideOpen;
+		await tick();
+		guideCard?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+	}
+
+	function showSessions(view: 'list' | 'trends') {
+		sessionsView = view;
+		sessionsOpen = true;
+	}
 
 	function closeSessions() {
 		sessionsOpen = false;
@@ -942,6 +963,7 @@
 />
 <SessionsDialog
 	isOpen={sessionsOpen}
+	bind:view={sessionsView}
 	currentSessionId={sessionId}
 	onClose={closeSessions}
 	onDeleted={handleSessionDeleted}
@@ -1117,144 +1139,188 @@
 		class:has-video={videoSrc}
 	>
 		{#if !videoSrc}
-			<div class="empty">
-				<div class="empty-card at-reveal">
-					<div class="empty-head">
-						<h1 class="empty-title">Time your jumps from video</h1>
-						<p class="empty-lede">
-							Open a clip of your approach jump and mark three frames. Airtime does the math.
-						</p>
-					</div>
-					{#if pendingDrafts.length}
-						<!-- Unsaved work a reload interrupted; reopening the video brings it back. -->
-						<ul class="empty-drafts" aria-label="Unsaved marks">
-							{#each pendingDrafts.slice(0, 3) as draft (draft.fingerprint)}
-								<li class="empty-draft">
-									<span class="empty-draft-dot" aria-hidden="true"></span>
-									<span class="empty-draft-text">
-										<strong>Unsaved marks on {draft.session.media.fileName}</strong>
-										<span
-											>{countMarks(draft.session.marks.length)} · {formatSavedAt(draft.updatedAt)}.
-											Open this video again to pick up where you left off.</span
-										>
-									</span>
-									<button class="link-btn" onclick={() => discardPendingDraft(draft)}
-										>Discard</button
+			{#snippet pendingDraftList()}
+				{#if pendingDrafts.length}
+					<!-- Unsaved work a reload interrupted; reopening the video brings it back. -->
+					<ul class="empty-drafts" aria-label="Unsaved marks">
+						{#each pendingDrafts.slice(0, 3) as draft (draft.fingerprint)}
+							<li class="empty-draft">
+								<span class="empty-draft-dot" aria-hidden="true"></span>
+								<span class="empty-draft-text">
+									<strong>Unsaved marks on {draft.session.media.fileName}</strong>
+									<span
+										>{countMarks(draft.session.marks.length)} · {formatSavedAt(draft.updatedAt)}.
+										Open this video again to pick up where you left off.</span
 									>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-					<button onclick={openFilePicker} class="dropzone" class:dragging={isDragging}>
-						<span class="dropzone-icon" aria-hidden="true">
-							<svg
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="1.6"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5" /><path
-									d="M4 14.5v3A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5v-3"
-								/></svg
-							>
-						</span>
-						<span class="dropzone-text">
-							<span class="dropzone-title">{isDragging ? 'Drop to open' : 'Open a jump video'}</span
-							>
-							<span class="dropzone-sub"
-								><span class="pointer-only">Drag a clip here, or browse your files</span><span
-									class="touch-only">Choose a clip from your library or files</span
-								></span
-							>
-						</span>
-						<span class="btn btn-primary">Choose video</span>
-					</button>
-					<!-- An approach jump, as the three marks see it: the plant step and landing
-					     are both touchdowns; the takeoff is when the feet leave. -->
-					<svg
-						class="empty-diagram"
-						viewBox="0 14 520 100"
-						role="img"
-						aria-label="An approach jump: run-up, plant step, takeoff, flight and landing. Contact runs from the plant step to takeoff; flight from takeoff to landing."
-					>
-						<path class="diagram-ground" d="M16 80H504" />
-						<g class="diagram-runup">
-							<circle cx="40" cy="80" r="2.5" />
-							<circle cx="80" cy="80" r="2.5" />
-							<circle cx="118" cy="80" r="2.5" />
-							<text x="79" y="108">Run-up</text>
-						</g>
-						<path class="diagram-flight" d="M226 80C262 14 382 14 418 80" />
-						<path class="diagram-span" d="M166 87v4h60v-4" />
-						<text class="diagram-span-label" x="196" y="108">Contact</text>
-						<text class="diagram-span-label" x="322" y="64">Flight</text>
-						<g class="diagram-mark landing">
-							<circle cx="166" cy="80" r="6" />
-							<text x="166" y="64">1</text>
-						</g>
-						<g class="diagram-mark takeoff">
-							<circle cx="226" cy="80" r="6" />
-							<text x="226" y="64">2</text>
-						</g>
-						<g class="diagram-mark landing">
-							<circle cx="418" cy="80" r="6" />
-							<text x="418" y="64">3</text>
-						</g>
-					</svg>
-					<ol class="empty-steps">
-						<li>
-							<span class="empty-step-num">1</span>
-							<strong>Plant step</strong>
-							<span class="empty-step-text">First frame your plant foot touches the ground.</span>
-							<span class="empty-mark landing"><MarkGlyph type="landing" /></span>
-						</li>
-						<li>
-							<span class="empty-step-num">2</span>
-							<strong>Takeoff</strong>
-							<span class="empty-step-text">First frame both feet are off the ground.</span>
-							<span class="empty-mark takeoff"><MarkGlyph type="takeoff" /></span>
-						</li>
-						<li>
-							<span class="empty-step-num">3</span>
-							<strong>Landing</strong>
-							<span class="empty-step-text">First frame your feet touch back down.</span>
-							<span class="empty-mark landing"><MarkGlyph type="landing" /></span>
-						</li>
-					</ol>
-					<p class="empty-result">
-						Step to each moment and press Mark: it always names the step that comes next. You get
-						flight time, contact time and RSI.
-					</p>
-				</div>
-				<div class="empty-footer at-reveal" style="--delay: 60ms">
-					<span>
+								</span>
+								<button class="link-btn" onclick={() => discardPendingDraft(draft)}>Discard</button>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			{/snippet}
+			{#snippet openVideo()}
+				<button onclick={openFilePicker} class="dropzone" class:dragging={isDragging}>
+					<span class="dropzone-icon" aria-hidden="true">
 						<svg
 							viewBox="0 0 24 24"
 							fill="none"
 							stroke="currentColor"
-							stroke-width="1.8"
+							stroke-width="1.6"
 							stroke-linecap="round"
 							stroke-linejoin="round"
-							aria-hidden="true"
-							><rect x="5" y="11" width="14" height="9" rx="2" /><path
-								d="M8 11V8a4 4 0 0 1 8 0v3"
+							><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5" /><path
+								d="M4 14.5v3A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5v-3"
 							/></svg
 						>
-						Videos stay on your device
 					</span>
-					{#if isAppEmpty}
-						<span class="empty-import">
-							Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
-								>Import backup</button
-							>
-						</span>
-					{/if}
-				</div>
-				<p class="empty-import-message" class:error={importMessage?.error} role="status">
-					{importMessage?.text ?? ''}
+					<span class="dropzone-text">
+						<span class="dropzone-title">{isDragging ? 'Drop to open' : 'Open a jump video'}</span>
+						<span class="dropzone-sub"
+							><span class="pointer-only">Drag a clip here, or browse your files</span><span
+								class="touch-only">Choose a clip from your library or files</span
+							></span
+						>
+					</span>
+					<span class="btn btn-primary">Choose video</span>
+				</button>
+			{/snippet}
+			{#snippet markingGuide()}
+				<!-- An approach jump, as the three marks see it: the plant step and landing
+			     are both touchdowns; the takeoff is when the feet leave. -->
+				<svg
+					class="empty-diagram"
+					viewBox="0 14 520 100"
+					role="img"
+					aria-label="An approach jump: run-up, plant step, takeoff, flight and landing. Contact runs from the plant step to takeoff; flight from takeoff to landing."
+				>
+					<path class="diagram-ground" d="M16 80H504" />
+					<g class="diagram-runup">
+						<circle cx="40" cy="80" r="2.5" />
+						<circle cx="80" cy="80" r="2.5" />
+						<circle cx="118" cy="80" r="2.5" />
+						<text x="79" y="108">Run-up</text>
+					</g>
+					<path class="diagram-flight" d="M226 80C262 14 382 14 418 80" />
+					<path class="diagram-span" d="M166 87v4h60v-4" />
+					<text class="diagram-span-label" x="196" y="108">Contact</text>
+					<text class="diagram-span-label" x="322" y="64">Flight</text>
+					<g class="diagram-mark landing">
+						<circle cx="166" cy="80" r="6" />
+						<text x="166" y="64">1</text>
+					</g>
+					<g class="diagram-mark takeoff">
+						<circle cx="226" cy="80" r="6" />
+						<text x="226" y="64">2</text>
+					</g>
+					<g class="diagram-mark landing">
+						<circle cx="418" cy="80" r="6" />
+						<text x="418" y="64">3</text>
+					</g>
+				</svg>
+				<ol class="empty-steps">
+					<li>
+						<span class="empty-step-num">1</span>
+						<strong>Plant step</strong>
+						<span class="empty-step-text">First frame your plant foot touches the ground.</span>
+						<span class="empty-mark landing"><MarkGlyph type="landing" /></span>
+					</li>
+					<li>
+						<span class="empty-step-num">2</span>
+						<strong>Takeoff</strong>
+						<span class="empty-step-text">First frame both feet are off the ground.</span>
+						<span class="empty-mark takeoff"><MarkGlyph type="takeoff" /></span>
+					</li>
+					<li>
+						<span class="empty-step-num">3</span>
+						<strong>Landing</strong>
+						<span class="empty-step-text">First frame your feet touch back down.</span>
+						<span class="empty-mark landing"><MarkGlyph type="landing" /></span>
+					</li>
+				</ol>
+				<p class="empty-result">
+					Step to each moment and press Mark: it always names the step that comes next. You get
+					flight time, contact time and RSI.
 				</p>
-			</div>
+			{/snippet}
+			{#snippet keptLocal()}
+				<span>
+					<svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.8"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+						><rect x="5" y="11" width="14" height="9" rx="2" /><path
+							d="M8 11V8a4 4 0 0 1 8 0v3"
+						/></svg
+					>
+					Videos stay on your device
+				</span>
+			{/snippet}
+			{#if !sessionsRead}
+				<!-- Held until storage answers, so a returning athlete never sees the first-run card flash. -->
+				<div class="empty"></div>
+			{:else if savedSessions?.length}
+				<!-- A returning athlete: the way in, then how their jumps are going. -->
+				<div class="empty home">
+					<h1 class="sr-only">Your jumps</h1>
+					<div class="empty-card at-reveal">
+						{@render pendingDraftList()}
+						{@render openVideo()}
+					</div>
+					<div class="home-history at-reveal" style="--delay: 40ms">
+						<HomeHistory
+							sessions={savedSessions}
+							onOpenSession={handleSessionOpen}
+							onShowAll={showSessions}
+						/>
+					</div>
+					<div class="empty-footer at-reveal" style="--delay: 80ms">
+						{@render keptLocal()}
+						<button class="link-btn" aria-expanded={guideOpen} onclick={toggleGuide}
+							>{guideOpen ? 'Hide how marking works' : 'How marking works'}</button
+						>
+					</div>
+					{#if guideOpen}
+						<div class="empty-card home-guide" bind:this={guideCard}>
+							{@render markingGuide()}
+						</div>
+					{/if}
+					<p class="empty-import-message" class:error={importMessage?.error} role="status">
+						{importMessage?.text ?? ''}
+					</p>
+				</div>
+			{:else}
+				<div class="empty">
+					<div class="empty-card at-reveal">
+						<div class="empty-head">
+							<h1 class="empty-title">Time your jumps from video</h1>
+							<p class="empty-lede">
+								Open a clip of your approach jump and mark three frames. Airtime does the math.
+							</p>
+						</div>
+						{@render pendingDraftList()}
+						{@render openVideo()}
+						{@render markingGuide()}
+					</div>
+					<div class="empty-footer at-reveal" style="--delay: 60ms">
+						{@render keptLocal()}
+						{#if isAppEmpty}
+							<span class="empty-import">
+								Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
+									>Import backup</button
+								>
+							</span>
+						{/if}
+					</div>
+					<p class="empty-import-message" class:error={importMessage?.error} role="status">
+						{importMessage?.text ?? ''}
+					</p>
+				</div>
+			{/if}
 		{:else}
 			<JumpWorkspace
 				bind:this={workspace}

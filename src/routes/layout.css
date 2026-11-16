@@ -1152,6 +1152,36 @@ body {
 	color: hsl(var(--at-error));
 }
 
+/* A returning athlete's home: the way in, their progress and recent sessions as
+   separate cards, the marking guide folded behind a link. */
+.empty.home {
+	gap: 12px;
+}
+
+.home-history {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.home .dropzone {
+	padding: 16px 20px;
+	border-block: none;
+	background: none;
+}
+
+.home .empty-drafts + .dropzone {
+	border-top: 1px solid hsl(var(--at-border));
+}
+
+.home .empty-footer {
+	margin-top: 0;
+}
+
+.home-guide .empty-diagram {
+	padding-top: 18px;
+}
+
 /* Unsaved marks a reload interrupted, waiting for their video to be opened again. */
 .empty-drafts {
 	display: flex;
