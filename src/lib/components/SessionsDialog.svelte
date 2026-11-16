@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { analyzeMarks } from '$lib/video/marks';
+	import { sessionSummary } from '$lib/session/trends';
 	import TrendsView from './TrendsView.svelte';
 	import type { Session } from '$lib/session/schema';
 	import { deleteSession, readSessions } from '$lib/session/store';
@@ -82,13 +82,6 @@
 		window.addEventListener('keydown', handleCaptureKeyDown, true);
 		return () => window.removeEventListener('keydown', handleCaptureKeyDown, true);
 	});
-
-	function bestHeight(session: Session): number | null {
-		const heights = analyzeMarks(session.marks, session.frameRate.value, session.timeScale)
-			.intervals.map((interval) => interval.heightCm)
-			.filter((height) => height !== undefined);
-		return heights.length ? Math.max(...heights) : null;
-	}
 
 	function formatDate(iso: string): string {
 		return new Date(iso).toLocaleString(undefined, {
@@ -207,7 +200,7 @@
 				{:else}
 					<ul class="sessions-list">
 						{#each sessions as session (session.id)}
-							{@const height = bestHeight(session)}
+							{@const summary = sessionSummary(session)}
 							<li class="session-row" class:current={session.id === currentSessionId}>
 								<div class="session-info">
 									<span class="session-name">
@@ -216,14 +209,15 @@
 											>{/if}
 									</span>
 									<span class="session-meta">
-										{formatDate(session.updatedAt)} · {session.marks.length} mark{session.marks
-											.length === 1
+										{formatDate(session.updatedAt)} · {summary.jumps} jump{summary.jumps === 1
 											? ''
 											: 's'} · {session.media.fileName}
 									</span>
 								</div>
-								<div class="session-height" class:none={height === null}>
-									{#if height !== null}{height.toFixed(1)}<small>cm</small>{:else}—{/if}
+								<div class="session-best" class:none={summary.bestFlightMs === null}>
+									{#if summary.bestFlightMs !== null}{Math.round(summary.bestFlightMs)}<small
+											>ms</small
+										>{:else}—{/if}
 								</div>
 								<div class="session-actions">
 									{#if session.id !== currentSessionId}
@@ -603,8 +597,8 @@
 		}
 	}
 
-	/* The title leads; the session's best height is a supporting value at the right. */
-	.session-height {
+	/* The title leads; the session's best flight is a supporting value at the right. */
+	.session-best {
 		flex: 0 0 auto;
 		color: hsl(var(--at-fg-secondary));
 		font-family: var(--at-font-mono);
@@ -613,13 +607,13 @@
 		font-variant-numeric: tabular-nums;
 	}
 
-	.session-height small {
+	.session-best small {
 		margin-left: 3px;
 		color: hsl(var(--at-fg-muted));
 		font-size: 11px;
 	}
 
-	.session-height.none {
+	.session-best.none {
 		color: hsl(var(--at-fg-muted));
 	}
 

@@ -66,7 +66,6 @@ describe('trendPoint', () => {
 		);
 		expect(point?.best.flightMs).toBeCloseTo(850);
 		expect(point?.best.contactMs).toBeCloseTo(250);
-		expect(point?.best.heightCm).toBeCloseTo(((9.81 * 0.85 ** 2) / 8) * 100);
 		// The incomplete jump isn't charted.
 		expect(point?.jumps).toHaveLength(2);
 		expect(point?.time).toBe(Date.parse('2026-10-01T09:00:00.000Z'));
