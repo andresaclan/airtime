@@ -184,7 +184,7 @@
 		>
 		{#key active?.flight?.realSeconds}
 			<span class="jw-hero-value jw-pop"
-				>{active?.flight ? ms(active.flight.realSeconds) : '--'}<span class="jw-hero-unit">ms</span
+				>{active?.flight ? ms(active.flight.realSeconds) : '–'}<span class="jw-hero-unit">ms</span
 				></span
 			>
 		{/key}
@@ -263,7 +263,7 @@
 	<div class="jw-main viewer-frame">
 		<div class="jw-stage">{@render stage()}</div>
 		<div class="jw-dock">
-			{@render hint()}
+			{#if layout !== 'side'}{@render hint()}{/if}
 			{#if compact}
 				<nav class="jw-strip" aria-label="Jump {number}">
 					<div class="jw-strip-in">
@@ -347,6 +347,34 @@
 					<span class="jw-end">{@render history()}</span>
 				</div>
 			</section>
+			{#if layout === 'side' && units.length > 1}
+				<section class="jw-jumps" aria-labelledby="jw-jumps-title">
+					<h2 id="jw-jumps-title" class="jw-jumps-title">This video</h2>
+					<ol>
+						{#each units as unit, i (unit.id)}
+							<li>
+								<button
+									class="jw-jump"
+									aria-current={unit.id === active?.id ? 'true' : undefined}
+									title="Go to jump {i + 1}"
+									onclick={() => onOpenUnit(unit)}
+								>
+									<span class="jw-jump-name">Jump {i + 1}</span>
+									{#if best?.id === unit.id}<span class="jw-badge">Best</span>{/if}
+									<span class="jw-jump-value" class:pending={!unit.flight}
+										>{#if unit.flight}{ms(unit.flight.realSeconds)}<small>ms</small
+											>{:else}—{/if}</span
+									>
+								</button>
+							</li>
+						{/each}
+					</ol>
+				</section>
+			{/if}
+			{#if layout === 'side'}
+				<!-- Beside the controls, so the picture keeps the line the hint took under it. -->
+				<div class="jw-panel-hint">{@render hint()}</div>
+			{/if}
 		</aside>
 	{/if}
 
@@ -636,7 +664,7 @@
 		white-space: pre;
 	}
 
-	/* Not landed yet: dashes hold the number's place. */
+	/* Not landed yet: a dash holds the number's place. */
 	.jw-hero.pending .jw-hero-value,
 	.jw-hero.pending .jw-hero-unit {
 		color: hsl(var(--at-fg) / 0.3);
@@ -949,6 +977,92 @@
 
 	.jw-card .jw-icon {
 		padding: 0 12px 0 10px;
+	}
+
+	/* Every jump in the video, to compare and go to. */
+	.jw-jumps {
+		padding: 4px 20px 20px;
+	}
+
+	.jw-jumps-title {
+		margin: 0 0 8px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
+		font-weight: 500;
+	}
+
+	.jw-jumps ol {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.jw-jump {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		height: 36px;
+		padding: 0 12px;
+		border: none;
+		border-radius: 8px;
+		background: transparent;
+		color: hsl(var(--at-fg-secondary));
+		font: inherit;
+		font-size: 13px;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	@media (hover: hover) {
+		.jw-jump:hover {
+			background: hsl(var(--at-fg) / 0.05);
+		}
+	}
+
+	.jw-jump[aria-current='true'] {
+		background: hsl(var(--at-fg) / 0.09);
+		color: hsl(var(--at-fg));
+		font-weight: 500;
+	}
+
+	.jw-jump-value {
+		margin-left: auto;
+		color: hsl(var(--at-fg));
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.jw-jump-value small {
+		margin-left: 2px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 11px;
+		font-weight: 500;
+	}
+
+	.jw-jump-value.pending {
+		color: hsl(var(--at-fg-muted));
+		font-weight: 400;
+	}
+
+	/* The marking hint at the foot of the panel, level with the controls. It wraps here
+	   rather than cutting off. */
+	.jw-panel-hint {
+		margin-top: auto;
+	}
+
+	.jw-panel-hint :global(.marking-hint) {
+		align-items: flex-start;
+		height: auto;
+		min-height: 0;
+		padding: 14px 12px 16px 20px;
+		border-top: none;
+		background: none;
+	}
+
+	.jw-panel-hint :global(.hint-text) {
+		padding-top: 3px;
+		white-space: normal;
 	}
 
 	/* Under the video the card lies flat: flight time, the marks, then Results and the
