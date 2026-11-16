@@ -89,7 +89,7 @@
 		const reactive = index(unit);
 		if (reactive) parts.push(`RSI ${reactive}`);
 		if (best?.id === unit.id) parts.push('best');
-		return `${parts.join(', ')}. Review it in the video`;
+		return `${parts.join(', ')}. Open it in the video`;
 	}
 
 	// datetime-local works in local time without a zone, so convert to and from ISO.

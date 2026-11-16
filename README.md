@@ -48,11 +48,11 @@ Airtime is built around an approach jump: three marks give contact time, flight 
 2. Play (press `R` to slow down) until you're near your last step before the jump, then pause.
 3. **Plant step:** step with `,` and `.` to the first frame your plant foot touches the ground and press **Mark plant step** (`M`).
 4. **Takeoff:** step forward to the first frame both feet are off the ground and press **Mark takeoff** (`M`).
-5. **Landing:** step forward to the first frame your feet touch back down and press **Mark landing** (`M`). The jump's flight time appears, with **Review** to correct a mark and **Next jump** to carry on.
+5. **Landing:** step forward to the first frame your feet touch back down and press **Mark landing** (`M`). The jump's flight time appears beside the video, and you carry on to the next jump's plant step.
 6. **Results** lists every jump in the session, with its contact time and RSI. Each jump needs its own plant step for those; only repeat hops share a touchdown.
 7. Press `⌘S` / `Ctrl+S` to save. Open the same file later to pick up where you left off.
 
-The arrow button beside **Mark** marks the other type instead (`T` for a takeoff, `L` for a touchdown or landing). Pressing **Mark** on a frame that's already marked opens that jump for review, with the mark selected: step to the frame it belongs on and press **Set here**, move it a frame at a time, or remove it. The mark stays selected while you step away from it. Pressing `M` there removes the mark instead. The line under the video retires itself after three measured jumps, or hide it sooner with **Got it**; bring it back from the keyboard shortcuts dialog (`?`).
+The arrow button beside **Mark** marks the other type instead (`T` for a takeoff, `L` for a touchdown or landing). Pressing **Mark** on a frame that's already marked moves to that mark's controls: move it a frame at a time with **−1** and **+1**, or remove it. Drag a mark's pin on the timeline to move it further. The line under the video retires itself after three measured jumps, or hide it sooner with **Got it**; bring it back from the keyboard shortcuts dialog (`?`).
 
 ## Keyboard shortcuts
 

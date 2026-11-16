@@ -3,22 +3,14 @@
 	import VideoScrubber from '$lib/components/VideoScrubber.svelte';
 	import VideoControls from '$lib/components/VideoControls.svelte';
 	import JumpWorkspace from '$lib/components/JumpWorkspace.svelte';
-	import {
-		fillsSlot,
-		jumpUnits,
-		settleWorkspace,
-		unitOf,
-		unitStep,
-		type JumpUnit,
-		type WorkspaceMode
-	} from '$lib/video/jumpUnits';
+	import { jumpUnits, unitAt, type JumpUnit } from '$lib/video/jumpUnits';
 	import KeybindsDialog from '$lib/components/KeybindsDialog.svelte';
 	import SessionsDialog from '$lib/components/SessionsDialog.svelte';
 	import MarkingHint from '$lib/components/MarkingHint.svelte';
 	import MarkButtons from '$lib/components/MarkButtons.svelte';
 	import MarkGlyph from '$lib/components/MarkGlyph.svelte';
 	import HoldCue, { type ScrubCue } from '$lib/components/HoldCue.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
 	import { isApplePlatform } from '$lib/keybinds';
@@ -41,9 +33,7 @@
 		markStep,
 		noteMeasuredJump,
 		setHintHidden,
-		stepDefinition,
-		stepLabel,
-		type MarkStep
+		stepLabel
 	} from '$lib/video/guide';
 	import {
 		analyzeMarks,
@@ -130,17 +120,9 @@
 	let marks: Mark[] = $state([]);
 	let markHistory: Mark[][] = $state([]);
 	let markFuture: Mark[][] = $state([]);
-	// The workspace is built around one jump at a time (JumpWorkspace): marking it,
-	// its flight time once it lands, correcting its marks, or the session's results.
-	let workspaceMode = $state<WorkspaceMode>('capture');
-	/** Where Results was opened from, to go back to. */
-	let modeBeforeResults: WorkspaceMode = 'capture';
-	/** The jump in the workspace; null while the next one has no marks yet. */
-	let activeJumpId: string | null = $state(null);
-	/** Review: the mark being corrected. It stays selected while the playhead moves away. */
-	let selectedMarkId: string | null = $state(null);
-	/** Review: the active jump's missing mark chosen to be added, instead of a mark. */
-	let emptySlot: MarkStep | null = $state(null);
+	// The session's results take the whole page; the video is hidden behind them.
+	let resultsOpen = $state(false);
+	let workspace: ReturnType<typeof JumpWorkspace> | undefined = $state();
 	let keybindsOpen = $state(false);
 	let sessionsOpen = $state(false);
 	let backup: BackupStatus | null = $state(null);
@@ -204,23 +186,11 @@
 	let analysis = $derived(analyzeMarks(marks, timing, timeScale, jumpType));
 	let activeMark = $derived(markAtFrame(marks, currentTime, timing));
 	let units = $derived(jumpUnits(marks, analysis));
-
-	// Marks change under the workspace (an undo, a removed mark, a restored draft), so
-	// what it points at is kept on things that still exist.
-	$effect(() => {
-		const settled = settleWorkspace(
-			{ mode: workspaceMode, activeId: activeJumpId, selectedId: selectedMarkId, emptySlot },
-			units,
-			marks
-		);
-		workspaceMode = settled.mode;
-		activeJumpId = settled.activeId;
-		selectedMarkId = settled.selectedId;
-		emptySlot = settled.emptySlot;
-	});
+	// The side panel shows the jump at the playhead, or the last one it passed.
+	let activeJump = $derived(unitAt(units, frameAt(currentTime, timing), timing));
 
 	$effect(() => {
-		if (workspaceMode === 'results' && isPlaying) videoElement?.pause();
+		if (resultsOpen && isPlaying) videoElement?.pause();
 	});
 
 	// The Mark button names the step that belongs at the frame on screen (guide.ts), and
@@ -275,19 +245,6 @@
 		hintHidden = hidden;
 		setHintHidden(hidden);
 	}
-
-	// The hint line also says what each of a jump's other states is for, until it retires.
-	let stateHint = $derived(
-		workspaceMode === 'complete'
-			? 'Check a mark with Review, or go on to your next jump.'
-			: workspaceMode !== 'review'
-				? undefined
-				: emptySlot
-					? `${stepDefinition(emptySlot, jumpType)} Step there, then mark it.`
-					: selectedMarkId && !unitOf(units, selectedMarkId)
-						? "This mark isn't part of a jump. Move it to the frame it belongs on, or remove it."
-						: 'Step to the frame it belongs on, then Set here. −1 and +1 move it a frame.'
-	);
 
 	let saveShortcut = $state('⌘S');
 	// Phones fold Open video, Sessions and Shortcuts into one menu.
@@ -360,10 +317,7 @@
 		frameRateSettled = false;
 
 		marks = [];
-		workspaceMode = 'capture';
-		activeJumpId = null;
-		selectedMarkId = null;
-		emptySlot = null;
+		resultsOpen = false;
 		markHistory = [];
 		markFuture = [];
 		zoomLevel = 1;
@@ -425,12 +379,6 @@
 		sessionRecordedAt = session.recordedAt;
 		timeScale = session.timeScale;
 		marks = sortMarks(session.marks);
-		// Opens on the last jump: its flight time if it landed, else ready for its next mark.
-		const last = jumpUnits(marks, analyzeMarks(marks, timing, timeScale, jumpType)).at(-1);
-		activeJumpId = last?.id ?? null;
-		workspaceMode = last?.flight ? 'complete' : 'capture';
-		selectedMarkId = null;
-		emptySlot = null;
 		markHistory = [];
 		markFuture = [];
 	}
@@ -719,21 +667,6 @@
 		if (!hintHidden && flightCount(next) > flightCount(marks) && noteMeasuredJump()) {
 			hintHidden = true;
 		}
-		// A new mark brings its jump into the workspace: a landing shows the flight time,
-		// and while correcting, the new mark is the one selected.
-		const added = next.find((mark) => !marks.some((old) => old.id === mark.id));
-		const unit = added
-			? unitOf(jumpUnits(next, analyzeMarks(next, timing, timeScale, jumpType)), added.id)
-			: undefined;
-		if (added && unit) {
-			activeJumpId = unit.id;
-			if (workspaceMode === 'review') {
-				selectedMarkId = added.id;
-				emptySlot = null;
-			} else if (workspaceMode !== 'results') {
-				workspaceMode = unit.flight ? 'complete' : 'capture';
-			}
-		}
 		markHistory = [...markHistory, marks];
 		markFuture = [];
 		marks = next;
@@ -768,139 +701,38 @@
 		}
 		// Brings the playhead onto that frame, so the panel and the button agree on it.
 		seekToFrame(frame);
-		// The key toggles: pressing it on a marked frame takes the mark off again.
-		if (action.kind === 'on-frame') {
-			if (fromKey) commitMarks(removeMark(marks, action.mark.id));
-			else selectReviewMark(action.mark);
-		} else markButtons?.openChoice(fromKey);
+		if (action.kind === 'on-frame') await editActiveMark();
+		else markButtons?.openChoice(fromKey);
 	}
 
-	/** Review: selects a mark to correct, and brings its jump into the workspace. */
-	function selectReviewMark(mark: Mark) {
-		selectedMarkId = mark.id;
-		emptySlot = null;
-		// Repeat hops share a touchdown: it stays with the hop it was chosen from.
-		const current = units.find((unit) => unit.id === activeJumpId);
-		if (!current || !unitStep(current, mark.id)) {
-			activeJumpId = unitOf(units, mark.id)?.id ?? null;
-		}
-		workspaceMode = 'review';
-	}
-
-	function reviewMark(mark: Mark) {
-		selectReviewMark(mark);
-		seekToMark(mark.time);
+	/** Pressing Mark on a marked frame moves focus to that mark's controls in the panel. */
+	async function editActiveMark() {
+		await tick();
+		workspace?.focusMarkControls();
 	}
 
 	/**
-	 * Opens a jump to be corrected, on its takeoff. With `fill`, a measured jump that has
-	 * no plant step opens on that gap instead, a little before the takeoff.
+	 * Results: back to the video on a jump. A measured jump with no plant step opens a
+	 * little before its takeoff, where the Mark button names the plant step.
 	 */
-	function reviewUnit(unit: JumpUnit, fill = false) {
-		if (fill && unit.takeoff && unit.flight && !unit.plant) {
-			activeJumpId = unit.id;
-			selectedMarkId = null;
-			emptySlot = 'plant';
-			workspaceMode = 'review';
+	function openUnit(unit: JumpUnit) {
+		showResults(false);
+		if (unit.takeoff && unit.flight && !unit.plant) {
 			seekToMark(Math.max(0, unit.takeoff.time - 0.2));
 			return;
 		}
 		const mark = unit.takeoff ?? unit.plant;
-		if (mark) reviewMark(mark);
+		if (mark) seekToMark(mark.time);
 	}
 
-	function reviewActiveJump() {
-		const unit = units.find((candidate) => candidate.id === activeJumpId);
-		if (unit) reviewUnit(unit);
+	function openMark(mark: Mark) {
+		showResults(false);
+		seekToMark(mark.time);
 	}
 
-	/** Review: chooses one of the active jump's missing marks, to add it. */
-	function selectEmptySlot(step: MarkStep) {
-		selectedMarkId = null;
-		emptySlot = step;
-		workspaceMode = 'review';
-	}
-
-	function finishReview() {
-		selectedMarkId = null;
-		emptySlot = null;
-		workspaceMode = units.find((unit) => unit.id === activeJumpId)?.flight ? 'complete' : 'capture';
-	}
-
-	/** Goes on marking: the jump still waiting for a mark, or a new one after the last. */
-	function nextJump() {
-		const last = units.at(-1);
-		workspaceMode = 'capture';
-		activeJumpId = last && !last.flight ? last.id : null;
-		selectedMarkId = null;
-		emptySlot = null;
-		// Moves off the last mark, so the Mark button names the next step rather than
-		// that mark. A playhead already past it stays where the athlete left it.
-		const lastMark = marks.at(-1);
-		if (!lastMark || !videoElement) return;
-		const lastFrame = frameOf(lastMark.time, timing);
-		if (displayedFrame(videoElement, timing) <= lastFrame) seekToFrame(lastFrame + 1);
-	}
-
-	/** Review: moves the selected mark to the frame on screen. */
-	async function setSelectedHere() {
-		const id = selectedMarkId;
-		const frame = await frameToMark();
-		const mark = marks.find((mark) => mark.id === id);
-		if (!mark || frame === null) return;
-		if (frameOf(mark.time, timing) === frame) {
-			showNotice('Step to the frame it belongs on first, then Set here.');
-		} else if (!handleMoveMark(mark, frame)) {
-			showNotice('That frame already has a mark. Step to an empty frame.');
-		}
-	}
-
-	/**
-	 * Review: the marks as they'd be with the active jump's missing mark added on `frame`,
-	 * or null when a mark there wouldn't be that jump's (it would start or end another).
-	 */
-	function fillEmptySlot(frame: number): Mark[] | null {
-		const unit = units.find((candidate) => candidate.id === activeJumpId);
-		if (!unit || !emptySlot || !frameRateKnown || mediaError) return null;
-		const action = markAction(marks, frame, timing, jumpType);
-		if (action.kind !== 'add' || action.step !== emptySlot) return null;
-		const next = placeMark(marks, action.type, frameStartTime(frame, timing), timing);
-		const added = next.find((mark) => !marks.some((old) => old.id === mark.id));
-		const after = jumpUnits(next, analyzeMarks(next, timing, timeScale, jumpType));
-		return added && fillsSlot(unit, emptySlot, after, added.id) ? next : null;
-	}
-	let canFillEmptySlot = $derived(fillEmptySlot(frameAt(currentTime, timing)) !== null);
-
-	/** Review: adds the active jump's missing mark on the frame on screen, if it can go there. */
-	async function markEmptySlot() {
-		const step = emptySlot;
-		const frame = await frameToMark();
-		if (!step || frame === null) return;
-		const next = fillEmptySlot(frame);
-		if (next) {
-			commitMarks(next);
-			return;
-		}
-		const plant = stepLabel('plant', jumpType).toLowerCase();
-		showNotice(
-			step === 'plant'
-				? `The ${plant} goes before this jump's takeoff, after the landing before it. Step back to it first.`
-				: step === 'takeoff'
-					? `The takeoff goes after this jump's ${plant}. Step forward to it first.`
-					: "The landing goes after this jump's takeoff, before the next mark. Step to it first."
-		);
-	}
-
-	function showResults(show = workspaceMode !== 'results') {
-		if (show === (workspaceMode === 'results')) return;
-		if (show) {
-			modeBeforeResults = workspaceMode;
-			videoElement?.pause();
-			workspaceMode = 'results';
-		} else {
-			// The effect above settles this if the marks changed meanwhile.
-			workspaceMode = modeBeforeResults;
-		}
+	function showResults(show = !resultsOpen) {
+		if (show) videoElement?.pause();
+		resultsOpen = show;
 	}
 
 	function nudgeMark(id: string, frames: number) {
@@ -995,7 +827,7 @@
 		}
 		const key = event.key.toLowerCase();
 		// Results has no video on screen: its keys go back to it, and nothing marks unseen.
-		if (workspaceMode === 'results') {
+		if (resultsOpen) {
 			const plain = !event.metaKey && !event.ctrlKey;
 			if (plain && (key === 'a' || key === 'escape') && !keybindsOpen && !sessionsOpen) {
 				event.preventDefault();
@@ -1432,16 +1264,15 @@
 			</div>
 		{:else}
 			<JumpWorkspace
+				bind:this={workspace}
 				{units}
 				{marks}
 				{timing}
 				{variableFrameRate}
-				mode={workspaceMode}
-				activeId={activeJumpId}
-				selectedId={selectedMarkId}
-				{emptySlot}
-				frame={frameAt(currentTime, timing)}
-				canPlace={canFillEmptySlot}
+				results={resultsOpen}
+				active={activeJump}
+				onFrame={activeMark ?? null}
+				{markName}
 				bind:jumpType
 				bind:timeScale
 				bind:title={sessionTitle}
@@ -1450,16 +1281,11 @@
 				bind:recordedAt={sessionRecordedAt}
 				canUndo={markHistory.length > 0}
 				canRedo={markFuture.length > 0}
-				onSelectUnit={reviewUnit}
-				onSelectMark={reviewMark}
-				onSelectSlot={selectEmptySlot}
-				onReview={reviewActiveJump}
-				onDone={finishReview}
+				onSeek={(mark) => seekToMark(mark.time)}
+				onOpenUnit={openUnit}
+				onOpenMark={openMark}
 				onResults={showResults}
-				onNext={nextJump}
 				onNudge={nudgeMark}
-				onSetHere={setSelectedHere}
-				onPlace={markEmptySlot}
 				onUndo={undoMarks}
 				onRedo={redoMarks}
 				onRemove={deleteMark}
@@ -1535,7 +1361,6 @@
 							action={nextAction}
 							frameRate={markingStatus}
 							{jumpType}
-							text={stateHint}
 							hidden={hintHidden}
 							onHide={() => setHint(true)}
 						/>
@@ -1550,7 +1375,7 @@
 						{videoElement}
 						{marks}
 						intervals={analysis.intervals}
-						activeMarkId={selectedMarkId ?? activeMark?.id ?? null}
+						activeMarkId={activeMark?.id ?? null}
 						{markName}
 						shapedPins
 						fineTouch={touchScreen.current}
@@ -1558,7 +1383,6 @@
 						{holdLabel}
 						onHold={handleHold}
 						onMoveMark={handleMoveMark}
-						onSelectMark={selectReviewMark}
 						bind:cue={scrubCue}
 					/>
 				{/snippet}
@@ -1600,7 +1424,7 @@
 						bind:volume
 						bind:isMuted
 						{playbackRate}
-						shortcuts={workspaceMode !== 'results'}
+						shortcuts={!resultsOpen}
 						onCyclePlaybackRate={cyclePlaybackRate}
 					/>
 				{/snippet}
