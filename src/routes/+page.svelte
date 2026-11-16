@@ -1120,7 +1120,7 @@
 			<div class="empty">
 				<div class="empty-card at-reveal">
 					<div class="empty-head">
-						<h1 class="empty-title">Measure jump height from video</h1>
+						<h1 class="empty-title">Time your jumps from video</h1>
 						<p class="empty-lede">
 							Open a clip of your approach jump and mark three frames. Airtime does the math.
 						</p>
@@ -1224,7 +1224,7 @@
 					</ol>
 					<p class="empty-result">
 						Step to each moment and press Mark: it always names the step that comes next. You get
-						flight time, contact time, jump height and RSI.
+						flight time, contact time and RSI.
 					</p>
 				</div>
 				<div class="empty-footer at-reveal" style="--delay: 60ms">

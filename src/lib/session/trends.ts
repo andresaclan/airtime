@@ -17,7 +17,7 @@ export type TrendPoint = {
 	/** The recorded date, in epoch milliseconds. */
 	time: number;
 	/** The jump with the longest flight, as on the jump cards. */
-	best: TrendJump & { heightCm: number };
+	best: TrendJump;
 	/** Every completed jump, the best one included. */
 	jumps: TrendJump[];
 };
@@ -38,10 +38,8 @@ function trendJump(flight: Interval, contact: Interval | undefined): TrendJump {
 	};
 }
 
-/** Null when the session has no completed jump or its recorded date can't be read. */
-export function trendPoint(session: Session): TrendPoint | null {
-	const time = Date.parse(session.recordedAt);
-	if (Number.isNaN(time)) return null;
+/** A session's completed jumps, in order, each with the contact before it. */
+function completedJumps(session: Session): { flight: Interval; contact: Interval | undefined }[] {
 	const marks = sortMarks(session.marks);
 	const analysis = analyzeMarks(
 		marks,
@@ -49,9 +47,27 @@ export function trendPoint(session: Session): TrendPoint | null {
 		session.timeScale,
 		session.jumpType
 	);
-	const completed = groupJumps(marks, analysis).jumps.flatMap(({ flight, contact }) =>
+	return groupJumps(marks, analysis).jumps.flatMap(({ flight, contact }) =>
 		flight ? [{ flight, contact }] : []
 	);
+}
+
+/** How many completed jumps a session has, and its longest flight; null flight when none. */
+export function sessionSummary(session: Session): { jumps: number; bestFlightMs: number | null } {
+	const jumps = completedJumps(session);
+	return {
+		jumps: jumps.length,
+		bestFlightMs: jumps.length
+			? Math.max(...jumps.map(({ flight }) => flight.realSeconds * 1000))
+			: null
+	};
+}
+
+/** Null when the session has no completed jump or its recorded date can't be read. */
+export function trendPoint(session: Session): TrendPoint | null {
+	const time = Date.parse(session.recordedAt);
+	if (Number.isNaN(time)) return null;
+	const completed = completedJumps(session);
 	if (completed.length === 0) return null;
 	const best = completed.reduce((leader, jump) =>
 		jump.flight.realSeconds > leader.flight.realSeconds ? jump : leader
@@ -59,7 +75,7 @@ export function trendPoint(session: Session): TrendPoint | null {
 	return {
 		session,
 		time,
-		best: { ...trendJump(best.flight, best.contact), heightCm: best.flight.heightCm ?? 0 },
+		best: trendJump(best.flight, best.contact),
 		jumps: completed.map(({ flight, contact }) => trendJump(flight, contact))
 	};
 }

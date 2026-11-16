@@ -361,7 +361,6 @@
 								<b>{selected.best.contactMs === null ? '—' : ms(selected.best.contactMs)}</b> ms</span
 							>
 						{/if}
-						<span><b>{selected.best.heightCm.toFixed(1)}</b> cm</span>
 						{#if selected.jumps.length > 1}
 							<span class="trends-detail-count">best of {selected.jumps.length} jumps</span>
 						{/if}
@@ -379,7 +378,6 @@
 							<th scope="col">Session</th>
 							<th scope="col">Flight (ms)</th>
 							{#if showContact}<th scope="col">Contact (ms)</th>{/if}
-							<th scope="col">Height (cm)</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -391,7 +389,6 @@
 								{#if showContact}<td
 										>{point.best.contactMs === null ? '—' : ms(point.best.contactMs)}</td
 									>{/if}
-								<td>{point.best.heightCm.toFixed(1)}</td>
 							</tr>
 						{/each}
 					</tbody>
