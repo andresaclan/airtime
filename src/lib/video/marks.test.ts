@@ -24,8 +24,41 @@ const ids = (marks: Mark[]) => marks.map((mark) => mark.id);
 const HEIGHT_CM_AT_HALF_SECOND = 30.65625;
 
 describe('analyzeMarks', () => {
+	test('the takeoff frame is ground time: one frame onto the contact, one off the flight', () => {
+		// Plant on frame 90, a toe still down on frame 105, first touchdown again on frame 135.
+		const marks = marksAt(60, ['L0', 90], ['T1', 105], ['L1', 135]);
+		const [contact, flight] = analyzeMarks(marks, 60).intervals;
+		expect(contact).toMatchObject({ kind: 'contact', frames: 16 });
+		expect(contact.seconds).toBeCloseTo(16 / 60, 12);
+		expect(flight).toMatchObject({ kind: 'flight', frames: 29 });
+		expect(flight.seconds).toBeCloseTo(29 / 60, 12);
+		// Contact and flight still cover plant → landing exactly.
+		expect(contact.seconds + flight.seconds).toBeCloseTo(45 / 60, 12);
+	});
+
+	test('a landing on the frame after the takeoff is no flight at all', () => {
+		const [flight] = analyzeMarks(marksAt(60, ['T1', 30], ['L1', 31]), 60).intervals;
+		expect(flight).toMatchObject({ frames: 0, seconds: 0, heightCm: 0 });
+	});
+
+	test("with a frame-time table, the frame moved is the takeoff frame's own length", () => {
+		// Variable frame rate: frame 2 lasts 0.05 s while the others last 1/60 s.
+		const frameTimes = [0, 1 / 60, 2 / 60, 2 / 60 + 0.05, 3 / 60 + 0.05, 4 / 60 + 0.05];
+		const timing = { fps: 60, frameTimes };
+		const marks: Mark[] = [
+			{ id: 'L0', type: 'landing', time: frameTimes[0] },
+			{ id: 'T1', type: 'takeoff', time: frameTimes[2] },
+			{ id: 'L1', type: 'landing', time: frameTimes[5] }
+		];
+		const [contact, flight] = analyzeMarks(marks, timing).intervals;
+		expect(contact.seconds).toBeCloseTo(frameTimes[3], 12);
+		expect(contact.frames).toBe(3);
+		expect(flight.seconds).toBeCloseTo(frameTimes[5] - frameTimes[3], 12);
+		expect(flight.frames).toBe(2);
+	});
+
 	test('a takeoff then a landing is a flight, with height from h = g·t²/8', () => {
-		const { intervals, outOfSequence } = analyzeMarks(marksAt(60, ['T1', 60], ['L1', 90]), 60);
+		const { intervals, outOfSequence } = analyzeMarks(marksAt(60, ['T1', 60], ['L1', 91]), 60);
 		expect(outOfSequence.size).toBe(0);
 		expect(intervals).toHaveLength(1);
 		const [flight] = intervals;
@@ -38,7 +71,7 @@ describe('analyzeMarks', () => {
 	});
 
 	test('a landing then a takeoff is a contact, with no height', () => {
-		const { intervals } = analyzeMarks(marksAt(60, ['L0', 90], ['T1', 105]), 60);
+		const { intervals } = analyzeMarks(marksAt(60, ['L0', 90], ['T1', 104]), 60);
 		expect(intervals).toHaveLength(1);
 		expect(intervals[0]).toMatchObject({ kind: 'contact', frames: 15, heightCm: undefined });
 		expect(intervals[0].seconds).toBeCloseTo(0.25, 12);
@@ -51,14 +84,14 @@ describe('analyzeMarks', () => {
 			[36, 44.145] // 0.6 s: 9.81 × 0.36 / 8
 		];
 		for (const [frames, heightCm] of cases) {
-			const [flight] = analyzeMarks(marksAt(60, ['T1', 0], ['L1', frames]), 60).intervals;
+			const [flight] = analyzeMarks(marksAt(60, ['T1', 0], ['L1', frames + 1]), 60).intervals;
 			expect(flight.heightCm).toBeCloseTo(heightCm, 10);
 		}
 	});
 
 	test('frame counts follow the frame rate', () => {
 		for (const fps of [23.976, 24, 25, 29.97, 30, 59.94, 60, 120, 240]) {
-			const [flight] = analyzeMarks(marksAt(fps, ['T1', 100], ['L1', 160]), fps).intervals;
+			const [flight] = analyzeMarks(marksAt(fps, ['T1', 100], ['L1', 161]), fps).intervals;
 			expect(flight.frames).toBe(60);
 			expect(flight.seconds).toBeCloseTo(60 / fps, 12);
 		}
@@ -74,7 +107,7 @@ describe('analyzeMarks', () => {
 			const marks = marksAt(
 				fps,
 				['L0', 0],
-				['T1', contactFrames],
+				['T1', contactFrames - 1],
 				['L1', contactFrames + flightFrames]
 			);
 			const [contact, flight] = analyzeMarks(marks, fps, timeScale).intervals;
@@ -88,7 +121,7 @@ describe('analyzeMarks', () => {
 
 	test('the height uses real time, not media time', () => {
 		// 1 media second of 4× slow motion is 0.25 real seconds: 9.81 × 0.0625 / 8.
-		const [flight] = analyzeMarks(marksAt(240, ['T1', 0], ['L1', 240]), 240, 0.25).intervals;
+		const [flight] = analyzeMarks(marksAt(240, ['T1', 0], ['L1', 241]), 240, 0.25).intervals;
 		expect(flight.heightCm).toBeCloseTo(7.6640625, 10);
 	});
 });
@@ -129,7 +162,7 @@ describe('groupJumps', () => {
 	});
 
 	test('repeated takeoffs keep the earlier one unpaired, as out of sequence', () => {
-		const marks = marksAt(60, ['T1', 0], ['T2', 10], ['L1', 40]);
+		const marks = marksAt(60, ['T1', 0], ['T2', 10], ['L1', 41]);
 		const { jumps, unpairedMarks } = group(marks);
 		expect(jumps.map((jump) => jump.takeoff.id)).toEqual(['T2']);
 		expect(jumps[0].flight?.frames).toBe(30);
@@ -183,14 +216,14 @@ describe('groupJumps', () => {
 describe('rsi', () => {
 	test('is jump height in metres over the contact time before it', () => {
 		// 0.2 s contact, 0.5 s flight: 0.3065625 m / 0.2 s.
-		const marks = marksAt(60, ['L0', 0], ['T1', 12], ['L1', 42]);
+		const marks = marksAt(60, ['L0', 0], ['T1', 11], ['L1', 42]);
 		const [jump] = groupJumps(marks, analyzeMarks(marks, 60)).jumps;
 		expect(rsi(jump)).toBeCloseTo(1.5328125, 10);
 	});
 
 	test('uses real contact and flight time for slow motion', () => {
 		// 4× slow motion: 0.8 media s of contact and 2 media s of flight are 0.2 s and 0.5 s.
-		const marks = marksAt(240, ['L0', 0], ['T1', 192], ['L1', 672]);
+		const marks = marksAt(240, ['L0', 0], ['T1', 191], ['L1', 672]);
 		const [jump] = groupJumps(marks, analyzeMarks(marks, 240, 0.25)).jumps;
 		expect(rsi(jump)).toBeCloseTo(1.5328125, 10);
 	});
@@ -209,7 +242,7 @@ describe('contact belongs to its jump', () => {
 	test.each(['approach', 'drop-jump', null] as const)(
 		'%s never borrows the previous landing',
 		(type) => {
-			const marks = marksAt(60, ['L0', 0], ['T1', 12], ['L1', 42], ['T2', 100], ['L2', 130]);
+			const marks = marksAt(60, ['L0', 0], ['T1', 12], ['L1', 42], ['T2', 100], ['L2', 131]);
 			const { jumps } = groupJumps(marks, analyzeMarks(marks, 60, 1, type));
 			expect(jumps[0].contact?.from.id).toBe('L0');
 			expect(jumps[1].contact).toBeUndefined();
@@ -219,7 +252,7 @@ describe('contact belongs to its jump', () => {
 	);
 
 	test('a separate plant after a landing starts the next approach jump', () => {
-		const marks = marksAt(60, ['T1', 12], ['L1', 42], ['Lplant', 90], ['T2', 100], ['L2', 130]);
+		const marks = marksAt(60, ['T1', 12], ['L1', 42], ['Lplant', 90], ['T2', 99], ['L2', 130]);
 		const analysis = analyzeMarks(marks, 60);
 		const { jumps } = groupJumps(marks, analysis);
 		expect(jumps[1].contact?.from.id).toBe('Lplant');

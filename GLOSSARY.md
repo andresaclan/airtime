@@ -20,7 +20,7 @@ When the video was filmed. It starts as the file's date and the athlete can corr
 A frame the athlete flags as a takeoff or a landing.
 
 **Takeoff**:
-A mark on the first frame where the feet have left the ground.
+A mark on the last frame where a toe still touches the ground. That frame counts as contact: the feet leave at its end, and the next frame is the first in the air.
 
 **Landing**:
 A mark on the first frame where the feet touch the ground again.
@@ -48,11 +48,11 @@ The landing that starts a jump's contact: an approach jump's last step, a drop j
 A jump whose takeoff has no landing after it yet.
 
 **Flight**:
-The time from a takeoff to the next landing.
+The time from the end of a takeoff frame to the next landing. One frame shorter than the gap between the two marks, because the takeoff frame is still on the ground.
 _Avoid_: Air time, hang time
 
 **Contact**:
-The time from a jump's plant step to its takeoff, while the feet are on the ground. A jump without its own plant step has no contact. It only means something for approach jumps, drop jumps and repeat hops.
+The time from a jump's plant step to the end of its takeoff frame, while the feet are on the ground. One frame longer than the gap between the two marks, because it includes the takeoff frame. A jump without its own plant step has no contact. It only means something for approach jumps, drop jumps and repeat hops.
 _Avoid_: Ground time
 
 **Jump height**:

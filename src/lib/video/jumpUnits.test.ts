@@ -25,7 +25,8 @@ test('a flight without its own plant stays visible with missing contact', () => 
 	const [unit] = jumpUnits(subset, analyzeMarks(subset, 60));
 	expect(unit.plant).toBeUndefined();
 	expect(unit.contact).toBeUndefined();
-	expect(unit.flight?.realSeconds).toBeCloseTo(0.5);
+	// 0.5 s between the marks, less the takeoff frame, which is still on the ground.
+	expect(unit.flight?.realSeconds).toBeCloseTo(0.5 - 1 / 60);
 });
 
 test('best is chosen by flight and ignores an unfinished capture', () => {
@@ -67,7 +68,8 @@ test('average flight covers only measured jumps', () => {
 		{ id: 'landing-2', type: 'landing', time: 2.3 },
 		{ id: 'takeoff-3', type: 'takeoff', time: 3 }
 	];
-	expect(averageFlight(units(two))).toBeCloseTo(0.4);
+	// Flights of 0.5 s and 0.3 s between the marks, each less its takeoff frame.
+	expect(averageFlight(units(two))).toBeCloseTo(0.4 - 1 / 60);
 	expect(averageFlight(units(marks.slice(0, 2)))).toBeUndefined();
 });
 

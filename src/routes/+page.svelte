@@ -1189,7 +1189,7 @@
 			{/snippet}
 			{#snippet markingGuide()}
 				<!-- An approach jump, as the three marks see it: the plant step and landing
-			     are both touchdowns; the takeoff is when the feet leave. -->
+			     are both touchdowns; the takeoff is the last frame a toe touches. -->
 				<svg
 					class="empty-diagram"
 					viewBox="0 14 520 100"
@@ -1230,7 +1230,7 @@
 					<li>
 						<span class="empty-step-num">2</span>
 						<strong>Takeoff</strong>
-						<span class="empty-step-text">First frame both feet are off the ground.</span>
+						<span class="empty-step-text">Last frame a toe still touches the ground.</span>
 						<span class="empty-mark takeoff"><MarkGlyph type="takeoff" /></span>
 					</li>
 					<li>

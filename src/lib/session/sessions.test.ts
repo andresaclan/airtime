@@ -23,6 +23,36 @@ import exportV3 from './fixtures/export-v3.json';
 const v1Text = JSON.stringify(exportV1);
 const v3Text = JSON.stringify(exportV3);
 
+/**
+ * The old exports counted the takeoff frame as flight. It's contact now, since a toe is
+ * still down, so every flight is one frame shorter and every contact one frame longer.
+ * Moving each takeoff mark one frame earlier undoes exactly that, so it gives back the
+ * numbers an old export recorded.
+ */
+function takeoffsOneFrameEarlier(sessions: Session[]): Session[] {
+	return sessions.map((session) => ({
+		...session,
+		marks: session.marks.map((mark) =>
+			mark.type === 'takeoff' ? { ...mark, time: mark.time - 1 / session.frameRate.value } : mark
+		)
+	}));
+}
+
+/**
+ * An old export's row with its takeoff time moved one frame earlier, to match. The result
+ * is unrounded, so compare it to within the export's 4 decimals.
+ */
+function withEarlierTakeoff<
+	T extends { frameRate: number; kind?: string; startSeconds?: number; takeoffSeconds?: number }
+>(row: T): T {
+	const frame = 1 / row.frameRate;
+	if (row.kind === 'flight' && row.startSeconds !== undefined)
+		return { ...row, startSeconds: row.startSeconds - frame };
+	if (row.takeoffSeconds !== undefined)
+		return { ...row, takeoffSeconds: row.takeoffSeconds - frame };
+	return row;
+}
+
 describe('importing old exports', () => {
 	test('a v1 export imports into the current schema', () => {
 		const sessions = parseImport(v1Text);
@@ -41,8 +71,15 @@ describe('importing old exports', () => {
 		expect(drop.frameRate).toEqual({ value: 240, source: 'playback-estimate' });
 	});
 
-	test('legacy flight timings and marks survive while borrowed contact is removed', () => {
+	test('legacy marks export unchanged', () => {
 		const recomputed = buildExport(parseImport(v1Text));
+		expect(recomputed.sessions.map((session) => session.marks)).toEqual(
+			exportV1.sessions.map((session) => session.marks)
+		);
+	});
+
+	test('legacy flight timings survive, one takeoff frame apart, while borrowed contact is removed', () => {
+		const recomputed = buildExport(takeoffsOneFrameEarlier(parseImport(v1Text)));
 		// Unknown legacy types no longer borrow the landing of a previous flight.
 		// The old export's second contact in cmj-set1.mov spanned two separate jumps.
 		expect(recomputed.tables.intervals.map((row) => ({ ...row, jumpType: undefined }))).toEqual(
@@ -50,7 +87,14 @@ describe('importing old exports', () => {
 				.filter(
 					(row) => !(row.fileName === 'cmj-set1.mov' && row.kind === 'contact' && row.index === 2)
 				)
-				.map((row) => ({ ...row, jumpType: undefined }))
+				.map((row) => {
+					const moved = withEarlierTakeoff(row);
+					return {
+						...moved,
+						startSeconds: expect.closeTo(moved.startSeconds, 4),
+						jumpType: undefined
+					};
+				})
 		);
 		// Renamed in v2; contact aggregates now exclude the borrowed contact.
 		const { lowTrustSessionIds, ...overview } = exportV1.overview;
@@ -80,10 +124,17 @@ describe('importing old exports', () => {
 		}
 	});
 
-	test('timings recomputed from a real v3 export match what it recorded', () => {
+	test('marks from a real v3 export export unchanged', () => {
+		const recomputed = buildExport(parseImport(v3Text));
+		expect(recomputed.sessions.map((session) => session.marks)).toEqual(
+			exportV3.sessions.map((session) => session.marks)
+		);
+	});
+
+	test('timings recomputed from a real v3 export match what it recorded, one takeoff frame apart', () => {
 		const sessions = parseImport(v3Text);
 		for (const session of sessions) expect(session.schemaVersion).toBe(SCHEMA_VERSION);
-		const recomputed = buildExport(sessions);
+		const recomputed = buildExport(takeoffsOneFrameEarlier(sessions));
 		// Marks are exported to the microsecond, so a duration on an exact tie can round the
 		// other way: 51 frames at 59.94 fps is 0.85085 s, recorded 0.8508 and recomputed 0.8509.
 		// The retired countermovement type comes back unset.
@@ -98,31 +149,37 @@ describe('importing old exports', () => {
 						: typeof value === 'number' && durationKeys.test(key)
 							? expect.closeTo(value, 3)
 							: value;
-		expect(recomputed.tables).toEqual(nearDurations(exportV3.tables));
+		// Each session's derived numbers are the ones its table rows repeat.
+		expect(recomputed.tables).toEqual({
+			intervals: nearDurations(exportV3.tables.intervals.map(withEarlierTakeoff)),
+			jumps: nearDurations(exportV3.tables.jumps.map(withEarlierTakeoff)),
+			sessions: nearDurations(exportV3.tables.sessions)
+		});
 		expect(recomputed.overview).toEqual(nearDurations(exportV3.overview));
-		expect(recomputed.sessions.map((session) => session.derived)).toEqual(
-			nearDurations(exportV3.sessions.map((session) => session.derived))
-		);
 	});
 
 	test('the checked marks give the flights, heights and RSI the athlete verified', () => {
 		const jumps = buildExport(parseImport(v3Text)).tables.jumps;
+		// The file names count frames from the takeoff mark to the landing mark (199, 52, 51).
+		// The takeoff frame still has a toe down, so it's contact: flights are one frame
+		// shorter than those counts, and contacts one frame longer than the marks' gap.
 		expect(
 			jumps.map((jump) => [jump.frameRate, jump.flightFrames, jump.contactFrames, jump.heightCm])
 		).toEqual([
-			[240, 199, 79, 84.1],
-			[60, 52, 19, 92.3],
-			[59.94, 51, 18, 88.8],
-			[59.94, 50, 18, 85.3],
-			[59.94, 51, 19, 88.8],
-			[59.94, 51, 18, 88.8],
-			[59.94, 51, 18, 88.8]
+			[240, 198, 80, 83.2],
+			[60, 51, 20, 88.8],
+			[59.94, 50, 19, 85.3],
+			[59.94, 49, 19, 81.9],
+			[59.94, 50, 20, 85.3],
+			[59.94, 50, 19, 85.3],
+			[59.94, 50, 19, 85.3]
 		]);
-		// Heights come from the frames' real timestamps, not frame counts: the 240 fps flight is
-		// 3.444583 − 2.616667 = 0.827916 s, so 9.81 × 0.827916² / 8 = 84.05 cm, where 199 / 240
-		// would give 84.3.
-		expect(jumps[0].flightRealSeconds).toBe(0.8279);
-		expect(jumps[0].rsi).toBe(2.56); // 0.8405 m / 0.3283 s of plant contact
+		// Durations come from the marks' stored times, which are the frames' real timestamps,
+		// not frame counts: the 240 fps flight runs from the end of the takeoff frame,
+		// 2.616667 + 1 / 240, to the landing at 3.444583: 0.82375 s, so 9.81 × 0.82375² / 8 =
+		// 83.21 cm, where 198 / 240 would give 83.5.
+		expect(jumps[0].flightRealSeconds).toBe(0.8237);
+		expect(jumps[0].rsi).toBe(2.5); // 0.8321 m / 0.3325 s of plant contact
 	});
 
 	test('sessions without their own version use the file version', () => {

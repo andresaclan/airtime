@@ -51,7 +51,8 @@ describe('trendPoint', () => {
 	test('the best jump is the longest flight, with the contact before it', () => {
 		const point = trendPoint(
 			session('a', {
-				// Contact 300 ms then flight 800 ms; contact 250 ms then flight 850 ms; a takeoff with no landing yet.
+				// 30 then 80 frames between the marks, then 25 then 85, then a takeoff with no landing
+				// yet. The takeoff frame (10 ms) is contact, not flight.
 				marks: marksAt(
 					100,
 					['L0', 100],
@@ -64,8 +65,8 @@ describe('trendPoint', () => {
 				)
 			})
 		);
-		expect(point?.best.flightMs).toBeCloseTo(850);
-		expect(point?.best.contactMs).toBeCloseTo(250);
+		expect(point?.best.flightMs).toBeCloseTo(840);
+		expect(point?.best.contactMs).toBeCloseTo(260);
 		// The incomplete jump isn't charted.
 		expect(point?.jumps).toHaveLength(2);
 		expect(point?.time).toBe(Date.parse('2026-10-01T09:00:00.000Z'));
@@ -80,9 +81,9 @@ describe('trendPoint', () => {
 					marks: marksAt(100, ['L0', 0], ['T1', 20], ['L1', 70], ['T2', 200], ['L2', 280])
 				})
 			);
-			expect(point?.best.flightMs).toBeCloseTo(800);
+			expect(point?.best.flightMs).toBeCloseTo(790);
 			expect(point?.best.contactMs).toBeNull();
-			expect(point?.jumps[0].contactMs).toBeCloseTo(200);
+			expect(point?.jumps[0].contactMs).toBeCloseTo(210);
 		}
 	);
 
@@ -90,13 +91,14 @@ describe('trendPoint', () => {
 		const point = trendPoint(
 			session('slow', { timeScale: 0.25, marks: marksAt(100, ['T1', 100], ['L1', 420]) })
 		);
-		expect(point?.best.flightMs).toBeCloseTo(800);
+		// 3.2 media seconds less one 10 ms frame, slowed 4×: 3.19 × 0.25 s.
+		expect(point?.best.flightMs).toBeCloseTo(797.5);
 		expect(point?.best.contactMs).toBeNull();
 	});
 
 	test('marks stored out of order are sorted first', () => {
 		const point = trendPoint(session('a', { marks: marksAt(100, ['L1', 180], ['T1', 100]) }));
-		expect(point?.best.flightMs).toBeCloseTo(800);
+		expect(point?.best.flightMs).toBeCloseTo(790);
 	});
 
 	test('a session without a completed jump, or with an unreadable date, has no point', () => {

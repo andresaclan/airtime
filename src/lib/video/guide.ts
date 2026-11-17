@@ -101,7 +101,7 @@ export function stepLabel(step: MarkStep, jumpType: JumpType | null): string {
 
 /** Which frame a step is, as the hint says it. */
 export function stepDefinition(step: MarkStep, jumpType: JumpType | null): string {
-	if (step === 'takeoff') return 'First frame both feet are off the ground.';
+	if (step === 'takeoff') return 'Last frame a toe still touches the ground.';
 	if (step === 'landing') return 'First frame your feet touch back down.';
 	if (jumpType === 'drop-jump') return 'First frame your feet touch the ground after the box.';
 	if (jumpType === 'repeat-hops') return 'First frame your feet touch down before the first hop.';
