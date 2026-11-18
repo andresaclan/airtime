@@ -340,11 +340,7 @@
 			{#if view === 'list'}
 				<div class="dialog-footer">
 					<button class="secondary-btn" onclick={() => importInput?.click()}>Import backup…</button>
-					{#if sessions.length}<button
-							class="primary-btn"
-							onclick={handleExportAll}
-							disabled={sessions.length === 0}
-						>
+					{#if sessions.length}<button class="primary-btn" onclick={handleExportAll}>
 							Export all
 						</button>{/if}
 				</div>

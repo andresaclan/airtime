@@ -8,8 +8,8 @@
 	// on screen and marks it; a small one beside it marks the other type instead. The
 	// button is the guide, so its words are the only instructions while marking.
 	interface Props {
-		/** Null until the video can be marked. */
 		landingLabel: string;
+		/** Null until the video can be marked. */
 		action: MarkAction | null;
 		/** Marking waits for the frame rate; `failed` means it never will. */
 		frameRate: 'detecting' | 'known' | 'failed';

@@ -865,10 +865,6 @@
 					Reset
 				</button>
 			</div>
-		{:else}
-			<div class="zoom-pill">
-				<button onclick={() => setZoom(2)} title="Zoom in (double-click the video)">Zoom 2×</button>
-			</div>
 		{/if}
 	{:else}
 		<div class="at-text-muted flex h-full items-center justify-center">

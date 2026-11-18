@@ -275,7 +275,7 @@
 	<div class="jw-main viewer-frame">
 		<div class="jw-stage">{@render stage()}</div>
 		<div class="jw-dock">
-			{@render hint()}
+			{#if layout !== 'side'}{@render hint()}{/if}
 			{#if compact}
 				<nav class="jw-strip" aria-label="Jump {number}">
 					<div class="jw-strip-in">
@@ -383,6 +383,10 @@
 					</ol>
 				</section>
 			{/if}
+			{#if layout === 'side'}
+				<!-- Beside the controls, so the picture keeps the line the hint took under it. -->
+				<div class="jw-panel-hint">{@render hint()}</div>
+			{/if}
 		</aside>
 	{/if}
 
@@ -401,9 +405,21 @@
 			bind:recordedAt
 			onBack={(event) => act(event, () => onResults(false), '[data-focus="results"]')}
 			onOpenUnit={(event, unit) =>
-				act(event, () => onOpenUnit(unit), '[data-focus="mark"]', '.mark-primary')}
+				act(
+					event,
+					() => onOpenUnit(unit),
+					'.jw-stepper button:enabled',
+					'.jw-remove:enabled',
+					'.mark-primary'
+				)}
 			onOpenMark={(event, item) =>
-				act(event, () => onOpenMark(item), '[data-focus="mark"]', '.mark-primary')}
+				act(
+					event,
+					() => onOpenMark(item),
+					'.jw-stepper button:enabled',
+					'.jw-remove:enabled',
+					'.mark-primary'
+				)}
 		/>
 	{/if}
 </div>
@@ -590,9 +606,6 @@
 	}
 
 	@container jump-dock (max-width: 340px) {
-		.jw-sum-name {
-			display: inline;
-		}
 		.jw-strip-edit .jw-icon,
 		.jw-strip-edit .jw-stepper .jw-btn {
 			width: 40px;
@@ -1045,6 +1058,26 @@
 	.jw-jump-value.pending {
 		color: hsl(var(--at-fg-muted));
 		font-weight: 400;
+	}
+
+	/* The marking hint at the foot of the panel, level with the controls. It wraps here
+	   rather than cutting off. */
+	.jw-panel-hint {
+		margin-top: auto;
+	}
+
+	.jw-panel-hint :global(.marking-hint) {
+		align-items: flex-start;
+		height: auto;
+		min-height: 0;
+		padding: 14px 12px 16px 20px;
+		border-top: none;
+		background: none;
+	}
+
+	.jw-panel-hint :global(.hint-text) {
+		padding-top: 3px;
+		white-space: normal;
 	}
 
 	/* Under the video the card lies flat: flight time, the marks, then Results and the

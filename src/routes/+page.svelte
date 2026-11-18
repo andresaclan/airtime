@@ -336,7 +336,7 @@
 	function requestOriginal(session: Session, time: number | null = null) {
 		expectedSession = session;
 		requestedTime = time;
-		openFilePicker();
+		fileInputRef?.click();
 	}
 
 	$effect(() => {
@@ -359,18 +359,21 @@
 		const probe = document.createElement('video');
 		probe.muted = true;
 		probe.playsInline = true;
+		probe.hidden = true;
+		document.body.append(probe);
 		const playable = await new Promise<boolean>((resolve) => {
 			const timer = setTimeout(() => resolve(false), 20000);
 			const finish = (ok: boolean) => {
 				clearTimeout(timer);
 				resolve(ok);
 			};
-			probe.onloadeddata = () => finish(probe.videoWidth > 0);
+			probe.onloadedmetadata = () => finish(probe.videoWidth > 0 && probe.videoHeight > 0);
 			probe.onerror = () => finish(false);
-			probe.preload = 'auto';
+			probe.preload = 'metadata';
 			probe.src = url;
 		});
-		probe.onloadeddata = probe.onerror = null;
+		probe.onloadedmetadata = probe.onerror = null;
+		probe.remove();
 		probe.removeAttribute('src');
 		probe.load();
 		URL.revokeObjectURL(url);
@@ -385,11 +388,12 @@
 			return;
 		}
 		const expected = expectedSession;
+		let matchedFingerprint: string | null = null;
 		if (expected) {
 			try {
-				const fingerprint = await fingerprintFile(file);
+				matchedFingerprint = await fingerprintFile(file);
 				if (request !== requestId) return;
-				if (fingerprint !== expected.media.fingerprint) {
+				if (matchedFingerprint !== expected.media.fingerprint) {
 					fileProblem =
 						'Different video selected. Choose the original file: ' + expected.media.fileName;
 					return;
@@ -399,7 +403,7 @@
 				return;
 			}
 		}
-		if (videoSrc || reviewed) {
+		if (isDirty) {
 			const playable = await canOpenVideo(file);
 			if (request !== requestId) return;
 			if (!playable) {
@@ -453,7 +457,9 @@
 		sessionRecordedAt = new Date(file.lastModified).toISOString();
 		timeScale = 1;
 		savedSignature = signature;
-		fingerprintPromise = fingerprintFile(file);
+		fingerprintPromise = matchedFingerprint
+			? Promise.resolve(matchedFingerprint)
+			: fingerprintFile(file);
 		void restoreSession(loadId, fingerprintPromise);
 		expectedSession = null;
 
@@ -780,7 +786,6 @@
 		}
 		if (!(await home())) return;
 		reviewed = session;
-		expectedSession = session;
 		applySession(session);
 		frameRate = session.frameRate.value;
 		frameTimes = null;
@@ -1045,6 +1050,8 @@
 	}
 
 	function openFilePicker() {
+		expectedSession = null;
+		requestedTime = null;
 		if (!fileInputRef) return;
 		fileInputRef.click();
 	}
@@ -1232,6 +1239,21 @@
 					<button role="menuitem" onclick={() => menuAction(openFilePicker)}
 						>{videoSrc ? 'Change video' : 'Open video'}</button
 					>
+					{#if videoSrc && !resultsOpen && !mediaError && marks.length}
+						<select
+							aria-label="Go to mark"
+							onchange={(e) => {
+								const target = marks.find((mark) => mark.id === e.currentTarget.value);
+								if (target) menuAction(() => seekToMark(target.time));
+							}}
+						>
+							<option value="">Go to mark…</option>
+							{#each marks as mark (mark.id)}<option value={mark.id}
+									>{markName(mark)} · frame {frameLabel(frameOf(mark.time, timing), timing) +
+										1}</option
+								>{/each}
+						</select>
+					{/if}
 					<button role="menuitem" onclick={() => menuAction(() => (sessionsOpen = true))}
 						>Sessions{#if backup?.due}<span class="header-backup-dot"></span>{/if}</button
 					>
@@ -1277,12 +1299,14 @@
 	{/if}
 	{#if fileProblem}
 		<div class="file-problem" role="alert">
-			{fileProblem} <button class="link-btn" onclick={openFilePicker}>Choose video</button>
+			{fileProblem}
+			<button class="link-btn" onclick={() => fileInputRef?.click()}>Choose video</button>
 			<button
 				class="link-btn"
 				onclick={() => {
 					fileProblem = '';
-					if (!reviewed) expectedSession = null;
+					expectedSession = null;
+					requestedTime = null;
 				}}>Dismiss</button
 			>
 		</div>
@@ -1318,7 +1342,7 @@
 				{#if pendingDrafts.length}
 					<!-- Unsaved work a reload interrupted; reopening the video brings it back. -->
 					<ul class="empty-drafts" aria-label="Unsaved marks">
-						{#each pendingDrafts as draft (draft.fingerprint)}
+						{#each pendingDrafts.slice(0, 3) as draft (draft.fingerprint)}
 							<li class="empty-draft">
 								<span class="empty-draft-dot" aria-hidden="true"></span>
 								<span class="empty-draft-text">
@@ -1700,7 +1724,7 @@
 		accept="video/*"
 		onchange={handleFileSelect}
 		oncancel={() => {
-			expectedSession = reviewed;
+			expectedSession = null;
 			requestedTime = null;
 		}}
 		class="sr-only"

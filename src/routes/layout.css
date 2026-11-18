@@ -348,6 +348,7 @@ body {
 	animation: reveal 160ms var(--at-ease);
 }
 
+.header-menu select,
 .header-menu button {
 	display: flex;
 	align-items: center;
@@ -1463,6 +1464,10 @@ body {
 
 /* A phone on its side: the bar is a narrow rail beside the picture, so it keeps to
    what a thumb needs there. The time and mute step aside; a frame-rate warning stays. */
+.jump-workspace[data-layout='rail'] .marking-hint:not(.failed) {
+	display: none;
+}
+
 .jump-workspace[data-layout='rail'] .control-bar {
 	border-top: none;
 }

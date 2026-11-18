@@ -153,7 +153,7 @@
 			{#if originalName}<button
 					class="jr-back jr-original"
 					title={originalName}
-					onclick={onOriginal}>Open video</button
+					onclick={onOriginal}>Open original video</button
 				>{/if}
 		</div>
 	</div>
@@ -201,8 +201,8 @@
 				{/if}
 
 				{#if originalName}<p class="jr-footnote">
-						To review a frame, choose {originalName}. Saved timings use the stored marks and frame
-						rate.
+						Open {originalName} to inspect frames. Contact time and RSI use the saved average frame rate
+						and are estimates for variable-frame-rate video.
 					</p>{/if}
 				<section class="jr-section" aria-labelledby="jr-jumps">
 					<h2 id="jr-jumps" class="jr-heading">Jumps</h2>
@@ -260,7 +260,9 @@
 						{#if frameMs > 0}
 							<p class="jr-footnote">
 								RSI (reactive strength index) is estimated jump height in metres divided by contact
-								time in seconds. Times are read from frames: ±{precision} ms per frame{#if timeScale !== 1},
+								time in seconds. {originalName
+									? 'Nominal precision'
+									: 'Times are read from frames'}: ±{precision} ms per frame{#if timeScale !== 1},
 									in real time{/if}.
 							</p>
 						{/if}
@@ -364,10 +366,7 @@
 						</span>
 					</label>
 					<label class="jr-prop">
-						<span
-							class="jr-prop-name"
-							title="Initially set from the video file’s last modified date">Recorded</span
-						>
+						<span class="jr-prop-name">Recorded</span>
 						<span class="jr-select jr-date">
 							<span class="jr-date-value" class:jr-date-empty={!recordedValue} aria-hidden="true"
 								>{recordedValue || 'Not set'}</span
