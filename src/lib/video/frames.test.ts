@@ -323,10 +323,9 @@ describe('variable frame rate: vfr-dropped.mp4 (frames 5-7 of 30 fps dropped)', 
 		marks = placeMark(marks, 'landing', frameSeekTime(6, timing), timing);
 		expect(marks.map((mark) => mark.time)).toEqual([timing.frameTimes![3], timing.frameTimes![6]]);
 		const [flight] = analyzeMarks(marks, timing).intervals;
-		// Flight starts when the takeoff frame (3) ends, at 4/30, and ends when the landing
-		// frame (6) starts, at 9/30: 2 frames, but 5 frame slots of real time.
-		expect(flight.frames).toBe(2);
-		expect(flight.seconds).toBeCloseTo(5 / 30, 6);
+		expect(flight.frames).toBe(3);
+		// 3 frames, but 6 frame slots of real time: 0.1 s to 0.3 s.
+		expect(flight.seconds).toBeCloseTo(0.2, 6);
 		expect(markAtFrame(marks, frameSeekTime(6, timing), timing)?.type).toBe('landing');
 		expect(markAtFrame(marks, frameSeekTime(5, timing), timing)).toBeUndefined();
 	});
@@ -339,10 +338,9 @@ describe('variable frame rate: vfr-dropped.mp4 (frames 5-7 of 30 fps dropped)', 
 		];
 		expect(markFrameStart(6 / 30, timing)).toBeCloseTo(4 / 30, 6);
 		expect(markFrameEnd(6 / 30, timing)).toBeCloseTo(8 / 30, 6);
-		// Frame 4 is still on the ground until 8/30; the landing frame starts at 9/30.
 		const [flight] = analyzeMarks(marks, timing).intervals;
-		expect(flight.frames).toBe(1);
-		expect(flight.seconds).toBeCloseTo(1 / 30, 6);
+		expect(flight.frames).toBe(2);
+		expect(flight.seconds).toBeCloseTo(5 / 30, 6);
 	});
 });
 

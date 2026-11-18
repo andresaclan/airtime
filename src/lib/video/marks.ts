@@ -11,8 +11,9 @@ import {
 
 /**
  * A takeoff mark is on the last frame a toe still touches the ground; a landing mark is on
- * the first frame the feet touch down again. So the takeoff frame is ground time: the feet
- * leave at its end (see `liftOffTime`).
+ * the first frame the feet touch down again. Flight runs from the takeoff frame to the
+ * landing frame; contact runs from the plant frame to the first frame in the air, the one
+ * after the takeoff (see `firstAirborneTime`). So the takeoff frame counts in both.
  */
 export type MarkType = 'takeoff' | 'landing';
 /** `time` is media seconds: the start of the marked frame (see frames.ts). */
@@ -23,9 +24,9 @@ export type Interval = {
 	from: Mark;
 	to: Mark;
 	/**
-	 * Media seconds between the marks, with the takeoff frame counted as ground: a flight
-	 * runs from the end of the takeoff frame to the start of the landing frame, a contact
-	 * from the start of its landing frame to the end of the takeoff frame.
+	 * Media seconds. A flight runs from the start of the takeoff frame (the last on the
+	 * floor) to the start of the landing frame. A contact runs from the start of its landing
+	 * frame to the end of the takeoff frame, where the first frame in the air starts.
 	 */
 	seconds: number;
 	/** Real-world seconds: `seconds × timeScale`. Differs from `seconds` only for slow-motion footage. */
@@ -69,17 +70,11 @@ export function frameOf(time: number, timing: Timing): number {
 }
 
 /**
- * When the feet leave the ground, in media seconds: the end of the takeoff frame. The mark
- * is on the last frame a toe still touches, so that frame belongs to the contact and the
- * flight starts at the next one.
+ * Start of the first frame in the air, in media seconds: the end of the takeoff frame. The
+ * takeoff mark is on the last frame a toe still touches, so contact runs until here.
  */
-export function liftOffTime(takeoff: Mark, timing: Timing): number {
+export function firstAirborneTime(takeoff: Mark, timing: Timing): number {
 	return markFrameEnd(takeoff.time, timing);
-}
-
-/** When the feet touch down, in media seconds: the start of the landing frame. */
-function touchdownTime(landing: Mark, timing: Timing): number {
-	return markFrameStart(landing.time, timing);
 }
 
 export function sortMarks(marks: Mark[]): Mark[] {
@@ -140,11 +135,13 @@ export function analyzeMarks(
 		if (from.type === 'landing' && marks[i - 2]?.type === 'takeoff' && jumpType !== 'repeat-hops')
 			continue;
 		const kind = from.type === 'takeoff' ? 'flight' : 'contact';
-		// The takeoff frame is ground time: one frame off the flight, one frame onto the contact.
+		// Flight: last frame on the floor → first frame on the ground, mark to mark.
+		// Contact: first frame on the plant → first frame in the air, one frame past the
+		// takeoff mark, since a toe is still down on the takeoff frame.
 		const seconds =
 			kind === 'flight'
-				? touchdownTime(to, timing) - liftOffTime(from, timing)
-				: liftOffTime(to, timing) - touchdownTime(from, timing);
+				? markFrameStart(to.time, timing) - markFrameStart(from.time, timing)
+				: firstAirborneTime(to, timing) - markFrameStart(from.time, timing);
 		const realSeconds = seconds * timeScale;
 		const markFrames = frameOf(to.time, timing) - frameOf(from.time, timing);
 		intervals.push({
@@ -153,7 +150,7 @@ export function analyzeMarks(
 			to,
 			seconds,
 			realSeconds,
-			frames: kind === 'flight' ? markFrames - 1 : markFrames + 1,
+			frames: kind === 'flight' ? markFrames : markFrames + 1,
 			heightCm: kind === 'flight' ? ((GRAVITY * realSeconds * realSeconds) / 8) * 100 : undefined
 		});
 	}

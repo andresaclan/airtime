@@ -47,7 +47,7 @@ Airtime is built around an approach jump: three marks give contact time, flight 
 1. Open a local video with **Open video**, or drag it onto the app.
 2. Play (press `R` to slow down) until you're near your last step before the jump, then pause.
 3. **Plant step:** step with `,` and `.` to the first frame your plant foot touches the ground and press **Mark plant step** (`M`).
-4. **Takeoff:** step forward to the last frame a toe still touches the ground and press **Mark takeoff** (`M`). Airtime counts that frame as contact, so flight starts at the frame after it.
+4. **Takeoff:** step forward to the last frame a toe still touches the ground and press **Mark takeoff** (`M`).
 5. **Landing:** step forward to the first frame your feet touch back down and press **Mark landing** (`M`). The jump's flight time appears beside the video, and you carry on to the next jump's plant step.
 6. **Results** lists every jump in the session, with its contact time and RSI. Each jump needs its own plant step for those; only repeat hops share a touchdown.
 7. Press `⌘S` / `Ctrl+S` to save. Open the same file later to pick up where you left off.

@@ -49,10 +49,10 @@ const FIELDS = {
 		'Real seconds per media second. 1 = real-time footage; 0.25 = 4× slow motion.',
 	'sessions[].derived.intervals[]':
 		'Consecutive takeoff→landing pairs are "flight", landing→takeoff pairs are "contact". ' +
-		'The takeoff frame counts as contact, since a toe is still down: a flight runs from the ' +
-		'end of the takeoff frame to the start of the landing frame (frames = landing frame − ' +
-		'takeoff frame − 1), a contact from the start of its landing frame to the end of the ' +
-		'takeoff frame (frames = takeoff frame − landing frame + 1). seconds = media time; ' +
+		'A flight runs from the takeoff frame (the last on the floor) to the landing frame ' +
+		'(frames = landing frame − takeoff frame). A contact runs from its landing frame to the ' +
+		'first frame in the air, the one after the takeoff (frames = takeoff frame − landing ' +
+		'frame + 1), so the takeoff frame counts in both. seconds = media time; ' +
 		'realSeconds = seconds × timeScale.',
 	'sessions[].derived.intervals[].heightCm':
 		`Jump height from flight time, h = g·t²/8 with g = ${GRAVITY} m/s² and t = realSeconds. ` +

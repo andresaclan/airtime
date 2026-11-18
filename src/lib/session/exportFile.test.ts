@@ -57,7 +57,7 @@ const sessions: Session[] = [
 			NTSC,
 			['L0', 100],
 			['T1', 112],
-			['L1', 143],
+			['L1', 142],
 			['T2', 155],
 			['L2', 187],
 			['T3', 299],
@@ -71,7 +71,7 @@ const sessions: Session[] = [
 		jumpType: 'drop-jump',
 		frameRate: { value: 240, source: 'playback-estimate' },
 		timeScale: 0.25,
-		marks: marksAt(240, ['L0', 240], ['T1', 431], ['L1', 912], ['L9', 2000])
+		marks: marksAt(240, ['L0', 240], ['T1', 431], ['L1', 911], ['L9', 2000])
 	})
 ];
 
@@ -146,8 +146,8 @@ describe('derived numbers in the export match analyzeMarks', () => {
 	});
 
 	test('hand-computed values for the slow-motion drop jump', () => {
-		// 192 frames of contact (the takeoff frame included) and 480 of flight at 240 fps,
-		// slowed 4×: 0.2 s and 0.5 s.
+		// 192 frames of contact (to the frame after the takeoff mark) and 480 of flight at
+		// 240 fps, slowed 4×: 0.2 s and 0.5 s.
 		const [jump] = exported.sessions[1].derived.jumps;
 		expect(jump.contactRealSeconds).toBe(0.2);
 		expect(jump.flightRealSeconds).toBe(0.5);
@@ -158,8 +158,7 @@ describe('derived numbers in the export match analyzeMarks', () => {
 
 	test('hand-computed values for the 59.94 fps rebounds', () => {
 		const rebounds = exported.sessions[0].derived;
-		// Takeoff on frame 112, landing on 143: 30 frames of flight after the takeoff frame.
-		// At 60000/1001 fps that's 0.5005 s: 9.81 × 0.5005² / 8 = 30.72 cm.
+		// 30 frames of flight at 60000/1001 fps = 0.5005 s: 9.81 × 0.5005² / 8 = 30.72 cm.
 		expect(rebounds.jumps[0]).toMatchObject({ flightFrames: 30, heightCm: 30.7 });
 		expect(rebounds.jumps[0].flightRealSeconds).toBeCloseTo(0.5005, 4);
 		// T3 follows a contact, so it's a jump that never landed rather than an unpaired mark.
