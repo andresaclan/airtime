@@ -24,7 +24,6 @@
 		stage: Snippet;
 		/** The marking hint line. */
 		hint: Snippet;
-		options: Snippet;
 		nudgeBlocked: (mark: Mark, direction: number) => string;
 		scrubber: Snippet;
 		/** The time and frame-rate readout. */
@@ -68,7 +67,6 @@
 	let {
 		stage,
 		hint,
-		options,
 		nudgeBlocked,
 		scrubber,
 		readout,
@@ -277,7 +275,6 @@
 	<div class="jw-main viewer-frame">
 		<div class="jw-stage">{@render stage()}</div>
 		<div class="jw-dock">
-			<div class="jw-tools">{@render options()}</div>
 			{@render hint()}
 			{#if compact}
 				<nav class="jw-strip" aria-label="Jump {number}">
@@ -412,35 +409,6 @@
 </div>
 
 <style>
-	.jw-tools {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		flex-wrap: wrap;
-		gap: 4px 12px;
-		padding: 4px 12px;
-		color: hsl(var(--at-fg-secondary));
-		font-size: 13px;
-	}
-	.jw-tools :global(select) {
-		color: inherit;
-		background: hsl(var(--at-bg));
-		padding: 4px;
-		max-width: 150px;
-	}
-	@container jump-dock (max-width:420px) {
-		.jw-tools {
-			gap: 2px 6px;
-			padding: 2px 8px;
-		}
-		.jw-tools :global(select[aria-label='Go to mark']) {
-			width: 105px;
-		}
-		.jw-tools :global(label) {
-			white-space: nowrap;
-		}
-	}
-
 	.jump-workspace {
 		--mark-color: hsl(var(--at-landing));
 		/* The width of the Mark buttons' slot in a wide control bar. */

@@ -51,7 +51,6 @@
 	} from '$lib/video/marks';
 	import {
 		DEFAULT_JUMP_TYPE,
-		TIME_SCALES,
 		SCHEMA_VERSION,
 		type FrameRateSource,
 		type JumpType,
@@ -1598,34 +1597,6 @@
 					{/if}
 				{/snippet}
 
-				{#snippet options()}
-					<label
-						>Footage <select bind:value={timeScale}
-							>{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
-									>{scale.label}</option
-								>{/each}</select
-						></label
-					>
-					{#if hintHidden}<button class="link-btn" onclick={() => setHint(false)}>Show hints</button
-						>{/if}
-					{#if marks.length}<label
-							><select
-								aria-label="Go to mark"
-								value=""
-								onchange={(e) => {
-									const m = marks.find((m) => m.id === e.currentTarget.value);
-									if (m) seekToMark(m.time);
-									e.currentTarget.value = '';
-								}}
-							>
-								<option value="">Go to mark…</option>{#each marks as mark (mark.id)}<option
-										value={mark.id}
-										>{markName(mark)} · frame {frameLabel(frameOf(mark.time, timing), timing) +
-											1}</option
-									>{/each}
-							</select></label
-						>{/if}
-				{/snippet}
 				{#snippet hint()}
 					{#if !mediaError}
 						<MarkingHint
