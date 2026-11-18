@@ -1491,12 +1491,6 @@ body {
 	height: 48px;
 }
 
-/* The rail has room to spare beside the picture, so the hint only needs to be there
-   while a jump is being marked. Upright it stays, so the picture never resizes. */
-.jump-workspace[data-layout='rail']:not([data-mode='capture']) .marking-hint:not(.failed) {
-	display: none;
-}
-
 /* A wide bar: the Mark buttons keep one width whether or not the other-type button
    is showing, so the frame controls beside them never shift. */
 @container control-bar (min-width: 701px) {
@@ -1510,4 +1504,51 @@ body {
 	.app-header {
 		height: 44px;
 	}
+}
+
+/* Phone controls keep stepping and marking in a fixed row under the cue. */
+.jump-workspace:is([data-layout='portrait'], [data-layout='rail']) .control-bar-inner {
+	grid-template-columns: 48px minmax(0, 1fr) 44px 44px minmax(0, 1fr) 48px;
+	grid-template-areas:
+		'scrub scrub scrub scrub scrub scrub'
+		'status status status status status status'
+		'time time transport alt extras extras'
+		'cue cue cue cue cue cue'
+		'prev marks marks marks marks next';
+	position: relative;
+	padding-bottom: 6px;
+}
+.jump-workspace:is([data-layout='portrait'], [data-layout='rail'])
+	:is(.playback-controls, .step-marks) {
+	display: contents;
+}
+.jump-workspace:is([data-layout='portrait'], [data-layout='rail']) .play-btn {
+	grid-area: transport;
+	width: 44px;
+	height: 44px;
+}
+.jump-workspace:is([data-layout='portrait'], [data-layout='rail']) .mark-alt {
+	grid-area: alt;
+	width: 44px;
+	height: 44px;
+}
+.jump-workspace:is([data-layout='portrait'], [data-layout='rail']) .mark-primary {
+	grid-area: marks;
+	padding-inline: 6px;
+}
+.jump-workspace:is([data-layout='portrait'], [data-layout='rail']) .step-btn:first-child {
+	grid-area: prev;
+}
+.jump-workspace:is([data-layout='portrait'], [data-layout='rail']) .step-btn:last-child {
+	grid-area: next;
+}
+.jump-workspace:is([data-layout='portrait'], [data-layout='rail']) .mark-menu {
+	grid-area: marks;
+	bottom: 100%;
+}
+.jump-workspace[data-editing='true'] :is(.step-btn, .mark-primary),
+.jump-workspace:is([data-layout='portrait'], [data-layout='rail'])[data-editing='false']
+	.step-marks:has(.on-frame)
+	.mark-alt {
+	display: none;
 }

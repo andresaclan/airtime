@@ -50,6 +50,8 @@
 		 * set, or the name of what was set when the type alone doesn't say.
 		 */
 		onHold?: (frame: number) => boolean | string;
+		/** Returns true when tapping the pin opens its editor and should keep playback paused. */
+		onTapPin?: (mark: Mark) => boolean;
 		/** A mark's pin was dragged to `frame` and let go; false if it can't go there. */
 		onMoveMark?: (mark: Mark, frame: number) => boolean;
 		/** What the touch is doing, for HoldCue to show over the picture. */
@@ -71,6 +73,7 @@
 		fineTouch = false,
 		holdMark = null,
 		onHold,
+		onTapPin,
 		onMoveMark,
 		cue = $bindable(null)
 	}: Props = $props();
@@ -103,6 +106,7 @@
 		position: number;
 		frame: number;
 		pin: Mark | null;
+		tapOrigin: { x: number; y: number } | null;
 	} | null = null;
 	let precise = $state(false);
 	/** Where the dragged pin is, until it's let go. */
@@ -182,6 +186,7 @@
 			speed: 0,
 			position: frame + 0.5,
 			frame,
+			tapOrigin: pin ? { x: event.clientX, y: event.clientY } : null,
 			pin
 		};
 		if (pin) {
@@ -198,6 +203,13 @@
 	function moveTouch(event: PointerEvent) {
 		if (!touch || !videoElement || !trackRef) return;
 		const rect = trackRef.getBoundingClientRect();
+		if (
+			touch.tapOrigin &&
+			Math.hypot(event.clientX - touch.tapOrigin.x, event.clientY - touch.tapOrigin.y) >=
+				DRAG_THRESHOLD_PX
+		) {
+			touch.tapOrigin = null;
+		}
 		const wasPrecise = precise;
 		if (!precise) {
 			touch.anchorY = Math.max(touch.anchorY, event.clientY);
@@ -247,7 +259,11 @@
 		precise = false;
 		draggedPin = null;
 		const pin = ended?.pin;
-		if (!pin || event.type !== 'pointerup' || frameOf(pin.time, timing) === ended.frame) return;
+		if (!pin || event.type !== 'pointerup') return;
+		if (frameOf(pin.time, timing) === ended.frame) {
+			if (ended.tapOrigin && onTapPin?.(pin)) keepPaused = true;
+			return;
+		}
 		const label = markName(pin);
 		if (!onMoveMark?.(pin, ended.frame)) return;
 		keepPaused = true;

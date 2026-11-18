@@ -124,7 +124,8 @@
 			<svg class="mark-check" viewBox="0 0 16 16" aria-hidden="true"
 				><path d="m3.5 8.5 3 3 6-7" /></svg
 			>
-			<span class="mark-primary-label">{label}</span>
+			<span class="mark-primary-label"><span class="mobile-adjust-label">Adjust </span>{label}</span
+			>
 		{:else}
 			<span class="mark-primary-label">Mark…</span>
 			<kbd>M</kbd>
@@ -162,6 +163,14 @@
 </div>
 
 <style>
+	.mobile-adjust-label {
+		display: none;
+	}
+	:global([data-layout='portrait']) .mobile-adjust-label,
+	:global([data-layout='rail']) .mobile-adjust-label {
+		display: inline;
+		text-transform: none;
+	}
 	/* After the frame controls, inside the transport dock. */
 	.step-marks {
 		grid-area: landing;

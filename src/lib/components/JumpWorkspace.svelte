@@ -142,8 +142,25 @@
 				: ''
 	);
 
+	let editingId = $state<string | null>(null);
+	let editing = $derived(compact && !results && onFrame?.id === editingId && onFrame != null);
+	$effect(() => {
+		if (!editing) editingId = null;
+	});
+
+	export function editPin(item: Mark) {
+		if (!compact) return false;
+		onSeek(item);
+		editingId = item.id;
+		return true;
+	}
+
 	/** Pressing Mark on a marked frame: focus goes to that mark's controls. */
-	export function focusMarkControls() {
+	export async function focusMarkControls() {
+		if (compact && onFrame) {
+			editingId = onFrame.id;
+			await tick();
+		}
 		root?.querySelector<HTMLElement>('[data-focus="mark"]')?.focus();
 	}
 
@@ -257,24 +274,24 @@
 	</button>
 {/snippet}
 
-<div class="jump-workspace" data-layout={layout} data-results={results} bind:this={root}>
+<div
+	class="jump-workspace"
+	data-layout={layout}
+	data-results={results}
+	data-editing={editing}
+	bind:this={root}
+>
 	<p class="sr-only" role="status">{status}</p>
 
 	<div class="jw-main viewer-frame">
 		<div class="jw-stage">{@render stage()}</div>
 		<div class="jw-dock">
-			{#if layout !== 'side'}{@render hint()}{/if}
+			{#if layout === 'bottom'}{@render hint()}{/if}
 			{#if compact}
 				<nav class="jw-strip" aria-label="Jump {number}">
 					<div class="jw-strip-in">
 						{@render summary()}
-						{#if onFrame}
-							<span class="jw-strip-edit" class:takeoff={onFrame.type === 'takeoff'}
-								>{@render markControls(onFrame)}</span
-							>
-						{:else}
-							<span class="jw-strip-edit">{@render history()}</span>
-						{/if}
+						<span class="jw-strip-edit">{@render history()}</span>
 						{@render resultsButton()}
 					</div>
 				</nav>
@@ -293,6 +310,22 @@
 						{@render readout()}
 						{@render controls()}
 						{@render mark()}
+						{#if editing && onFrame}
+							<div class="mobile-adjust-heading">
+								<strong>Adjust {onFrameName}</strong>
+								<time>{clock(onFrame)}</time>
+							</div>
+							<div class="mobile-adjust-actions">
+								{@render markControls(onFrame)}
+								<button
+									class="jw-btn mobile-done"
+									onclick={(event) => act(event, () => (editingId = null), '.mark-primary')}
+									>Done</button
+								>
+							</div>
+						{:else if compact}
+							<div class="mobile-mark-hint">{@render hint()}</div>
+						{/if}
 					</div>
 				</div>
 			</div>
@@ -427,6 +460,43 @@
 		--mark-color: hsl(var(--at-takeoff));
 	}
 
+	.mobile-mark-hint,
+	.mobile-adjust-heading {
+		grid-area: cue;
+		min-height: 46px;
+	}
+	.mobile-adjust-heading,
+	.mobile-adjust-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.mobile-adjust-heading {
+		justify-content: space-between;
+		color: hsl(var(--at-fg));
+	}
+	.mobile-adjust-heading time {
+		font-variant-numeric: tabular-nums;
+		color: hsl(var(--at-fg-secondary));
+	}
+	.mobile-adjust-actions {
+		grid-area: prev-start / prev-start / next-end / next-end;
+		min-height: 52px;
+	}
+	.mobile-adjust-actions .jw-btn {
+		min-width: 44px;
+		height: 48px;
+	}
+	.mobile-adjust-actions .jw-wide {
+		display: none;
+	}
+	.mobile-adjust-actions .mobile-done {
+		margin-left: auto;
+		padding-inline: 22px;
+		background: hsl(var(--at-fg));
+		color: hsl(var(--at-bg));
+	}
+
 	/* ---- The video and its dock ---- */
 
 	.jw-main {
@@ -557,8 +627,7 @@
 		display: none;
 	}
 
-	.jw-strip-edit .jw-icon,
-	.jw-strip-edit .jw-stepper .jw-btn {
+	.jw-strip-edit .jw-icon {
 		width: 40px;
 		padding: 0;
 	}
@@ -567,8 +636,7 @@
 		.jw-strip-edit .jw-btn {
 			--h: 44px;
 		}
-		.jw-strip-edit .jw-icon,
-		.jw-strip-edit .jw-stepper .jw-btn {
+		.jw-strip-edit .jw-icon {
 			width: 44px;
 		}
 	}
@@ -584,8 +652,7 @@
 		.jw-sum-name {
 			display: none;
 		}
-		.jw-strip-edit .jw-icon,
-		.jw-strip-edit .jw-stepper .jw-btn {
+		.jw-strip-edit .jw-icon {
 			width: 40px;
 		}
 	}

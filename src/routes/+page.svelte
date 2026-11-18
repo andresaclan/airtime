@@ -1443,6 +1443,7 @@
 						holdMark={touchScreen.current ? holdMark : null}
 						{holdLabel}
 						onHold={handleHold}
+						onTapPin={(pin) => workspace?.editPin(pin) ?? false}
 						onMoveMark={handleMoveMark}
 						bind:cue={scrubCue}
 					/>

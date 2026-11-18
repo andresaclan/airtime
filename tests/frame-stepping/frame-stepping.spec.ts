@@ -13,7 +13,7 @@ import {
 
 // Fresh processes isolate decoder teardown between cases. Replacing a video in
 // the same process is exercised explicitly by the interaction contract below.
-const test = base.extend<{ framePage: FramePage }>({
+const test = base.extend<{ framePage: FramePage & { tapPin: () => Promise<void> } }>({
 	framePage: async ({ playwright, browserName }, use, info) => {
 		let page: Page;
 		let context: BrowserContext;
@@ -57,6 +57,8 @@ const test = base.extend<{ framePage: FramePage }>({
 			const errors: string[] = [];
 			page.on('pageerror', (error) => errors.push(error.message));
 			await use({
+				// The track handles touches at a pin's coordinates, including overlapping pins.
+				tapPin: () => page.locator('.timeline-mark').tap({ force: true }),
 				engine: info.project.name.startsWith('webkit') ? 'webkit' : 'chromium',
 				goto: async (path, expectedPath = path) => {
 					await page.goto(new URL(path, info.project.use.baseURL).href, {
@@ -157,5 +159,44 @@ test('/alpha redirects to the player', async ({ framePage }) => {
 			),
 		Boolean,
 		'/alpha must land on a working player'
+	);
+});
+
+test('phone frame steps leave marks in place until explicitly adjusted', async ({
+	framePage
+}, info) => {
+	test.skip(info.project.name !== 'webkit-iphone', 'Phone touch layout');
+	const fixture = fixtures[0];
+	await load(framePage, '/', fixture);
+	await framePage.click('.mark-primary');
+	await framePage.click('[aria-label="Next frame"]');
+	await expectFrame(framePage, fixture, 1);
+	await framePage.tapPin();
+	await expectFrame(framePage, fixture, 0);
+	await framePage.click('[aria-label="Move the plant step one frame later"]');
+	await expectFrame(framePage, fixture, 1);
+	await framePage.click('.mobile-done');
+	await framePage.click('[aria-label="Next frame"]');
+	await expectFrame(framePage, fixture, 2);
+	await framePage.tapPin();
+	await expectFrame(framePage, fixture, 1);
+	await framePage.click('.mobile-done');
+	await framePage.click('.mark-primary');
+	await waitFor(
+		() =>
+			framePage.evaluate(
+				() => document.querySelector('.mobile-adjust-heading time')?.textContent,
+				undefined
+			),
+		(time) => time === '0:00.033',
+		'Adjust shows the saved mark time'
+	);
+	await framePage.click('[aria-label="Remove the plant step"]');
+	await framePage.click('[aria-label="Next frame"]');
+	await expectFrame(framePage, fixture, 2);
+	await waitFor(
+		() => framePage.evaluate(() => document.querySelectorAll('.timeline-mark').length, undefined),
+		(count) => count === 0,
+		'Remove clears the mark'
 	);
 });
