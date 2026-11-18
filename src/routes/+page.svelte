@@ -1576,30 +1576,32 @@
 				onRemove={deleteMark}
 			>
 				{#snippet stage()}
-					<VideoViewer
-						bind:videoElement
-						{videoSrc}
-						{videoFile}
-						bind:isPlaying
-						bind:currentTime
-						bind:duration
-						{sourceFrameRate}
-						sourceTimingChecked={sourceFrameRateChecked}
-						frameTimes={timing.frameTimes}
-						{editGap}
-						bind:frameRate
-						bind:playbackFrameRate
-						bind:volume
-						bind:isMuted
-						bind:zoomLevel
-						{playbackRate}
-						onFrameRateDetected={() => (frameRateSettled = true)}
-						onError={handleMediaError}
-					>
-						{#snippet overlay()}
-							<HoldCue cue={scrubCue} fillMs={HOLD_MS - HOLD_SHOW_MS} />
-						{/snippet}
-					</VideoViewer>
+					{#key videoSrc}
+						<VideoViewer
+							bind:videoElement
+							{videoSrc}
+							{videoFile}
+							bind:isPlaying
+							bind:currentTime
+							bind:duration
+							{sourceFrameRate}
+							sourceTimingChecked={sourceFrameRateChecked}
+							frameTimes={timing.frameTimes}
+							{editGap}
+							bind:frameRate
+							bind:playbackFrameRate
+							bind:volume
+							bind:isMuted
+							bind:zoomLevel
+							{playbackRate}
+							onFrameRateDetected={() => (frameRateSettled = true)}
+							onError={handleMediaError}
+						>
+							{#snippet overlay()}
+								<HoldCue cue={scrubCue} fillMs={HOLD_MS - HOLD_SHOW_MS} />
+							{/snippet}
+						</VideoViewer>
+					{/key}
 
 					{#if isDragging}
 						<div class="viewer-overlay drop z-20">

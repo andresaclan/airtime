@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack, type Snippet } from 'svelte';
+	import { onDestroy, untrack, type Snippet } from 'svelte';
 	import { estimatePlaybackFrameRate } from '$lib/video/frameRate';
 	import {
 		frameAt,
@@ -83,6 +83,9 @@
 	}: Props = $props();
 
 	let detectionId = 0;
+	onDestroy(() => {
+		detectionId++;
+	});
 
 	// Zoom and pan state
 	const MIN_ZOOM = 1;
@@ -226,7 +229,10 @@
 		const video = videoElement;
 		if (!video) return;
 		const unregister = registerSeekPreview(video, { show: showPreview });
-		const sync = () => handleTimeUpdate();
+		const onSeek = () => {
+			if (!detectionStarted) soughtBeforeDetection = true;
+			handleTimeUpdate();
+		};
 		const emptied = () => {
 			clearSeeks(video);
 			videoFrame = null;
@@ -287,10 +293,10 @@
 		video.addEventListener('resize', measure);
 		if (video.parentElement) resize.observe(video.parentElement);
 		if ('requestVideoFrameCallback' in video) handle = video.requestVideoFrameCallback(onFrame);
-		video.addEventListener(SEEK_EVENT, sync);
+		video.addEventListener(SEEK_EVENT, onSeek);
 		const timelineChanged = () => {
 			handleDurationChange();
-			sync();
+			handleTimeUpdate();
 		};
 		video.addEventListener(MEDIA_TIMELINE_EVENT, timelineChanged);
 		video.addEventListener('emptied', emptied);
@@ -299,11 +305,12 @@
 		video.addEventListener('play', hidePreview);
 		return () => {
 			unregister();
+			clearSeeks(video);
 			resize.disconnect();
 			video.removeEventListener('resize', measure);
 			clearTimeout(seekedTimer);
 			if (handle) video.cancelVideoFrameCallback(handle);
-			video.removeEventListener(SEEK_EVENT, sync);
+			video.removeEventListener(SEEK_EVENT, onSeek);
 			video.removeEventListener(MEDIA_TIMELINE_EVENT, timelineChanged);
 			video.removeEventListener('emptied', emptied);
 			video.removeEventListener('seeking', seeking);
@@ -338,6 +345,7 @@
 	// Detection starts once per video, when both its metadata and the file's own timing
 	// are in. The file is read in parallel with the video loading, and either can finish
 	// first; starting on metadata alone played a parsed file to measure its frame rate.
+	let soughtBeforeDetection = false;
 	let metadataLoaded = false;
 	let detectionStarted = false;
 	function startFrameRateDetection() {
@@ -675,8 +683,10 @@
 			// formats without it, and must not move a parsed video's opening picture.
 			const timing = { fps: sourceFrameRate, frameTimes, editGap };
 			if (mediaTimelineKnown(video, timing)) {
-				// Safari's metadata preload need not decode the opening picture.
-				seek(video, frameSeekTime(0, timing, mediaTime(video, video.duration)), timing);
+				// Safari may need a seek to decode the opening picture. An earlier
+				// step has already requested its own picture and must keep it.
+				if (!soughtBeforeDetection)
+					seek(video, frameSeekTime(0, timing, mediaTime(video, video.duration)), timing);
 			} else {
 				setProbing(video, true);
 				await calibrateTimeline(video, timing);
