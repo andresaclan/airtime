@@ -14,7 +14,7 @@
 		"lint": "prettier --check . && eslint .",
 		"test": "vitest run",
 		"test:frames": "playwright test",
-		"test:frames:safari": "bun tests/frame-stepping/safari.ts",
+		"test:frames:safari": "bun scripts/warm-safari.ts && bun tests/frame-stepping/safari.ts",
 		"test:frames:ios": "bun tests/frame-stepping/ios.ts",
 		"format": "prettier --write ."
 	},

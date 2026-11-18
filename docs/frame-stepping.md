@@ -101,6 +101,13 @@ Replacing a file within one running app is also exercised explicitly.
 The Safari job intentionally runs on a dedicated CI machine: WebDriver opens
 Safari windows. Do not run it on a user's working desktop during background checks.
 
+`bun run test:frames:safari` first runs `scripts/warm-safari.ts`. On macOS it
+opens and quits one throwaway Safari session and retries only that session's
+creation, up to three times. On a fresh runner, the first Safari launch took 5–23 s on passing runs.
+Four first attempts in the job's first 29 runs failed before any test ran, with
+`SessionNotCreatedError` after SafariDriver's ~30 s limit. Later sessions on the
+same runner took 1.6 s (median). The frame suite itself retries nothing.
+
 ## The decoded-frame oracle
 
 `tests/frame-stepping/fixtures/` contains small H.264 videos and an HEVC video with 16 black/white
