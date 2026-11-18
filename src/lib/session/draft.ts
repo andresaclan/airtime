@@ -93,9 +93,7 @@ export function pickRestore(
 
 /** Drafts worth offering back on the start screen, newest first. */
 export function waitingDrafts(drafts: Draft[]): Draft[] {
-	return drafts
-		.filter((draft) => draft.session.marks.length > 0 || !draft.isNew)
-		.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+	return [...drafts].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export type DraftStore = {

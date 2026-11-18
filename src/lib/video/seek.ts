@@ -90,7 +90,7 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 	const restoreTarget = () => moveTo(time);
 	const finish = () => {
 		if (!seeked || !presented || inFlight.get(video)?.dispose !== cleanup) return;
-		if (detouring) return restoreTarget();
+		if (detouring && !pending.has(video)) return restoreTarget();
 		cleanup();
 		inFlight.delete(video);
 		const next = pending.get(video);
@@ -132,6 +132,13 @@ function start(video: HTMLVideoElement, time: number, timing: FrameTiming) {
 		// picture: WebKit's seeked can arrive well before it is presented.
 		if (!presented)
 			timeout = setTimeout(() => {
+				// A newer step supersedes this missing picture. Retrying the old one can
+				// flash the requested frame during the detour, then jump back again.
+				if (pending.has(video)) {
+					presented = true;
+					finish();
+					return;
+				}
 				if (detouring) return restoreTarget();
 				if (!retried) {
 					// Native iOS can report seeked without decoding a backstep.

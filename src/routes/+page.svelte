@@ -2,8 +2,9 @@
 	import VideoViewer from '$lib/components/VideoViewer.svelte';
 	import VideoScrubber from '$lib/components/VideoScrubber.svelte';
 	import VideoControls from '$lib/components/VideoControls.svelte';
+	import JumpResults from '$lib/components/JumpResults.svelte';
 	import JumpWorkspace from '$lib/components/JumpWorkspace.svelte';
-	import { jumpUnits, unitAt, type JumpUnit } from '$lib/video/jumpUnits';
+	import { bestUnit, unpairedMarks, jumpUnits, unitAt, type JumpUnit } from '$lib/video/jumpUnits';
 	import KeybindsDialog from '$lib/components/KeybindsDialog.svelte';
 	import SessionsDialog from '$lib/components/SessionsDialog.svelte';
 	import MarkingHint from '$lib/components/MarkingHint.svelte';
@@ -50,6 +51,7 @@
 	} from '$lib/video/marks';
 	import {
 		DEFAULT_JUMP_TYPE,
+		TIME_SCALES,
 		SCHEMA_VERSION,
 		type FrameRateSource,
 		type JumpType,
@@ -196,7 +198,7 @@
 	let activeJump = $derived(unitAt(units, frameAt(currentTime, timing), timing));
 
 	$effect(() => {
-		if (resultsOpen && isPlaying) videoElement?.pause();
+		if ((resultsOpen || sessionsOpen || keybindsOpen) && isPlaying) videoElement?.pause();
 	});
 
 	// The Mark button names the step that belongs at the frame on screen (guide.ts), and
@@ -281,9 +283,7 @@
 	function handleFileSelect(event: Event) {
 		const target = event.target as HTMLInputElement;
 		const file = target.files?.[0];
-		if (file && isLikelyVideoFile(file)) {
-			loadVideoFile(file);
-		}
+		if (file) void loadVideoFile(file);
 		target.value = '';
 	}
 
@@ -293,7 +293,121 @@
 		return /\.(mp4|m4v|mov|webm|mkv|avi|wmv|flv|m4p|mpg|mpeg|3gp|ogv)$/.test(lowerName);
 	}
 
-	function loadVideoFile(file: File) {
+	let requestId = 0;
+	let reviewed = $state<Session | null>(null);
+	let requestedTime: number | null = null;
+	let seekAfterLoad = $state<number | null>(null);
+	let fileProblem = $state('');
+	let expectedSession: Session | null = $state(null);
+
+	async function home(): Promise<boolean> {
+		const request = ++requestId;
+		if (isDirty) {
+			const fingerprint = videoFingerprint ?? (await fingerprintPromise?.catch(() => null));
+			if (request !== requestId) return false;
+			if (fingerprint) videoFingerprint = fingerprint;
+			syncDraft();
+			await drafts.flush();
+			const stored = fingerprint
+				? readDraft(await getDraft(fingerprint).catch(() => undefined))
+				: null;
+			if (request !== requestId) return false;
+			if (isDirty && (!stored || sessionSignature(stored.session) !== signature)) {
+				if (!confirm('Your changes could not be kept as a draft. Leave without saving?'))
+					return false;
+			}
+		}
+		void refreshPendingDrafts();
+		videoElement?.pause();
+		activeVideoLoadId++;
+		videoFingerprint = null;
+		draftStored = false;
+		videoSrc = null;
+		videoFile = null;
+		sessionId = null;
+		reviewed = expectedSession = null;
+		requestedTime = seekAfterLoad = null;
+		fileProblem = '';
+		resultsOpen = false;
+		notice = null;
+		void refreshBackup();
+		return true;
+	}
+
+	function requestOriginal(session: Session, time: number | null = null) {
+		expectedSession = session;
+		requestedTime = time;
+		openFilePicker();
+	}
+
+	$effect(() => {
+		if (
+			seekAfterLoad !== null &&
+			videoElement &&
+			duration > 0 &&
+			frameRateSettled &&
+			sourceFrameRateChecked &&
+			frameRateKnown
+		) {
+			const time = seekAfterLoad;
+			seekAfterLoad = null;
+			seekToMark(time);
+		}
+	});
+
+	async function canOpenVideo(file: File) {
+		const url = URL.createObjectURL(file);
+		const probe = document.createElement('video');
+		probe.muted = true;
+		probe.playsInline = true;
+		const playable = await new Promise<boolean>((resolve) => {
+			const timer = setTimeout(() => resolve(false), 20000);
+			const finish = (ok: boolean) => {
+				clearTimeout(timer);
+				resolve(ok);
+			};
+			probe.onloadeddata = () => finish(probe.videoWidth > 0);
+			probe.onerror = () => finish(false);
+			probe.preload = 'auto';
+			probe.src = url;
+		});
+		probe.onloadeddata = probe.onerror = null;
+		probe.removeAttribute('src');
+		probe.load();
+		URL.revokeObjectURL(url);
+		return playable;
+	}
+
+	async function loadVideoFile(file: File) {
+		const request = ++requestId;
+		fileProblem = '';
+		if (!isLikelyVideoFile(file)) {
+			fileProblem = 'Choose a video file to continue.';
+			return;
+		}
+		const expected = expectedSession;
+		if (expected) {
+			try {
+				const fingerprint = await fingerprintFile(file);
+				if (request !== requestId) return;
+				if (fingerprint !== expected.media.fingerprint) {
+					fileProblem =
+						'Different video selected. Choose the original file: ' + expected.media.fileName;
+					return;
+				}
+			} catch {
+				if (request === requestId) fileProblem = 'The video could not be read. Choose it again.';
+				return;
+			}
+		}
+		if (videoSrc || reviewed) {
+			const playable = await canOpenVideo(file);
+			if (request !== requestId) return;
+			if (!playable) {
+				fileProblem = 'Unable to play ' + file.name + '. The video may be unsupported or damaged.';
+				return;
+			}
+		}
 		if (isDirty && !confirm(`Discard unsaved changes to "${sessionTitle || defaultTitle}"?`)) {
 			return;
 		}
@@ -307,6 +421,9 @@
 			videoElement?.pause();
 		}
 
+		reviewed = null;
+		seekAfterLoad = requestedTime;
+		requestedTime = null;
 		videoSrc = URL.createObjectURL(file);
 		videoFileName = file.name;
 		isPlaying = false;
@@ -338,7 +455,7 @@
 		timeScale = 1;
 		savedSignature = signature;
 		fingerprintPromise = fingerprintFile(file);
-		void restoreSession(loadId, fingerprintPromise, expectedSession ?? undefined);
+		void restoreSession(loadId, fingerprintPromise);
 		expectedSession = null;
 
 		void detectSourceTimingFromFile(file)
@@ -361,6 +478,10 @@
 				sourceFrameRateChecked = true;
 			});
 	}
+
+	$effect(() => {
+		if (isDirty && notice?.startsWith('Saved')) notice = null;
+	});
 
 	function showNotice(text: string) {
 		notice = text;
@@ -395,7 +516,7 @@
 	 * Restores the saved session for this file, and any unsaved draft on top of it, unless
 	 * the user has already started editing.
 	 */
-	async function restoreSession(loadId: number, fingerprint: Promise<string>, expected?: Session) {
+	async function restoreSession(loadId: number, fingerprint: Promise<string>) {
 		let resolved: string | null = null;
 		try {
 			resolved = await fingerprint;
@@ -428,18 +549,7 @@
 				);
 				return;
 			}
-			if (!saved) {
-				if (expected) {
-					showNotice(
-						`This isn't the video saved as "${expected.title}" — look for ${expected.media.fileName}`
-					);
-				}
-				return;
-			}
-			if (expected && expected.id !== saved.id) {
-				showNotice(`This video belongs to "${saved.title}", not "${expected.title}"`);
-				return;
-			}
+			if (!saved) return;
 			showNotice(
 				`Restored ${countMarks(saved.marks.length)} · saved ${formatSavedAt(saved.updatedAt)}`
 			);
@@ -537,6 +647,7 @@
 
 	/** Says why not when the frame rate isn't known yet, or never will be. */
 	function canMark(): boolean {
+		if (mediaError) return false;
 		if (frameRateKnown) return true;
 		showNotice(frameRateFailed ? FRAME_RATE_FAILED : 'Detecting the frame rate…');
 		return false;
@@ -632,7 +743,9 @@
 		const now = new Date().toISOString();
 		isSaving = true;
 		try {
-			const session = buildSession(videoFile, await fingerprintPromise, now);
+			const fingerprint = await fingerprintPromise;
+			if (loadId !== activeVideoLoadId || savingSignature !== signature || !videoFile) return;
+			const session = buildSession(videoFile, fingerprint, now);
 			await saveSession(session);
 			requestPersistentStorage();
 			if (loadId !== activeVideoLoadId) return;
@@ -641,9 +754,10 @@
 			savedSignature = savingSignature;
 			const status = await refreshBackup();
 			// While the reminder bar is up it already says this.
-			showNotice(
-				status?.due && !showBackupReminder ? `Saved · ${backupReminder(status)}` : 'Saved'
-			);
+			if (loadId === activeVideoLoadId && !isDirty)
+				showNotice(
+					status?.due && !showBackupReminder ? `Saved · ${backupReminder(status)}` : 'Saved'
+				);
 		} catch {
 			showNotice("Couldn't save — browser storage is unavailable");
 		} finally {
@@ -652,19 +766,27 @@
 	}
 
 	function handleSessionDeleted(id: string) {
+		if (id === reviewed?.id) void home();
 		if (id !== sessionId) return;
 		// The open session is gone from storage, so everything on screen is now unsaved.
 		// Its ID is kept so saving again (or importing a backup) recreates the same session.
 		savedSignature = null;
 	}
 
-	// Set when a saved session asks for its video, so a mismatched file can be flagged.
-	let expectedSession: Session | null = null;
-
-	function handleSessionOpen(session: Session) {
+	async function handleSessionOpen(session: Session) {
 		closeSessions();
+		if (videoSrc && session.id === sessionId) {
+			showResults(true);
+			return;
+		}
+		if (!(await home())) return;
+		reviewed = session;
 		expectedSession = session;
-		openFilePicker();
+		applySession(session);
+		frameRate = session.frameRate.value;
+		frameTimes = null;
+		sourceFrameRate = null;
+		editGap = 0;
 	}
 
 	function handleSessionsImported() {
@@ -833,6 +955,9 @@
 		}
 		if (
 			!videoSrc ||
+			mediaError ||
+			sessionsOpen ||
+			keybindsOpen ||
 			event.altKey ||
 			(target instanceof HTMLElement &&
 				(target.isContentEditable || target.closest('input, textarea, select')))
@@ -890,8 +1015,8 @@
 		const files = Array.from(event.dataTransfer?.files ?? []);
 		const file = files.find((candidate) => isLikelyVideoFile(candidate));
 		if (file) {
-			loadVideoFile(file);
-		}
+			void loadVideoFile(file);
+		} else if (files.length) fileProblem = 'Choose a video file to continue.';
 	}
 
 	function handleDragOver(event: DragEvent) {
@@ -938,7 +1063,7 @@
 </script>
 
 <svelte:head>
-	<title>{videoSrc ? `${sessionTitle || defaultTitle} · Airtime` : 'Airtime'}</title>
+	<title>{videoSrc || reviewed ? `${sessionTitle || defaultTitle} · Airtime` : 'Airtime'}</title>
 </svelte:head>
 
 <!-- Drag and drop is handled on the window so the app shell stays a plain, non-interactive element. -->
@@ -974,7 +1099,17 @@
 <div class="app-shell flex h-dvh flex-col bg-[hsl(var(--at-bg))]">
 	<header class="app-header">
 		<div class="header-start">
-			<a class="brand-mark" href={resolve('/')} aria-label="Airtime home">
+			<a
+				class="brand-mark"
+				href={resolve('/')}
+				onclick={(event) => {
+					if (!event.metaKey && !event.ctrlKey && !event.shiftKey) {
+						event.preventDefault();
+						home();
+					}
+				}}
+				aria-label="Airtime home"
+			>
 				<svg class="brand-logo" viewBox="0 0 24 24" fill="none" aria-hidden="true">
 					<rect width="24" height="24" rx="7" fill="hsl(var(--at-surface-hover))" />
 					<path
@@ -1023,7 +1158,7 @@
 				>
 			</button>
 			<button
-				class="btn btn-icon header-wide header-sessions"
+				class="btn header-wide header-sessions"
 				onclick={() => (sessionsOpen = true)}
 				aria-label="Sessions"
 				title={backup?.due ? backupReminder(backup) : 'Saved sessions, export and import'}
@@ -1043,12 +1178,13 @@
 						height="6"
 						rx="1.8"
 					/><path d="M8 7h.01M8 17h.01" /></svg
-				>{#if backup?.due}<span class="header-more-dot" aria-label="Backup recommended"></span>{/if}
+				>Sessions{#if backup?.due}<span class="header-more-dot" aria-label="Backup recommended"
+					></span>{/if}
 			</button>
 			{#if videoSrc}<span class="header-divider" aria-hidden="true"></span>{/if}
 			<button
 				onclick={openFilePicker}
-				class="btn btn-icon header-wide"
+				class="btn header-wide"
 				class:header-open-empty={!videoSrc}
 				aria-label={videoSrc ? 'Replace video' : 'Open video'}
 				title={videoSrc ? 'Change video' : 'Open video'}
@@ -1065,12 +1201,13 @@
 						d="M3.5 7.5v9a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2V9.5a2 2 0 0 0-2-2h-6l-2-2h-5a2 2 0 0 0-2 2z"
 					/></svg
 				>
-			</button>
+				{videoSrc ? 'Replace video' : 'Open video'}</button
+			>
 			{#if videoSrc}
 				<button
 					class="btn {isDirty ? 'btn-primary' : 'btn-secondary'}"
 					onclick={save}
-					disabled={!isDirty || isSaving}
+					disabled={!isDirty || isSaving || mediaError}
 					title="Save marks to this browser ({saveShortcut})"
 				>
 					Save{#if isDirty}<kbd class="btn-kbd">{saveShortcut}</kbd>{/if}
@@ -1105,7 +1242,12 @@
 				</div>
 			{/if}
 		</div>
-		<div class="app-notice" class:visible={notice} class:app-notice-low={resultsOpen} role="status">
+		<div
+			class="app-notice"
+			class:visible={notice && !(isDirty && notice.startsWith('Saved'))}
+			class:app-notice-low={resultsOpen}
+			role="status"
+		>
 			{notice ?? ''}
 		</div>
 	</header>
@@ -1134,27 +1276,62 @@
 			</button>
 		</section>
 	{/if}
+	{#if fileProblem}
+		<div class="file-problem" role="alert">
+			{fileProblem} <button class="link-btn" onclick={openFilePicker}>Choose video</button>
+			<button
+				class="link-btn"
+				onclick={() => {
+					fileProblem = '';
+					if (!reviewed) expectedSession = null;
+				}}>Dismiss</button
+			>
+		</div>
+	{/if}
 	<!-- Viewing stage -->
 	<div
 		class="viewer-stage relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
-		class:overflow-y-auto={!videoSrc}
-		class:has-video={videoSrc}
+		class:overflow-y-auto={!videoSrc && !reviewed}
+		class:has-video={videoSrc || reviewed}
 	>
-		{#if !videoSrc}
+		{#if reviewed}
+			<JumpResults
+				{units}
+				unpaired={unpairedMarks(marks, units)}
+				best={units.filter((u) => u.flight).length > 1 ? bestUnit(units) : undefined}
+				{timing}
+				variableFrameRate={false}
+				{jumpType}
+				{timeScale}
+				title={sessionTitle}
+				titlePlaceholder={reviewed.media.fileName}
+				notes={sessionNotes}
+				recordedAt={sessionRecordedAt}
+				originalName={reviewed.media.fileName}
+				onBack={home}
+				onOriginal={() => reviewed && requestOriginal(reviewed)}
+				onOpenUnit={(_, unit) =>
+					reviewed && requestOriginal(reviewed, unit.takeoff?.time ?? unit.plant?.time ?? null)}
+				onOpenMark={(_, mark) => reviewed && requestOriginal(reviewed, mark.time)}
+			/>
+		{:else if !videoSrc}
 			{#snippet pendingDraftList()}
 				{#if pendingDrafts.length}
 					<!-- Unsaved work a reload interrupted; reopening the video brings it back. -->
 					<ul class="empty-drafts" aria-label="Unsaved marks">
-						{#each pendingDrafts.slice(0, 3) as draft (draft.fingerprint)}
+						{#each pendingDrafts as draft (draft.fingerprint)}
 							<li class="empty-draft">
 								<span class="empty-draft-dot" aria-hidden="true"></span>
 								<span class="empty-draft-text">
-									<strong>Unsaved marks on {draft.session.media.fileName}</strong>
+									<strong>Draft · {draft.session.media.fileName}</strong>
 									<span
 										>{countMarks(draft.session.marks.length)} · {formatSavedAt(draft.updatedAt)}.
 										Open this video again to pick up where you left off.</span
 									>
 								</span>
+								<button class="link-btn" onclick={() => requestOriginal(draft.session)}
+									>Resume</button
+								>
 								<button class="link-btn" onclick={() => discardPendingDraft(draft)}>Discard</button>
 							</li>
 						{/each}
@@ -1241,8 +1418,8 @@
 					</li>
 				</ol>
 				<p class="empty-result">
-					Step to each moment and press Mark: it always names the step that comes next. You get
-					flight time, contact time and RSI.
+					Mark takeoff and landing for flight time. Add the plant step for contact time and reactive
+					strength index (RSI).
 				</p>
 			{/snippet}
 			{#snippet keptLocal()}
@@ -1301,7 +1478,7 @@
 						<div class="empty-head">
 							<h1 class="empty-title">Time your jumps from video</h1>
 							<p class="empty-lede">
-								Open a clip of your approach jump and mark three frames. Airtime does the math.
+								Open an approach jump and mark takeoff and landing to measure flight time.
 							</p>
 						</div>
 						{@render pendingDraftList()}
@@ -1323,6 +1500,25 @@
 					</p>
 				</div>
 			{/if}
+		{:else if mediaError}
+			<div class="viewer-overlay z-10">
+				<span class="viewer-overlay-icon" aria-hidden="true">
+					<svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.7"
+						stroke-linecap="round"
+						><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5h.01" /></svg
+					>
+				</span>
+				<p class="viewer-overlay-title">Unable to play this video</p>
+				<p class="viewer-overlay-text">
+					The file may be unsupported or damaged. <button class="link-btn" onclick={openFilePicker}
+						>Choose another video</button
+					>
+				</p>
+			</div>
 		{:else}
 			<JumpWorkspace
 				bind:this={workspace}
@@ -1346,6 +1542,11 @@
 				onOpenUnit={openUnit}
 				onOpenMark={openMark}
 				onResults={showResults}
+				nudgeBlocked={(mark, direction) => {
+					const frame = frameOf(mark.time, timing) + direction;
+					if (clampFrame(frame, duration, timing) !== frame) return 'End of the video';
+					return frameTaken(frame, mark.id) ? 'A mark already occupies this frame' : '';
+				}}
 				onNudge={nudgeMark}
 				onUndo={undoMarks}
 				onRedo={redoMarks}
@@ -1377,25 +1578,6 @@
 						{/snippet}
 					</VideoViewer>
 
-					{#if mediaError}
-						<div class="viewer-overlay z-10">
-							<span class="viewer-overlay-icon" aria-hidden="true">
-								<svg
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="1.7"
-									stroke-linecap="round"
-									><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5h.01" /></svg
-								>
-							</span>
-							<p class="viewer-overlay-title">Unable to play this video</p>
-							<p class="viewer-overlay-text">
-								The file may be unsupported or damaged. Choose another video to continue.
-							</p>
-						</div>
-					{/if}
-
 					{#if isDragging}
 						<div class="viewer-overlay drop z-20">
 							<span class="viewer-overlay-icon" aria-hidden="true">
@@ -1416,6 +1598,34 @@
 					{/if}
 				{/snippet}
 
+				{#snippet options()}
+					<label
+						>Footage <select bind:value={timeScale}
+							>{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
+									>{scale.label}</option
+								>{/each}</select
+						></label
+					>
+					{#if hintHidden}<button class="link-btn" onclick={() => setHint(false)}>Show hints</button
+						>{/if}
+					{#if marks.length}<label
+							><select
+								aria-label="Go to mark"
+								value=""
+								onchange={(e) => {
+									const m = marks.find((m) => m.id === e.currentTarget.value);
+									if (m) seekToMark(m.time);
+									e.currentTarget.value = '';
+								}}
+							>
+								<option value="">Go to mark…</option>{#each marks as mark (mark.id)}<option
+										value={mark.id}
+										>{markName(mark)} · frame {frameLabel(frameOf(mark.time, timing), timing) +
+											1}</option
+									>{/each}
+							</select></label
+						>{/if}
+				{/snippet}
 				{#snippet hint()}
 					{#if !mediaError}
 						<MarkingHint
@@ -1476,23 +1686,30 @@
 				{/snippet}
 
 				{#snippet controls()}
-					<VideoControls
-						{isPlaying}
-						{currentTime}
-						{duration}
-						{timing}
-						{videoElement}
-						bind:volume
-						bind:isMuted
-						{playbackRate}
-						shortcuts={!resultsOpen}
-						onCyclePlaybackRate={cyclePlaybackRate}
-					/>
+					{#if !mediaError}<VideoControls
+							{isPlaying}
+							{currentTime}
+							{duration}
+							{timing}
+							{videoElement}
+							bind:volume
+							bind:isMuted
+							{playbackRate}
+							shortcuts={!resultsOpen && !sessionsOpen && !keybindsOpen && !mediaError}
+							onCyclePlaybackRate={cyclePlaybackRate}
+						/>{/if}
 				{/snippet}
 
 				{#snippet mark()}
 					<MarkButtons
 						bind:this={markButtons}
+						landingLabel={stepLabel(
+							marks.findLast((m) => frameOf(m.time, timing) < frameAt(currentTime, timing))
+								?.type === 'takeoff'
+								? 'landing'
+								: 'plant',
+							jumpType
+						)}
 						action={nextAction}
 						frameRate={markingStatus}
 						{jumpType}
@@ -1511,7 +1728,10 @@
 		type="file"
 		accept="video/*"
 		onchange={handleFileSelect}
-		oncancel={() => (expectedSession = null)}
+		oncancel={() => {
+			expectedSession = reviewed;
+			requestedTime = null;
+		}}
 		class="sr-only"
 	/>
 	<input

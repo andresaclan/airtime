@@ -22,7 +22,10 @@
 		if (action.kind === 'choose') {
 			return 'Nothing new belongs between these marks. Choose a type to mark anyway, or move a mark.';
 		}
-		return stepDefinition(action.step, jumpType);
+		return (
+			(action.kind === 'on-frame' ? 'Selected frame · ' : '') +
+			stepDefinition(action.step, jumpType)
+		);
 	});
 </script>
 

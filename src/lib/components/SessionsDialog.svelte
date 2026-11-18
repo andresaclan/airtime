@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { isApplePlatform } from '$lib/keybinds';
 	import { sessionSummary } from '$lib/session/trends';
 	import TrendsView from './TrendsView.svelte';
 	import type { Session } from '$lib/session/schema';
@@ -83,7 +84,22 @@
 				event.preventDefault();
 				onClose();
 			}
-			if (view === 'trends' && trendsView?.handleKey(event)) event.preventDefault();
+			if (
+				event.target instanceof Element &&
+				event.target.closest('[role=tab]') &&
+				['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)
+			) {
+				event.preventDefault();
+				view =
+					event.key === 'Home'
+						? 'list'
+						: event.key === 'End'
+							? 'trends'
+							: view === 'list'
+								? 'trends'
+								: 'list';
+				card?.querySelectorAll<HTMLElement>('[role=tab]')[view === 'list' ? 0 : 1]?.focus();
+			} else if (view === 'trends' && trendsView?.handleKey(event)) event.preventDefault();
 			trapTab(event, card);
 			event.stopImmediatePropagation();
 		}
@@ -94,6 +110,7 @@
 
 	function formatDate(iso: string): string {
 		return new Date(iso).toLocaleString(undefined, {
+			year: 'numeric',
 			month: 'short',
 			day: 'numeric',
 			hour: 'numeric',
@@ -102,7 +119,11 @@
 	}
 
 	async function handleDelete(session: Session) {
-		if (!confirm(`Delete "${session.title}"? This can't be undone unless you've exported it.`)) {
+		if (
+			!confirm(
+				`Delete "${session.title}"? This removes the saved copy.${session.id === currentSessionId ? ' The open video will keep its marks as unsaved edits.' : ''}`
+			)
+		) {
 			return;
 		}
 		await deleteSession(session.id);
@@ -158,15 +179,21 @@
 					<h2 id="sessions-title" class="dialog-title">Saved sessions</h2>
 					<p class="dialog-subtitle">
 						{view === 'list'
-							? 'Saved in this browser. Open the same video again to bring back its marks.'
-							: "Each session's best jump, on the date it was recorded."}
+							? 'View saved results here. Open the original video to edit marks.'
+							: 'Compare recorded sessions. Select a date to inspect its jumps.'}
 					</p>
 					<div class="dialog-tabs" role="tablist" aria-label="Show">
-						<button role="tab" aria-selected={view === 'list'} onclick={() => (view = 'list')}
-							>List</button
+						<button
+							role="tab"
+							tabindex={view === 'list' ? 0 : -1}
+							aria-selected={view === 'list'}
+							onclick={() => (view = 'list')}>List</button
 						>
-						<button role="tab" aria-selected={view === 'trends'} onclick={() => (view = 'trends')}
-							>Trends</button
+						<button
+							role="tab"
+							tabindex={view === 'trends' ? 0 : -1}
+							aria-selected={view === 'trends'}
+							onclick={() => (view = 'trends')}>Trends</button
 						>
 					</div>
 				</div>
@@ -197,13 +224,8 @@
 						<p class="sessions-empty-title">No saved sessions yet</p>
 						<p>
 							Mark a video and <span class="pointer-only"
-								>press <kbd>⌘S</kbd> / <kbd>Ctrl S</kbd></span
+								>press <kbd>{isApplePlatform() ? '⌘S' : 'Ctrl S'}</kbd></span
 							><span class="touch-only">tap Save</span> to keep it here.
-						</p>
-						<p class="sessions-empty-import">
-							Have a backup? <button class="link-btn" onclick={() => importInput?.click()}
-								>Import backup</button
-							>
 						</p>
 					</div>
 				{:else}
@@ -218,7 +240,8 @@
 											>{/if}
 									</span>
 									<span class="session-meta">
-										{formatDate(session.updatedAt)} · {summary.jumps} jump{summary.jumps === 1
+										Edited {formatDate(session.updatedAt)} · {summary.jumps} jump{summary.jumps ===
+										1
 											? ''
 											: 's'} · {session.media.fileName}
 									</span>
@@ -233,9 +256,9 @@
 										<button
 											class="text-btn"
 											onclick={() => onOpen(session)}
-											title="Choose {session.media.fileName} to reopen its marks"
+											title="View results for {session.title}"
 										>
-											Open…
+											Results
 										</button>
 									{/if}
 									<button class="text-btn" onclick={() => downloadExport([session])}>Export</button>
@@ -317,9 +340,13 @@
 			{#if view === 'list'}
 				<div class="dialog-footer">
 					<button class="secondary-btn" onclick={() => importInput?.click()}>Import backup…</button>
-					<button class="primary-btn" onclick={handleExportAll} disabled={sessions.length === 0}>
-						Export all
-					</button>
+					{#if sessions.length}<button
+							class="primary-btn"
+							onclick={handleExportAll}
+							disabled={sessions.length === 0}
+						>
+							Export all
+						</button>{/if}
 				</div>
 			{/if}
 		</div>
@@ -558,11 +585,6 @@
 		color: hsl(var(--at-fg));
 		font-size: 14px;
 		font-weight: 600;
-	}
-
-	.sessions-empty-import {
-		margin-top: 6px;
-		font-size: 12px;
 	}
 
 	kbd {

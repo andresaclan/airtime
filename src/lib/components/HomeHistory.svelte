@@ -58,7 +58,11 @@
 	);
 
 	function day(time: number): string {
-		return new Date(time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+		return new Date(time).toLocaleDateString(undefined, {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric'
+		});
 	}
 
 	function recorded(session: Session): string {
@@ -86,7 +90,7 @@
 					><span class="home-change" class:up={change.value > 0}
 						>{change.value > 0 ? '+' : change.value < 0 ? '−' : '±'}{Math.abs(change.value)} ms</span
 					>
-					since {day(change.since)}{:else}. Save more sessions to see a trend.{/if}
+					since {day(change.since)}{:else}. Save another {group.label.toLowerCase()} session to compare.{/if}
 			</p>
 		</div>
 		{#if points.length > 1}
@@ -125,7 +129,7 @@
 	<header class="home-card-head">
 		<h2 id="home-recent-title">Recent sessions</h2>
 		<button class="home-more" onclick={() => onShowAll('list')}>
-			{sessions.length > RECENT ? `All ${sessions.length}` : 'Manage'}<svg
+			{sessions.length > RECENT ? `All ${sessions.length}` : 'Sessions'}<svg
 				viewBox="0 0 16 16"
 				aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5" /></svg
 			>
@@ -137,12 +141,12 @@
 				<button
 					class="home-session"
 					onclick={() => onOpenSession(session)}
-					title="Choose {session.media.fileName} to reopen its marks"
+					title="View results for {session.title}"
 				>
 					<span class="home-session-text">
 						<span class="home-session-title">{session.title}</span>
 						<span class="home-session-meta"
-							>{recorded(session)} · {jumps} jump{jumps === 1 ? '' : 's'}</span
+							>Recorded {recorded(session)} · {jumps} jump{jumps === 1 ? '' : 's'}</span
 						>
 					</span>
 					<span class="home-session-best" class:none={bestFlightMs === null}>

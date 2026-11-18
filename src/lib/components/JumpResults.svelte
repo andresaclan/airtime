@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { frameOf, rsi, type Mark } from '$lib/video/marks';
-	import { averageFlight, type JumpUnit } from '$lib/video/jumpUnits';
+	import { averageFlight, bestFlightLabel, type JumpUnit } from '$lib/video/jumpUnits';
 	import { plantLabel } from '$lib/video/guide';
 	import { frameDurationRange, frameLabel, type FrameTiming } from '$lib/video/frames';
 	import { formatFrameClock } from '$lib/video/timecode';
@@ -10,6 +10,8 @@
 	// and RSI, then the session's own details. A jump opens back in the video to be
 	// corrected.
 	interface Props {
+		originalName?: string;
+		onOriginal?: () => void;
 		units: JumpUnit[];
 		unpaired: Mark[];
 		/** Set once there are two measured jumps to compare. */
@@ -28,6 +30,8 @@
 	}
 
 	let {
+		originalName,
+		onOriginal,
 		units,
 		unpaired,
 		best,
@@ -103,7 +107,7 @@
 		else parts.push(`no ${plantName}, contact not measured`);
 		const reactive = index(unit);
 		if (reactive) parts.push(`RSI ${reactive}`);
-		if (best?.id === unit.id) parts.push('best');
+		if (bestFlightLabel(unit, completed, best)) parts.push(bestFlightLabel(unit, completed, best));
 		return `${parts.join(', ')}. Open it in the video`;
 	}
 
@@ -143,9 +147,14 @@
 		<div class="jr-bar-in">
 			<button class="jr-back" onclick={onBack}>
 				<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" /></svg>
-				Video
+				{originalName ? 'Home' : 'Video'}
 			</button>
 			<span class="jr-bar-title">Results</span>
+			{#if originalName}<button
+					class="jr-back jr-original"
+					title={originalName}
+					onclick={onOriginal}>Open video</button
+				>{/if}
 		</div>
 	</div>
 
@@ -156,7 +165,10 @@
 					<h1 id="jr-title" class="jr-title" tabindex="-1">{title.trim() || titlePlaceholder}</h1>
 					<p class="jr-meta">
 						{[
-							`${completed.length} ${completed.length === 1 ? 'jump' : 'jumps'}`,
+							`${completed.length} completed ${completed.length === 1 ? 'jump' : 'jumps'}`,
+							units.length > completed.length
+								? `${units.length - completed.length} in progress`
+								: null,
 							typeLabel,
 							recordedLabel
 						]
@@ -169,7 +181,11 @@
 					<div class="jr-summary">
 						<div class="jr-stat jr-lead">
 							<span class="jr-label"
-								>{best ? `Best flight · Jump ${leadNumber}` : 'Flight time'}</span
+								>{best
+									? bestFlightLabel(lead, completed, best) === 'Joint best'
+										? 'Joint best flight'
+										: `Best flight · Jump ${leadNumber}`
+									: 'Flight time'}</span
 							>
 							<span class="jr-value"
 								>{ms(lead.flight.realSeconds)}<span class="jr-unit">ms</span></span
@@ -184,6 +200,10 @@
 					</div>
 				{/if}
 
+				{#if originalName}<p class="jr-footnote">
+						To review a frame, choose {originalName}. Saved timings use the stored marks and frame
+						rate.
+					</p>{/if}
 				<section class="jr-section" aria-labelledby="jr-jumps">
 					<h2 id="jr-jumps" class="jr-heading">Jumps</h2>
 					{#if units.length}
@@ -200,7 +220,8 @@
 											onclick={(event) => onOpenUnit(event, unit)}
 										>
 											<span class="jr-name"
-												>Jump {i + 1}{#if best?.id === unit.id}<span class="jr-badge">Best</span
+												>Jump {i + 1}{#if bestFlightLabel(unit, completed, best)}<span
+														class="jr-badge">{bestFlightLabel(unit, completed, best)}</span
 													>{/if}</span
 											>
 											{#if unit.flight}
@@ -238,18 +259,20 @@
 						</div>
 						{#if frameMs > 0}
 							<p class="jr-footnote">
-								Times are read from frames: ±{precision} ms per frame{#if timeScale !== 1}, in real
-									time{/if}.
+								RSI (reactive strength index) is estimated jump height in metres divided by contact
+								time in seconds. Times are read from frames: ±{precision} ms per frame{#if timeScale !== 1},
+									in real time{/if}.
 							</p>
 						{/if}
 					{:else}
 						<div class="jr-empty">
 							<p class="jr-empty-title">No jumps yet</p>
 							<p class="jr-empty-text">
-								Mark a {plantName}, a takeoff and a landing in the video. Each jump shows up here
-								with its flight time.
+								Mark takeoff and landing for flight time. Add a {plantName} for contact time and RSI.
 							</p>
-							<button class="jr-empty-action" onclick={onBack}>Back to the video</button>
+							<button class="jr-empty-action" onclick={originalName ? onOriginal : onBack}
+								>{originalName ? 'Open original video' : 'Back to the video'}</button
+							>
 						</div>
 					{/if}
 				</section>
@@ -260,7 +283,7 @@
 						<ol class="jr-bars">
 							{#each completed as unit (unit.id)}
 								{@const flight = unit.flight!.realSeconds}
-								<li class="jr-bar-row" class:jr-bar-best={best.id === unit.id}>
+								<li class="jr-bar-row" class:jr-bar-best={!!bestFlightLabel(unit, completed, best)}>
 									<span class="jr-bar-name">Jump {units.indexOf(unit) + 1}</span>
 									<span class="jr-bar-track" aria-hidden="true"
 										><span class="jr-bar-fill" style:width="{(flight / longestFlight) * 100}%"
@@ -306,12 +329,17 @@
 				<div class="jr-group">
 					<label class="jr-prop">
 						<span class="jr-prop-name">Title</span>
-						<input bind:value={title} placeholder={titlePlaceholder} spellcheck="false" />
+						<input
+							readonly={!!originalName}
+							bind:value={title}
+							placeholder={titlePlaceholder}
+							spellcheck="false"
+						/>
 					</label>
 					<label class="jr-prop">
 						<span class="jr-prop-name">Jump type</span>
 						<span class="jr-select">
-							<select bind:value={jumpType}>
+							<select disabled={!!originalName} bind:value={jumpType}>
 								{#if jumpType === null}<option value={null}>Not set</option>{/if}
 								{#each JUMP_TYPES as type (type.value)}<option value={type.value}
 										>{type.label}</option
@@ -325,7 +353,7 @@
 					<label class="jr-prop">
 						<span class="jr-prop-name">Footage</span>
 						<span class="jr-select">
-							<select bind:value={timeScale}>
+							<select disabled={!!originalName} bind:value={timeScale}>
 								{#each TIME_SCALES as scale (scale.value)}<option value={scale.value}
 										>{scale.label}</option
 									>{/each}
@@ -336,12 +364,16 @@
 						</span>
 					</label>
 					<label class="jr-prop">
-						<span class="jr-prop-name">Recorded</span>
+						<span
+							class="jr-prop-name"
+							title="Initially set from the video file’s last modified date">Recorded</span
+						>
 						<span class="jr-select jr-date">
 							<span class="jr-date-value" class:jr-date-empty={!recordedValue} aria-hidden="true"
 								>{recordedValue || 'Not set'}</span
 							>
 							<input
+								disabled={!!originalName}
 								type="datetime-local"
 								bind:value={() => toLocalInput(recordedAt), fromLocalInput}
 								onclick={openPicker}
@@ -353,9 +385,14 @@
 						</span>
 					</label>
 				</div>
+				<p class="jr-footnote">Recorded initially uses the video file’s last modified date.</p>
 				<label class="jr-group jr-notes">
 					<span class="jr-prop-name">Notes</span>
-					<textarea bind:value={notes} placeholder="Exercise, attempt, how it felt…" rows="3"
+					<textarea
+						readonly={!!originalName}
+						bind:value={notes}
+						placeholder="Exercise, attempt, how it felt…"
+						rows="3"
 					></textarea>
 				</label>
 			</section>
@@ -364,6 +401,9 @@
 </section>
 
 <style>
+	.jr-original {
+		margin-left: auto;
+	}
 	.jr {
 		display: flex;
 		flex: 1 1 auto;

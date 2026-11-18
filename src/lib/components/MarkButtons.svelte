@@ -9,6 +9,7 @@
 	// button is the guide, so its words are the only instructions while marking.
 	interface Props {
 		/** Null until the video can be marked. */
+		landingLabel: string;
 		action: MarkAction | null;
 		/** Marking waits for the frame rate; `failed` means it never will. */
 		frameRate: 'detecting' | 'known' | 'failed';
@@ -22,7 +23,7 @@
 		onMark: (type: MarkType) => void;
 	}
 
-	let { action, frameRate, jumpType, onPress, onMark }: Props = $props();
+	let { landingLabel, action, frameRate, jumpType, onPress, onMark }: Props = $props();
 
 	let chooseOpen = $state(false);
 	let root: HTMLDivElement | null = $state(null);
@@ -85,7 +86,7 @@
 	}
 
 	function typeName(markType: MarkType): string {
-		return markType === 'takeoff' ? 'takeoff' : 'landing';
+		return markType === 'takeoff' ? 'takeoff' : landingLabel.toLowerCase();
 	}
 </script>
 
@@ -152,7 +153,7 @@
 		<!-- svelte-ignore a11y_interactive_supports_focus -->
 		<div class="mark-menu" role="menu" aria-label="Mark this frame as" onkeydown={handleMenuKey}>
 			<button class="mark-menu-item" role="menuitem" onclick={() => choose('landing')}>
-				<MarkGlyph type="landing" />Touchdown or landing<kbd>L</kbd>
+				<MarkGlyph type="landing" />{landingLabel}<kbd>L</kbd>
 			</button>
 			<button class="mark-menu-item takeoff" role="menuitem" onclick={() => choose('takeoff')}>
 				<MarkGlyph type="takeoff" />Takeoff<kbd>T</kbd>
