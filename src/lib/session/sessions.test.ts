@@ -23,6 +23,49 @@ import exportV3 from './fixtures/export-v3.json';
 const v1Text = JSON.stringify(exportV1);
 const v3Text = JSON.stringify(exportV3);
 
+type RecordedRow = {
+	frameRate: number;
+	timeScale: number;
+	kind?: string;
+	frames?: number;
+	seconds?: number;
+	realSeconds?: number;
+	contactFrames?: number | null;
+	contactRealSeconds?: number | null;
+	heightCm?: number | null;
+	rsi?: number | null;
+	meanContactRealSeconds?: number | null;
+};
+
+/**
+ * An old export's row with the takeoff frame added to its contact. Old exports ended
+ * contact at the takeoff mark; it now runs to the first frame in the air, one frame later,
+ * since a toe is still down on the takeoff frame. Flights are unchanged. The result is
+ * unrounded, so compare durations to the export's 4 decimals.
+ */
+function withTakeoffFrameInContact<T extends RecordedRow>(row: T): T {
+	const frame = 1 / row.frameRate;
+	const out: T = { ...row };
+	if (row.kind === 'contact') {
+		out.frames = row.frames! + 1;
+		out.seconds = row.seconds! + frame;
+		out.realSeconds = row.realSeconds! + frame * row.timeScale;
+	}
+	if (row.contactFrames != null && row.contactRealSeconds != null) {
+		out.contactFrames = row.contactFrames + 1;
+		out.contactRealSeconds = row.contactRealSeconds + frame * row.timeScale;
+		if (row.heightCm != null) out.rsi = row.heightCm / 100 / out.contactRealSeconds;
+	}
+	if (row.meanContactRealSeconds != null)
+		out.meanContactRealSeconds = row.meanContactRealSeconds + frame * row.timeScale;
+	return out;
+}
+
+function meanContact(rows: { kind: string; realSeconds: number }[]): number {
+	const contacts = rows.filter((row) => row.kind === 'contact');
+	return contacts.reduce((sum, row) => sum + row.realSeconds, 0) / contacts.length;
+}
+
 describe('importing old exports', () => {
 	test('a v1 export imports into the current schema', () => {
 		const sessions = parseImport(v1Text);
@@ -41,23 +84,36 @@ describe('importing old exports', () => {
 		expect(drop.frameRate).toEqual({ value: 240, source: 'playback-estimate' });
 	});
 
-	test('legacy flight timings and marks survive while borrowed contact is removed', () => {
+	test('legacy marks export unchanged', () => {
+		const recomputed = buildExport(parseImport(v1Text));
+		expect(recomputed.sessions.map((session) => session.marks)).toEqual(
+			exportV1.sessions.map((session) => session.marks)
+		);
+	});
+
+	test('legacy flight timings survive, contact gains the takeoff frame, borrowed contact is removed', () => {
 		const recomputed = buildExport(parseImport(v1Text));
 		// Unknown legacy types no longer borrow the landing of a previous flight.
 		// The old export's second contact in cmj-set1.mov spanned two separate jumps.
+		const expected = exportV1.tables.intervals
+			.filter(
+				(row) => !(row.fileName === 'cmj-set1.mov' && row.kind === 'contact' && row.index === 2)
+			)
+			.map(withTakeoffFrameInContact);
 		expect(recomputed.tables.intervals.map((row) => ({ ...row, jumpType: undefined }))).toEqual(
-			exportV1.tables.intervals
-				.filter(
-					(row) => !(row.fileName === 'cmj-set1.mov' && row.kind === 'contact' && row.index === 2)
-				)
-				.map((row) => ({ ...row, jumpType: undefined }))
+			expected.map((row) => ({
+				...row,
+				seconds: expect.closeTo(row.seconds, 4),
+				realSeconds: expect.closeTo(row.realSeconds, 4),
+				jumpType: undefined
+			}))
 		);
 		// Renamed in v2; contact aggregates now exclude the borrowed contact.
 		const { lowTrustSessionIds, ...overview } = exportV1.overview;
 		expect(recomputed.overview).toEqual({
 			...overview,
 			contactCount: 1,
-			meanContactRealSeconds: 0.25,
+			meanContactRealSeconds: expect.closeTo(meanContact(expected), 4),
 			assumedFrameRateSessionIds: lowTrustSessionIds
 		});
 	});
@@ -80,28 +136,44 @@ describe('importing old exports', () => {
 		}
 	});
 
-	test('timings recomputed from a real v3 export match what it recorded', () => {
+	test('marks from a real v3 export export unchanged', () => {
+		const recomputed = buildExport(parseImport(v3Text));
+		expect(recomputed.sessions.map((session) => session.marks)).toEqual(
+			exportV3.sessions.map((session) => session.marks)
+		);
+	});
+
+	test('timings recomputed from a real v3 export match what it recorded, with the takeoff frame in contact', () => {
 		const sessions = parseImport(v3Text);
 		for (const session of sessions) expect(session.schemaVersion).toBe(SCHEMA_VERSION);
 		const recomputed = buildExport(sessions);
 		// Marks are exported to the microsecond, so a duration on an exact tie can round the
 		// other way: 51 frames at 59.94 fps is 0.85085 s, recorded 0.8508 and recomputed 0.8509.
 		// The retired countermovement type comes back unset.
+		// RSI is recomputed here from the export's rounded height and contact, so it can be
+		// a hundredth out.
 		const durationKeys = /Seconds$|^seconds$/;
 		const nearDurations = (value: unknown, key = ''): unknown =>
 			key === 'jumpType'
 				? null
-				: Array.isArray(value)
-					? value.map((item) => nearDurations(item))
-					: value && typeof value === 'object'
-						? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, nearDurations(v, k)]))
-						: typeof value === 'number' && durationKeys.test(key)
-							? expect.closeTo(value, 3)
-							: value;
-		expect(recomputed.tables).toEqual(nearDurations(exportV3.tables));
-		expect(recomputed.overview).toEqual(nearDurations(exportV3.overview));
-		expect(recomputed.sessions.map((session) => session.derived)).toEqual(
-			nearDurations(exportV3.sessions.map((session) => session.derived))
+				: key === 'rsi' && typeof value === 'number'
+					? expect.closeTo(value, 1)
+					: Array.isArray(value)
+						? value.map((item) => nearDurations(item))
+						: value && typeof value === 'object'
+							? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, nearDurations(v, k)]))
+							: typeof value === 'number' && durationKeys.test(key)
+								? expect.closeTo(value, 3)
+								: value;
+		// Each session's derived numbers are the ones its table rows repeat.
+		const intervals = exportV3.tables.intervals.map(withTakeoffFrameInContact);
+		expect(recomputed.tables).toEqual({
+			intervals: nearDurations(intervals),
+			jumps: nearDurations(exportV3.tables.jumps.map(withTakeoffFrameInContact)),
+			sessions: nearDurations(exportV3.tables.sessions.map(withTakeoffFrameInContact))
+		});
+		expect(recomputed.overview).toEqual(
+			nearDurations({ ...exportV3.overview, meanContactRealSeconds: meanContact(intervals) })
 		);
 	});
 
@@ -110,19 +182,22 @@ describe('importing old exports', () => {
 		expect(
 			jumps.map((jump) => [jump.frameRate, jump.flightFrames, jump.contactFrames, jump.heightCm])
 		).toEqual([
-			[240, 199, 79, 84.1],
-			[60, 52, 19, 92.3],
-			[59.94, 51, 18, 88.8],
-			[59.94, 50, 18, 85.3],
+			[240, 199, 80, 84.1],
+			[60, 52, 20, 92.3],
 			[59.94, 51, 19, 88.8],
-			[59.94, 51, 18, 88.8],
-			[59.94, 51, 18, 88.8]
+			[59.94, 50, 19, 85.3],
+			[59.94, 51, 20, 88.8],
+			[59.94, 51, 19, 88.8],
+			[59.94, 51, 19, 88.8]
 		]);
 		// Heights come from the frames' real timestamps, not frame counts: the 240 fps flight is
 		// 3.444583 − 2.616667 = 0.827916 s, so 9.81 × 0.827916² / 8 = 84.05 cm, where 199 / 240
 		// would give 84.3.
 		expect(jumps[0].flightRealSeconds).toBe(0.8279);
-		expect(jumps[0].rsi).toBe(2.56); // 0.8405 m / 0.3283 s of plant contact
+		// Contact runs to the first frame in the air: 0.3283 s to the takeoff mark plus the
+		// takeoff frame, 1 / 240 s, so 0.8405 m / 0.3325 s.
+		expect(jumps[0].contactRealSeconds).toBe(0.3325);
+		expect(jumps[0].rsi).toBe(2.53);
 	});
 
 	test('sessions without their own version use the file version', () => {

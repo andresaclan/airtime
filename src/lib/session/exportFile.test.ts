@@ -60,7 +60,7 @@ const sessions: Session[] = [
 			['L1', 142],
 			['T2', 155],
 			['L2', 187],
-			['T3', 300],
+			['T3', 299],
 			['T4', 310],
 			['L4', 340]
 		)
@@ -71,7 +71,7 @@ const sessions: Session[] = [
 		jumpType: 'drop-jump',
 		frameRate: { value: 240, source: 'playback-estimate' },
 		timeScale: 0.25,
-		marks: marksAt(240, ['L0', 240], ['T1', 432], ['L1', 912], ['L9', 2000])
+		marks: marksAt(240, ['L0', 240], ['T1', 431], ['L1', 911], ['L9', 2000])
 	})
 ];
 
@@ -146,7 +146,8 @@ describe('derived numbers in the export match analyzeMarks', () => {
 	});
 
 	test('hand-computed values for the slow-motion drop jump', () => {
-		// 192 frames of contact and 480 of flight at 240 fps, slowed 4×: 0.2 s and 0.5 s.
+		// 192 frames of contact (to the frame after the takeoff mark) and 480 of flight at
+		// 240 fps, slowed 4×: 0.2 s and 0.5 s.
 		const [jump] = exported.sessions[1].derived.jumps;
 		expect(jump.contactRealSeconds).toBe(0.2);
 		expect(jump.flightRealSeconds).toBe(0.5);

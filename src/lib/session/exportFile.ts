@@ -35,7 +35,8 @@ const FIELDS = {
 		'Media time of the mark in seconds (source of truth). Snapped to a frame boundary.',
 	'sessions[].marks[].frame': 'Frame index, derived as round(seconds × frameRate.value).',
 	'sessions[].marks[].type':
-		'"takeoff" = first frame the feet leave the ground; "landing" = first frame they touch down.',
+		'"takeoff" = last frame a toe still touches the ground; "landing" = first frame the feet ' +
+		'touch down.',
 	'sessions[].frameRate':
 		'Frames per second used for frame math. source: "container" = read from the file, ' +
 		'"playback-estimate" = measured during playback, "default" = 30 fps assumed by an older ' +
@@ -48,7 +49,11 @@ const FIELDS = {
 		'Real seconds per media second. 1 = real-time footage; 0.25 = 4× slow motion.',
 	'sessions[].derived.intervals[]':
 		'Consecutive takeoff→landing pairs are "flight", landing→takeoff pairs are "contact". ' +
-		'seconds = media time; realSeconds = seconds × timeScale.',
+		'A flight runs from the takeoff frame (the last on the floor) to the landing frame ' +
+		'(frames = landing frame − takeoff frame). A contact runs from its landing frame to the ' +
+		'first frame in the air, the one after the takeoff (frames = takeoff frame − landing ' +
+		'frame + 1), so the takeoff frame counts in both. seconds = media time; ' +
+		'realSeconds = seconds × timeScale.',
 	'sessions[].derived.intervals[].heightCm':
 		`Jump height from flight time, h = g·t²/8 with g = ${GRAVITY} m/s² and t = realSeconds. ` +
 		'Assumes takeoff and landing at the same height.',

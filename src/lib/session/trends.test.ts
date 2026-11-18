@@ -51,7 +51,8 @@ describe('trendPoint', () => {
 	test('the best jump is the longest flight, with the contact before it', () => {
 		const point = trendPoint(
 			session('a', {
-				// Contact 300 ms then flight 800 ms; contact 250 ms then flight 850 ms; a takeoff with no landing yet.
+				// Contact 310 ms then flight 800 ms; contact 260 ms then flight 850 ms; a takeoff with no
+				// landing yet. Contact runs to the frame after the takeoff mark, so it's 10 ms past it.
 				marks: marksAt(
 					100,
 					['L0', 100],
@@ -65,7 +66,7 @@ describe('trendPoint', () => {
 			})
 		);
 		expect(point?.best.flightMs).toBeCloseTo(850);
-		expect(point?.best.contactMs).toBeCloseTo(250);
+		expect(point?.best.contactMs).toBeCloseTo(260);
 		// The incomplete jump isn't charted.
 		expect(point?.jumps).toHaveLength(2);
 		expect(point?.time).toBe(Date.parse('2026-10-01T09:00:00.000Z'));
@@ -82,7 +83,7 @@ describe('trendPoint', () => {
 			);
 			expect(point?.best.flightMs).toBeCloseTo(800);
 			expect(point?.best.contactMs).toBeNull();
-			expect(point?.jumps[0].contactMs).toBeCloseTo(200);
+			expect(point?.jumps[0].contactMs).toBeCloseTo(210);
 		}
 	);
 

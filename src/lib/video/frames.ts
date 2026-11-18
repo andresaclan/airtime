@@ -140,6 +140,15 @@ export function frameStartTime(frame: number, timing: Timing): number {
 	return frame / rateOf(timing);
 }
 
+/** End of frame k: the next frame's start. The last frame in a table lasts one nominal frame. */
+export function frameEndTime(frame: number, timing: Timing): number {
+	const fps = rateOf(timing);
+	const times = tableOf(timing);
+	if (!times) return (frame + 1) / fps;
+	const k = Math.max(0, Math.min(times.length - 1, frame));
+	return k + 1 < times.length ? times[k + 1] : times[k] + 1 / fps;
+}
+
 /** Middle of frame k: where to seek to show it. Never past `duration`, when known. */
 export function frameSeekTime(frame: number, timing: Timing, duration = Infinity): number {
 	const fps = rateOf(timing);
@@ -148,7 +157,7 @@ export function frameSeekTime(frame: number, timing: Timing, duration = Infinity
 	if (times) {
 		const k = Math.max(0, Math.min(times.length - 1, frame));
 		// The last frame lasts until the end of the video, or one nominal frame.
-		let end = k + 1 < times.length ? times[k + 1] : times[k] + 1 / fps;
+		let end = frameEndTime(k, timing);
 		if (k + 1 === times.length && duration > times[k]) end = Math.min(end, duration);
 		time = (times[k] + end) / 2;
 	} else {
@@ -202,4 +211,14 @@ export function frameDurationRange(timing: Timing): [number, number] | null {
  */
 export function markFrameStart(time: number, timing: Timing): number {
 	return tableOf(timing) ? frameStartTime(frameOfMarkTime(time, timing), timing) : time;
+}
+
+/**
+ * The real end of the frame a stored time refers to: the next frame's start. Without a
+ * table it is one frame after the stored time.
+ */
+export function markFrameEnd(time: number, timing: Timing): number {
+	return tableOf(timing)
+		? frameEndTime(frameOfMarkTime(time, timing), timing)
+		: time + 1 / rateOf(timing);
 }

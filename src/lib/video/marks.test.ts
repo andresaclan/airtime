@@ -24,6 +24,36 @@ const ids = (marks: Mark[]) => marks.map((mark) => mark.id);
 const HEIGHT_CM_AT_HALF_SECOND = 30.65625;
 
 describe('analyzeMarks', () => {
+	test('flight is mark to mark; contact runs one frame past the takeoff mark', () => {
+		// Plant on frame 90, a toe still down on frame 105, first touchdown again on frame 135.
+		const marks = marksAt(60, ['L0', 90], ['T1', 105], ['L1', 135]);
+		const [contact, flight] = analyzeMarks(marks, 60).intervals;
+		// Plant → first frame in the air (106).
+		expect(contact).toMatchObject({ kind: 'contact', frames: 16 });
+		expect(contact.seconds).toBeCloseTo(16 / 60, 12);
+		// Last frame on the floor (105) → first frame on the ground (135).
+		expect(flight).toMatchObject({ kind: 'flight', frames: 30 });
+		expect(flight.seconds).toBeCloseTo(30 / 60, 12);
+		// The takeoff frame counts in both.
+		expect(contact.seconds + flight.seconds).toBeCloseTo(46 / 60, 12);
+	});
+
+	test("with a frame-time table, contact gains the takeoff frame's own length", () => {
+		// Variable frame rate: frame 2 lasts 0.05 s while the others last 1/60 s.
+		const frameTimes = [0, 1 / 60, 2 / 60, 2 / 60 + 0.05, 3 / 60 + 0.05, 4 / 60 + 0.05];
+		const timing = { fps: 60, frameTimes };
+		const marks: Mark[] = [
+			{ id: 'L0', type: 'landing', time: frameTimes[0] },
+			{ id: 'T1', type: 'takeoff', time: frameTimes[2] },
+			{ id: 'L1', type: 'landing', time: frameTimes[5] }
+		];
+		const [contact, flight] = analyzeMarks(marks, timing).intervals;
+		expect(contact.seconds).toBeCloseTo(frameTimes[3], 12);
+		expect(contact.frames).toBe(3);
+		expect(flight.seconds).toBeCloseTo(frameTimes[5] - frameTimes[2], 12);
+		expect(flight.frames).toBe(3);
+	});
+
 	test('a takeoff then a landing is a flight, with height from h = g·t²/8', () => {
 		const { intervals, outOfSequence } = analyzeMarks(marksAt(60, ['T1', 60], ['L1', 90]), 60);
 		expect(outOfSequence.size).toBe(0);
@@ -38,7 +68,7 @@ describe('analyzeMarks', () => {
 	});
 
 	test('a landing then a takeoff is a contact, with no height', () => {
-		const { intervals } = analyzeMarks(marksAt(60, ['L0', 90], ['T1', 105]), 60);
+		const { intervals } = analyzeMarks(marksAt(60, ['L0', 90], ['T1', 104]), 60);
 		expect(intervals).toHaveLength(1);
 		expect(intervals[0]).toMatchObject({ kind: 'contact', frames: 15, heightCm: undefined });
 		expect(intervals[0].seconds).toBeCloseTo(0.25, 12);
@@ -74,8 +104,8 @@ describe('analyzeMarks', () => {
 			const marks = marksAt(
 				fps,
 				['L0', 0],
-				['T1', contactFrames],
-				['L1', contactFrames + flightFrames]
+				['T1', contactFrames - 1],
+				['L1', contactFrames - 1 + flightFrames]
 			);
 			const [contact, flight] = analyzeMarks(marks, fps, timeScale).intervals;
 			expect(flight.frames).toBe(flightFrames);
@@ -183,14 +213,14 @@ describe('groupJumps', () => {
 describe('rsi', () => {
 	test('is jump height in metres over the contact time before it', () => {
 		// 0.2 s contact, 0.5 s flight: 0.3065625 m / 0.2 s.
-		const marks = marksAt(60, ['L0', 0], ['T1', 12], ['L1', 42]);
+		const marks = marksAt(60, ['L0', 0], ['T1', 11], ['L1', 41]);
 		const [jump] = groupJumps(marks, analyzeMarks(marks, 60)).jumps;
 		expect(rsi(jump)).toBeCloseTo(1.5328125, 10);
 	});
 
 	test('uses real contact and flight time for slow motion', () => {
 		// 4× slow motion: 0.8 media s of contact and 2 media s of flight are 0.2 s and 0.5 s.
-		const marks = marksAt(240, ['L0', 0], ['T1', 192], ['L1', 672]);
+		const marks = marksAt(240, ['L0', 0], ['T1', 191], ['L1', 671]);
 		const [jump] = groupJumps(marks, analyzeMarks(marks, 240, 0.25)).jumps;
 		expect(rsi(jump)).toBeCloseTo(1.5328125, 10);
 	});
@@ -219,7 +249,7 @@ describe('contact belongs to its jump', () => {
 	);
 
 	test('a separate plant after a landing starts the next approach jump', () => {
-		const marks = marksAt(60, ['T1', 12], ['L1', 42], ['Lplant', 90], ['T2', 100], ['L2', 130]);
+		const marks = marksAt(60, ['T1', 12], ['L1', 42], ['Lplant', 90], ['T2', 99], ['L2', 130]);
 		const analysis = analyzeMarks(marks, 60);
 		const { jumps } = groupJumps(marks, analysis);
 		expect(jumps[1].contact?.from.id).toBe('Lplant');

@@ -5,12 +5,14 @@ import {
 	clampFrame,
 	frameAt,
 	frameDurationRange,
+	frameEndTime,
 	frameLabel,
 	frameOfMarkTime,
 	frameOfPresentedTime,
 	frameSeekTime,
 	frameStartTime,
 	lastFrameIndex,
+	markFrameEnd,
 	markFrameStart,
 	type FrameTiming
 } from './frames';
@@ -292,6 +294,15 @@ describe('variable frame rate: vfr-dropped.mp4 (frames 5-7 of 30 fps dropped)', 
 		expect(formatFrameClock(frameLabel(5, timing), timing)).toBe('0:00.267');
 	});
 
+	test('a frame ends where the next one starts; the last lasts one nominal frame', () => {
+		expect(frameEndTime(3, timing)).toBeCloseTo(4 / 30, 9);
+		expect(frameEndTime(4, timing)).toBeCloseTo(8 / 30, 9);
+		const last = timing.frameTimes!.length - 1;
+		expect(frameEndTime(last, timing)).toBeCloseTo(timing.frameTimes![last] + 1 / 30, 9);
+		expect(frameEndTime(4, 30)).toBeCloseTo(5 / 30, 9);
+		expect(markFrameEnd(4 / 30, 30)).toBeCloseTo(5 / 30, 9);
+	});
+
 	test('the frame range covers the gap', () => {
 		const [shortest, longest] = frameDurationRange(timing)!;
 		expect(shortest).toBeCloseTo(1 / 30, 4);
@@ -326,6 +337,7 @@ describe('variable frame rate: vfr-dropped.mp4 (frames 5-7 of 30 fps dropped)', 
 			{ id: 'b', type: 'landing', time: 9 / 30 }
 		];
 		expect(markFrameStart(6 / 30, timing)).toBeCloseTo(4 / 30, 6);
+		expect(markFrameEnd(6 / 30, timing)).toBeCloseTo(8 / 30, 6);
 		const [flight] = analyzeMarks(marks, timing).intervals;
 		expect(flight.frames).toBe(2);
 		expect(flight.seconds).toBeCloseTo(5 / 30, 6);
