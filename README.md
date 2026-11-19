@@ -52,7 +52,7 @@ Airtime is built around an approach jump: three marks give contact time, flight 
 6. **Results** lists every jump in the session, with its contact time and RSI. Each jump needs its own plant step for those; only repeat hops share a touchdown.
 7. Press `⌘S` / `Ctrl+S` to save. Open the same file later to pick up where you left off.
 
-The arrow button beside **Mark** marks the other type instead (`T` for a takeoff, `L` for a touchdown or landing). Pressing **Mark** on a frame that's already marked moves to that mark's controls: move it a frame at a time with **−1** and **+1**, or remove it. Drag a mark's pin on the timeline to move it further. The line under the video retires itself after three measured jumps, or hide it sooner with **Got it**; bring it back from the keyboard shortcuts dialog (`?`).
+The quieter button beside **Mark** marks the other type instead (`T` for a takeoff, `L` for a touchdown or landing); a small jump arc on each shows where the step sits, from plant step to landing. On a frame that's already marked, the row shows that mark: press it (or `M`) to edit it in place, moving it a frame at a time with **−1** and **+1**, changing its type, or removing it, then **Done**. Drag a mark's pin on the timeline to move it further. The line under the video retires itself after three measured jumps, or hide it sooner with **Got it**; bring it back from the keyboard shortcuts dialog (`?`).
 
 ## Keyboard shortcuts
 

@@ -124,7 +124,6 @@
 	let markFuture: Mark[][] = $state([]);
 	// The session's results take the whole page; the video is hidden behind them.
 	let resultsOpen = $state(false);
-	let workspace: ReturnType<typeof JumpWorkspace> | undefined = $state();
 	let keybindsOpen = $state(false);
 	let sessionsOpen = $state(false);
 	let sessionsView: 'list' | 'trends' = $state('list');
@@ -836,7 +835,7 @@
 
 	/**
 	 * The Mark button (or M): pauses on the frame on screen, then marks the step that
-	 * belongs there, opens the controls of the mark on it, or offers the choice of type.
+	 * belongs there, opens the editor of the mark on it, or offers the choice of type.
 	 */
 	async function pressMark(fromKey = false) {
 		const frame = await frameToMark();
@@ -848,14 +847,8 @@
 		}
 		// Brings the playhead onto that frame, so the panel and the button agree on it.
 		seekToFrame(frame);
-		if (action.kind === 'on-frame') await editActiveMark();
+		if (action.kind === 'on-frame') markButtons?.openEditor(fromKey);
 		else markButtons?.openChoice(fromKey);
-	}
-
-	/** Pressing Mark on a marked frame moves focus to that mark's controls in the panel. */
-	async function editActiveMark() {
-		await tick();
-		workspace?.focusMarkControls();
 	}
 
 	/** Results: back to the video on a jump's takeoff. */
@@ -1544,7 +1537,6 @@
 			</div>
 		{:else}
 			<JumpWorkspace
-				bind:this={workspace}
 				{units}
 				{marks}
 				{timing}
@@ -1700,18 +1692,18 @@
 				{#snippet mark()}
 					<MarkButtons
 						bind:this={markButtons}
-						landingLabel={stepLabel(
-							marks.findLast((m) => frameOf(m.time, timing) < frameAt(currentTime, timing))
-								?.type === 'takeoff'
-								? 'landing'
-								: 'plant',
-							jumpType
-						)}
+						landingStep={marks.findLast(
+							(m) => frameOf(m.time, timing) < frameAt(currentTime, timing)
+						)?.type === 'takeoff'
+							? 'landing'
+							: 'plant'}
 						action={nextAction}
 						frameRate={markingStatus}
 						{jumpType}
 						onPress={() => pressMark()}
 						onMark={addMark}
+						onNudge={nudgeMark}
+						onRemove={deleteMark}
 					/>
 				{/snippet}
 			</JumpWorkspace>

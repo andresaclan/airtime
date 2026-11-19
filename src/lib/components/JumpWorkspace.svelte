@@ -144,15 +144,6 @@
 				: ''
 	);
 
-	/** Pressing Mark on a marked frame: focus goes to that mark's controls. */
-	export function focusMarkControls() {
-		root
-			?.querySelector<HTMLElement>(
-				'.jw-stepper button:enabled, .jw-edit button:enabled, .jw-strip-edit button:enabled'
-			)
-			?.focus();
-	}
-
 	/**
 	 * Runs a control that replaces the page (Results, and back). From the keyboard,
 	 * focus follows to what took its place; a pointer leaves focus on the page, so Space
@@ -428,7 +419,7 @@
 	.jump-workspace {
 		--mark-color: hsl(var(--at-landing));
 		/* The width of the Mark buttons' slot in a wide control bar. */
-		--mark-slot: 240px;
+		--mark-slot: 372px;
 		display: flex;
 		flex: 1 1 auto;
 		width: 100%;
@@ -1129,9 +1120,6 @@
 	/* ---- Touch: 44px targets ---- */
 
 	@media (pointer: coarse) {
-		.jump-workspace {
-			--mark-slot: 252px;
-		}
 		.jw-results::after {
 			content: '';
 			position: absolute;
