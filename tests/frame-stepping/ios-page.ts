@@ -142,6 +142,8 @@ const cases: [string, () => Promise<void>][] = [
 		} catch (failure) {
 			error =
 				failure instanceof Error ? `${failure.message}\n${failure.stack ?? ''}` : String(failure);
+			const events = (app() as AppWindow & { __frameLog?: unknown[] }).__frameLog;
+			if (events?.length) error += `\nRecent frame events: ${JSON.stringify(events.slice(-60))}`;
 		}
 		await post('/__case', {
 			name,

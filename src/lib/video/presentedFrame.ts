@@ -77,11 +77,11 @@ export function trackPresentedFrames(
 	let corrected = false;
 	let correcting = false;
 	// `seeked` can precede presentation. WebKit can then deliver a callback from
-	// an older seek after a newer one has landed. Keep the explicit target until
-	// its picture arrives, rather than correcting back to that stale callback.
+	// an older seek even after the newer picture appeared. While paused, only a
+	// new request can change which frame the user asked to see.
 	let requestedTime: number | null = null;
 	const onRequest = () => {
-		requestedTime = targetTime(video);
+		requestedTime = video.paused ? targetTime(video) : null;
 		setPresentedTime(video, null);
 	};
 	// WebKit (iPhones especially) can present a paused seek's frame only once the next
@@ -137,7 +137,6 @@ export function trackPresentedFrames(
 		if (requestedTime !== null && timing) {
 			if (time < (timing.frameTimes?.[0] ?? 0) - 1e-5) return;
 			if (frameOfPresentedTime(time, timing) !== frameAt(requestedTime, timing)) return;
-			requestedTime = null;
 		}
 		previousSeekTime = null;
 		setPresentedTime(video, time);

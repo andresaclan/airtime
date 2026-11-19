@@ -213,13 +213,12 @@ describe('seek completion with frame callbacks', () => {
 		expect(fake.callbacks.size).toBe(0);
 	});
 
-	test('a missing picture detours once and returns before releasing the queue', () => {
+	test('a missing picture detours once and returns when it is still the requested frame', () => {
 		vi.useFakeTimers();
 		const fake = new PresentingVideo();
 		const element = fake as unknown as HTMLVideoElement;
 		seek(element, 0.15, timing);
 		fake.land();
-		seek(element, 0.25, timing);
 		vi.advanceTimersByTime(499);
 		expect(fake.assigned).toEqual([0.15]);
 		vi.advanceTimersByTime(1);
@@ -229,9 +228,24 @@ describe('seek completion with frame callbacks', () => {
 		expect(fake.assigned).toEqual([0.15, 0.05, 0.15]);
 		fake.land();
 		vi.advanceTimersByTime(500);
-		expect(fake.assigned).toEqual([0.15, 0.05, 0.15, 0.25]);
+		expect(fake.assigned).toEqual([0.15, 0.05, 0.15]);
 		clearSeeks(element);
 		expect(fake.callbacks.size).toBe(0);
+	});
+
+	test('a missing picture goes straight to the newer requested frame after timeout', () => {
+		vi.useFakeTimers();
+		const fake = new PresentingVideo();
+		const element = fake as unknown as HTMLVideoElement;
+		seek(element, 0.05, timing);
+		fake.land();
+		seek(element, 0.15, timing);
+		vi.advanceTimersByTime(500);
+		fake.land();
+		fake.present(0.1);
+		vi.advanceTimersByTime(1000);
+		expect(fake.assigned).toEqual([0.05, 0.15]);
+		expect(seekPending(element)).toBe(false);
 	});
 
 	test('replacing a file cancels presentation callbacks and the fallback timer', () => {

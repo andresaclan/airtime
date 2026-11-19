@@ -4,7 +4,7 @@
 	import MarkGlyph from './MarkGlyph.svelte';
 	import JumpResults from './JumpResults.svelte';
 	import { frameOf, type Mark } from '$lib/video/marks';
-	import { bestUnit, unpairedMarks, type JumpUnit } from '$lib/video/jumpUnits';
+	import { bestUnit, bestFlightLabel, unpairedMarks, type JumpUnit } from '$lib/video/jumpUnits';
 	import { GUIDE_STEPS, STEP_MARK, stepLabel, type MarkStep } from '$lib/video/guide';
 	import { frameLabel, type FrameTiming } from '$lib/video/frames';
 	import { formatFrameClock } from '$lib/video/timecode';
@@ -24,6 +24,7 @@
 		stage: Snippet;
 		/** The marking hint line. */
 		hint: Snippet;
+		nudgeBlocked: (mark: Mark, direction: number) => string;
 		scrubber: Snippet;
 		/** The time and frame-rate readout. */
 		readout: Snippet;
@@ -66,6 +67,7 @@
 	let {
 		stage,
 		hint,
+		nudgeBlocked,
 		scrubber,
 		readout,
 		controls,
@@ -144,7 +146,11 @@
 
 	/** Pressing Mark on a marked frame: focus goes to that mark's controls. */
 	export function focusMarkControls() {
-		root?.querySelector<HTMLElement>('[data-focus="mark"]')?.focus();
+		root
+			?.querySelector<HTMLElement>(
+				'.jw-stepper button:enabled, .jw-edit button:enabled, .jw-strip-edit button:enabled'
+			)
+			?.focus();
 	}
 
 	/**
@@ -184,7 +190,8 @@
 		>
 		{#key active?.flight?.realSeconds}
 			<span class="jw-hero-value jw-pop"
-				>{active?.flight ? ms(active.flight.realSeconds) : '–'}<span class="jw-hero-unit">ms</span
+				>{active?.flight ? ms(active.flight.realSeconds) : '–'}<span class="jw-hero-unit"
+					>{active?.flight ? 'ms' : ''}</span
 				></span
 			>
 		{/key}
@@ -196,10 +203,13 @@
 	<span class="jw-sum" class:pending={!active?.flight}>
 		<span class="jw-sum-name">J{number}</span>
 		<span class="jw-sum-value"
-			>{active?.flight ? ms(active.flight.realSeconds) : '--'}<span class="jw-sum-unit">ms</span
+			>{active?.flight ? ms(active.flight.realSeconds) : '—'}<span class="jw-sum-unit"
+				>{active?.flight ? 'ms' : ''}</span
 			></span
 		>
-		{#if active && best?.id === active.id}<span class="jw-sum-best">Best</span>{/if}
+		{#if active && bestFlightLabel(active, completed, best)}<span class="jw-sum-best"
+				>{bestFlightLabel(active, completed, best)}</span
+			>{/if}
 	</span>
 {/snippet}
 
@@ -237,13 +247,15 @@
 			data-focus="mark"
 			onclick={() => onNudge(item.id, -1)}
 			aria-label="Move the {onFrameName} one frame earlier"
-			title="One frame earlier">−1</button
+			disabled={!!nudgeBlocked(item, -1)}
+			title={nudgeBlocked(item, -1) || 'One frame earlier'}>−1</button
 		>
 		<button
 			class="jw-btn jw-quiet"
 			onclick={() => onNudge(item.id, 1)}
 			aria-label="Move the {onFrameName} one frame later"
-			title="One frame later">+1</button
+			disabled={!!nudgeBlocked(item, 1)}
+			title={nudgeBlocked(item, 1) || 'One frame later'}>+1</button
 		>
 	</div>
 	<button
@@ -269,18 +281,14 @@
 					<div class="jw-strip-in">
 						{@render summary()}
 						{#if onFrame}
-							<span class="jw-strip-edit" class:takeoff={onFrame.type === 'takeoff'}
+							<span class="jw-strip-edit jw-nudge" class:takeoff={onFrame.type === 'takeoff'}
 								>{@render markControls(onFrame)}</span
 							>
-						{:else}
-							<span class="jw-strip-edit">{@render history()}</span>
 						{/if}
+						<span class="jw-strip-edit">{@render history()}</span>
 						{@render resultsButton()}
 					</div>
 				</nav>
-				{#if layout === 'rail'}
-					<div class="jw-middle">{@render hero()}</div>
-				{/if}
 			{/if}
 			<div class="control-bar">
 				<div class="control-bar-inner">
@@ -304,7 +312,9 @@
 			<section class="jw-card">
 				<div class="jw-card-head">
 					<h2 class="jw-card-title">Jump {number}</h2>
-					{#if active && best?.id === active.id}<span class="jw-badge">Best</span>{/if}
+					{#if active && bestFlightLabel(active, completed, best)}<span class="jw-badge"
+							>{bestFlightLabel(active, completed, best)}</span
+						>{/if}
 				</div>
 				<div class="jw-card-results">{@render resultsButton()}</div>
 				{@render hero()}
@@ -360,7 +370,9 @@
 									onclick={() => onOpenUnit(unit)}
 								>
 									<span class="jw-jump-name">Jump {i + 1}</span>
-									{#if best?.id === unit.id}<span class="jw-badge">Best</span>{/if}
+									{#if bestFlightLabel(unit, completed, best)}<span class="jw-badge"
+											>{bestFlightLabel(unit, completed, best)}</span
+										>{/if}
 									<span class="jw-jump-value" class:pending={!unit.flight}
 										>{#if unit.flight}{ms(unit.flight.realSeconds)}<small>ms</small
 											>{:else}—{/if}</span
@@ -393,9 +405,21 @@
 			bind:recordedAt
 			onBack={(event) => act(event, () => onResults(false), '[data-focus="results"]')}
 			onOpenUnit={(event, unit) =>
-				act(event, () => onOpenUnit(unit), '[data-focus="mark"]', '.mark-primary')}
+				act(
+					event,
+					() => onOpenUnit(unit),
+					'.jw-stepper button:enabled',
+					'.jw-remove:enabled',
+					'.mark-primary'
+				)}
 			onOpenMark={(event, item) =>
-				act(event, () => onOpenMark(item), '[data-focus="mark"]', '.mark-primary')}
+				act(
+					event,
+					() => onOpenMark(item),
+					'.jw-stepper button:enabled',
+					'.jw-remove:enabled',
+					'.mark-primary'
+				)}
 		/>
 	{/if}
 </div>
@@ -469,6 +493,7 @@
 		flex: 0 0 clamp(300px, 38vw, 340px);
 		border-left: 1px solid hsl(var(--at-border));
 		overflow-y: auto;
+		justify-content: safe space-between;
 		overscroll-behavior: contain;
 		scrollbar-width: none;
 	}
@@ -581,20 +606,30 @@
 	}
 
 	@container jump-dock (max-width: 340px) {
-		.jw-sum-name {
-			display: none;
-		}
 		.jw-strip-edit .jw-icon,
 		.jw-strip-edit .jw-stepper .jw-btn {
 			width: 40px;
 		}
 	}
 
-	/* The rail has the flight time in its middle; its strip keeps to the controls. */
-	[data-layout='rail'] .jw-sum {
-		visibility: hidden;
+	@container jump-dock (max-width:420px) {
+		.jw-dock .jw-strip {
+			height: auto;
+			min-height: 44px;
+		}
+		.jw-strip-in {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) auto auto;
+			gap: 2px 8px;
+			height: auto;
+			padding: 3px 10px;
+		}
+		.jw-strip-in .jw-nudge {
+			grid-row: 2;
+			grid-column: 1 / -1;
+			justify-self: center;
+		}
 	}
-
 	.jw-results {
 		position: relative;
 		display: inline-flex;
@@ -765,26 +800,6 @@
 		.jw-slot:hover:not(:disabled):not([aria-current='true']) {
 			background: hsl(var(--at-fg) / 0.05);
 		}
-	}
-
-	/* On its side: flight time has the middle of the rail to itself. */
-	.jw-middle {
-		display: flex;
-		flex: 1 1 auto;
-		flex-direction: column;
-		justify-content: center;
-		min-height: 0;
-		padding: 0 16px;
-	}
-
-	.jw-middle .jw-hero {
-		align-items: center;
-		gap: 4px;
-	}
-
-	.jw-middle .jw-hero-value {
-		font-size: clamp(34px, 12vh, 48px);
-		transform-origin: center;
 	}
 
 	/* ---- Regular: the jump as a card, beside or under the video ---- */

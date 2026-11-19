@@ -167,6 +167,17 @@ describe('the frame on screen', () => {
 		expect(displayedFrame(video.element, timing)).toBe(2);
 	});
 
+	test('a late picture after a released step has settled cannot issue a new seek', () => {
+		const { video } = tracked();
+		seek(video.element, frameSeekTime(11, timing), timing);
+		video.land();
+		video.present(11 / 30);
+		expect(seekPending(video.element)).toBe(false);
+		video.present(2 / 30);
+		expect(video.assigned).toEqual([frameSeekTime(11, timing)]);
+		expect(displayedFrame(video.element, timing)).toBe(11);
+	});
+
 	test('a late callback cannot rewind a no-op seek to the picture already on screen', () => {
 		const { video } = tracked();
 		video.currentTime = frameSeekTime(1, timing);

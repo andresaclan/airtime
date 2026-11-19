@@ -7,7 +7,7 @@
  * One draft per video, keyed by the file's fingerprint (see fingerprint.ts).
  */
 import { migrateSession } from './migrate';
-import type { Session } from './schema';
+import { DEFAULT_JUMP_TYPE, type Session } from './schema';
 
 export type Draft = {
 	fingerprint: string;
@@ -94,7 +94,16 @@ export function pickRestore(
 /** Drafts worth offering back on the start screen, newest first. */
 export function waitingDrafts(drafts: Draft[]): Draft[] {
 	return drafts
-		.filter((draft) => draft.session.marks.length > 0 || !draft.isNew)
+		.filter(
+			({ session, isNew }) =>
+				!isNew ||
+				session.marks.length > 0 ||
+				session.title !== session.media.fileName.replace(/\.[^.]+$/, '') ||
+				session.notes !== '' ||
+				session.jumpType !== DEFAULT_JUMP_TYPE ||
+				session.timeScale !== 1 ||
+				session.recordedAt !== session.media.lastModified
+		)
 		.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 

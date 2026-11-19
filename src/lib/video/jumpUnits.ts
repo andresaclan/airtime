@@ -48,6 +48,18 @@ export function bestUnit(units: JumpUnit[]): JumpUnit | undefined {
 		>((best, unit) => (!best || unit.flight!.realSeconds > best.flight!.realSeconds ? unit : best), undefined);
 }
 
+/** Compare at the precision displayed to the athlete. */
+export function bestFlightLabel(unit: JumpUnit, completed: JumpUnit[], best?: JumpUnit): string {
+	if (!best?.flight || !unit.flight) return '';
+	const longest = Math.round(best.flight.realSeconds * 1000);
+	if (Math.round(unit.flight.realSeconds * 1000) !== longest) return '';
+	return completed.filter(
+		(candidate) => candidate.flight && Math.round(candidate.flight.realSeconds * 1000) === longest
+	).length > 1
+		? 'Joint best'
+		: 'Best';
+}
+
 /** Mean flight of the measured jumps, in real seconds. */
 export function averageFlight(units: JumpUnit[]): number | undefined {
 	const flights = units.flatMap((unit) => (unit.flight ? [unit.flight.realSeconds] : []));

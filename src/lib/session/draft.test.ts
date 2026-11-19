@@ -136,7 +136,7 @@ describe('what reopening a video restores', () => {
 });
 
 describe('drafts waiting on the start screen', () => {
-	test('newest first, without new videos that have no marks yet', () => {
+	test('newest first, including edits to session details before marking', () => {
 		const older = makeDraft(session({ marks: marks(1) }), true, '2026-11-03T12:00:00.000Z');
 		const newer = makeDraft(
 			session({ marks: marks(1), media: { ...session().media, fingerprint: 'b' } }),
@@ -154,7 +154,7 @@ describe('drafts waiting on the start screen', () => {
 			false,
 			'2026-11-02T12:00:00.000Z'
 		);
-		expect(waitingDrafts([older, empty, cleared, newer])).toEqual([newer, older, cleared]);
+		expect(waitingDrafts([older, empty, cleared, newer])).toEqual([empty, newer, older, cleared]);
 	});
 });
 

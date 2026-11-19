@@ -91,7 +91,9 @@
 	function series(kind: Kind, height: number, bottom: number): Series {
 		// The axis covers every jump, so switching to best jumps only doesn't rescale it.
 		const values = points.flatMap((point) => jumpValues(point, kind));
-		const ticks = valueTicks(Math.min(...values), Math.max(...values));
+		const ticks = valueTicks(Math.min(...values), Math.max(...values)).filter(
+			(value) => value >= 0
+		);
 		const low = ticks[0];
 		const high = ticks[ticks.length - 1];
 		const yOf = (value: number) =>
@@ -197,7 +199,7 @@
 		>
 		{#if data.latest !== null}
 			<span class="trends-panel-value">
-				<b>{ms(data.latest)}<small>ms</small></b>
+				<span>Latest</span> <b>{ms(data.latest)}<small>ms</small></b>
 				{#if data.change}<span class="trends-change"
 						>{signed(data.change.value)} since {day(data.change.since)}</span
 					>{/if}
@@ -317,24 +319,24 @@
 				<button class="link-btn" onclick={() => (rangeMonths = null)}>Show all</button>
 			</div>
 		{:else}
-			<div
-				class="trends-plot"
-				bind:this={plot}
-				bind:clientWidth={width}
-				role="slider"
-				tabindex="0"
-				aria-label="Session"
-				aria-valuemin={1}
-				aria-valuemax={points.length}
-				aria-valuenow={selectedIndex + 1}
-				aria-valuetext={selected ? pointLabel(selected) : undefined}
-			>
-				{#if width > 0}
-					{@render panel(flight, !showContact)}
-					{#if contact}{@render panel(contact, true)}{/if}
-				{/if}
-			</div>
-
+			{#if points.length > 1}<div
+					class="trends-plot"
+					bind:this={plot}
+					bind:clientWidth={width}
+					role="slider"
+					tabindex="0"
+					aria-label="Session"
+					aria-valuemin={1}
+					aria-valuemax={points.length}
+					aria-valuenow={selectedIndex + 1}
+					aria-valuetext={selected ? pointLabel(selected) : undefined}
+				>
+					{#if width > 0}
+						{@render panel(flight, !showContact)}
+						{#if contact}{@render panel(contact, true)}{/if}
+					{/if}
+				</div>
+			{/if}
 			{#if selected}
 				<div class="trends-detail">
 					<div class="trends-detail-head">
@@ -346,11 +348,12 @@
 							<button
 								class="text-btn"
 								onclick={() => selected && onOpen(selected.session)}
-								title="Choose {selected.session.media.fileName} to reopen its marks">Open…</button
+								title="View results for {selected.session.title}">Results</button
 							>
 						{/if}
 					</div>
 					<div class="trends-detail-values">
+						<strong>Session best</strong>
 						<span
 							><span class="trends-swatch flight"></span>Flight
 							<b>{ms(selected.best.flightMs)}</b> ms</span
@@ -365,6 +368,14 @@
 							<span class="trends-detail-count">best of {selected.jumps.length} jumps</span>
 						{/if}
 					</div>
+					{#if everyJump && selected.jumps.length > 1}
+						<ol class="trend-attempts" aria-label="Completed jumps">
+							{#each selected.jumps as jump, i (i)}<li>
+									Jump {i + 1} · Flight {ms(jump.flightMs)} ms{#if jump.contactMs !== null}
+										· Contact {ms(jump.contactMs)} ms{/if}
+								</li>{/each}
+						</ol>
+					{/if}
 				</div>
 			{/if}
 
@@ -399,6 +410,12 @@
 </div>
 
 <style>
+	.trend-attempts {
+		display: grid;
+		gap: 4px;
+		margin-top: 8px;
+		font-size: 13px;
+	}
 	/* Neutral, like the takeoff and landing marks: flight is the bright series it's read for. */
 	.trends {
 		--trend-flight: hsl(0 0% 86%);

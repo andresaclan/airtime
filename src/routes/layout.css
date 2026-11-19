@@ -348,6 +348,7 @@ body {
 	animation: reveal 160ms var(--at-ease);
 }
 
+.header-menu select,
 .header-menu button {
 	display: flex;
 	align-items: center;
@@ -1277,20 +1278,12 @@ body {
 	.header-file-name {
 		max-width: 46vw;
 	}
-	/* Unsaved shrinks to a dot after the file name; Save's own state says the rest. */
 	.header-file .header-status {
-		gap: 0;
-		width: 8px;
-		height: 8px;
-		padding: 0;
-		overflow: hidden;
-		background: none;
-		font-size: 0;
+		font-size: 11px;
+		flex-shrink: 0;
 	}
-	.header-file .header-status::before {
-		flex: 0 0 8px;
-		width: 8px;
-		height: 8px;
+	.header-status-detail {
+		display: none;
 	}
 }
 
@@ -1471,6 +1464,10 @@ body {
 
 /* A phone on its side: the bar is a narrow rail beside the picture, so it keeps to
    what a thumb needs there. The time and mute step aside; a frame-rate warning stays. */
+.jump-workspace[data-layout='rail'] .marking-hint:not(.failed) {
+	display: none;
+}
+
 .jump-workspace[data-layout='rail'] .control-bar {
 	border-top: none;
 }
@@ -1480,21 +1477,9 @@ body {
 	padding-inline: 14px;
 }
 
-.jump-workspace[data-layout='rail'] .time-current,
-.jump-workspace[data-layout='rail'] .time-fps.clean,
-.jump-workspace[data-layout='rail'] .volume-section {
-	display: none;
-}
-
 .jump-workspace[data-layout='rail'] .control-toolbar .play-btn {
 	width: 48px;
 	height: 48px;
-}
-
-/* The rail has room to spare beside the picture, so the hint only needs to be there
-   while a jump is being marked. Upright it stays, so the picture never resizes. */
-.jump-workspace[data-layout='rail']:not([data-mode='capture']) .marking-hint:not(.failed) {
-	display: none;
 }
 
 /* A wide bar: the Mark buttons keep one width whether or not the other-type button
@@ -1510,4 +1495,30 @@ body {
 	.app-header {
 		height: 44px;
 	}
+}
+
+.file-problem {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 16px;
+	background: hsl(var(--at-bg-elevated));
+	color: hsl(var(--at-fg));
+	font-size: 14px;
+}
+@container control-bar (max-width:700px) {
+	.time-frame {
+		display: inline;
+		grid-area: status;
+		justify-self: start;
+		font-size: 12px;
+	}
+}
+.jump-workspace[data-layout='rail'] .control-toolbar .volume-section {
+	display: flex;
+}
+
+.app-header {
+	z-index: 41;
 }

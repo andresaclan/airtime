@@ -241,10 +241,11 @@ async function waitUntilReady(page: FramePage, fixture: Fixture) {
 	// playback probe is running; readiness itself needs no pixel allocation.
 	await waitFor(
 		() =>
-			page.evaluate(() => {
+			page.evaluate((file) => {
 				const video = document.querySelector('video');
 				const fps = document.querySelector('.time-fps')?.textContent ?? '';
 				return Boolean(
+					document.querySelector('.header-file-name')?.textContent === file &&
 					video &&
 					video.readyState >= 2 &&
 					video.paused &&
@@ -252,7 +253,7 @@ async function waitUntilReady(page: FramePage, fixture: Fixture) {
 					fps.includes('fps') &&
 					!fps.includes('Detecting')
 				);
-			}, undefined),
+			}, fixture.file),
 		Boolean,
 		'Frame rate must be known and the playback probe finished'
 	);
