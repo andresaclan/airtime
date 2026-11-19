@@ -585,11 +585,6 @@ body {
 	isolation: isolate;
 }
 
-/* The Mark… choice opens upwards, over the marking hint. */
-.control-bar:has(.mark-menu) {
-	z-index: 32;
-}
-
 /* The toolbar lays itself out from the bar's own width (see the control-bar
    container query). The bar is docked under the picture, so it never covers the
    feet at takeoff and landing. */

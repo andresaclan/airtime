@@ -1,169 +1,235 @@
 <script lang="ts">
-	import MarkGlyph from './MarkGlyph.svelte';
+	import MarkArc from './MarkArc.svelte';
 	import type { MarkType } from '$lib/video/marks';
-	import { stepLabel, type MarkAction } from '$lib/video/guide';
+	import { stepLabel, type MarkAction, type MarkStep } from '$lib/video/guide';
 	import type { JumpType } from '$lib/session/schema';
 
-	// The marking controls. One button names the step that belongs at the frame
-	// on screen and marks it; a small one beside it marks the other type instead. The
-	// button is the guide, so its words are the only instructions while marking.
+	// The marking controls. One button names the step that belongs at the frame on screen
+	// and marks it; a quieter one beside it marks the other type instead. A marked frame
+	// shows that mark, and pressing it swaps the row for the mark's editor. The buttons are
+	// the guide, so their words are the only instructions while marking. A small jump arc
+	// on each says where the step sits: plant step, takeoff, landing.
 	interface Props {
-		landingLabel: string;
+		/** The step a landing-type mark would be here: a plant step, or a landing after a takeoff. */
+		landingStep: Exclude<MarkStep, 'takeoff'>;
 		/** Null until the video can be marked. */
 		action: MarkAction | null;
 		/** Marking waits for the frame rate; `failed` means it never will. */
 		frameRate: 'detecting' | 'known' | 'failed';
 		jumpType: JumpType | null;
 		/**
-		 * The big button (or M): pauses on the frame on screen, then marks its step, opens
-		 * the controls of the mark on it, or calls `openChoice`.
+		 * The main button (or M): pauses on the frame on screen, then marks its step, opens
+		 * the editor of the mark on it (`openEditor`), or focuses the choice (`openChoice`).
 		 */
 		onPress: () => void;
 		/** Marks this frame as `type`, replacing a mark of the other type on it. */
 		onMark: (type: MarkType) => void;
+		/** Moves the mark on this frame by whole frames. */
+		onNudge: (id: string, frames: number) => void;
+		onRemove: (id: string) => void;
 	}
 
-	let { landingLabel, action, frameRate, jumpType, onPress, onMark }: Props = $props();
+	let { landingStep, action, frameRate, jumpType, onPress, onMark, onNudge, onRemove }: Props =
+		$props();
 
-	let chooseOpen = $state(false);
 	let root: HTMLDivElement | null = $state(null);
+	let editing = $state(false);
 
 	let ready = $derived(frameRate === 'known' && action !== null);
+	let label = $derived(
+		action?.kind === 'add' || action?.kind === 'on-frame' ? stepLabel(action.step, jumpType) : ''
+	);
 	let type: MarkType | null = $derived(
 		action?.kind === 'add' ? action.type : action?.kind === 'on-frame' ? action.mark.type : null
 	);
 	let other: MarkType = $derived(type === 'takeoff' ? 'landing' : 'takeoff');
-	/** The other-type button only shows while there's a step to offer it against. */
-	let showAlt = $derived(ready && action?.kind !== 'choose');
-	let label = $derived(
-		action?.kind === 'add' || action?.kind === 'on-frame' ? stepLabel(action.step, jumpType) : ''
-	);
+	let otherStep: MarkStep = $derived(other === 'takeoff' ? 'takeoff' : landingStep);
+	let otherLabel = $derived(stepLabel(otherStep, jumpType));
+	let landingLabel = $derived(stepLabel(landingStep, jumpType));
 
-	// The choice is only about a frame where nothing new belongs; anywhere else it closes.
-	let choosing = $derived(action?.kind === 'choose');
+	// The editor belongs to a marked frame; anywhere else (or once the mark is gone) it closes.
+	let onFrame = $derived(action?.kind === 'on-frame');
 	$effect(() => {
-		if (!choosing) chooseOpen = false;
+		if (!onFrame) editing = false;
 	});
 
-	/** Opens the choice of type; from the keyboard, with focus on its first item. */
-	export function openChoice(focus = false) {
-		chooseOpen = true;
-		if (focus) queueMicrotask(() => root?.querySelector<HTMLElement>('[role="menuitem"]')?.focus());
+	function keyFor(markType: MarkType) {
+		return markType === 'takeoff' ? 'T' : 'L';
 	}
 
-	function handlePrimary() {
-		if (chooseOpen) chooseOpen = false;
-		else onPress();
+	function focus(selector: string) {
+		queueMicrotask(() => root?.querySelector<HTMLElement>(selector)?.focus());
 	}
 
-	function choose(choice: MarkType) {
-		chooseOpen = false;
-		onMark(choice);
+	/** Swaps a marked frame's row for its editor; from the keyboard, with focus in it. */
+	export function openEditor(fromKey = false) {
+		editing = true;
+		if (fromKey) focus('.mark-editor button:not([hidden])');
 	}
 
-	function handleMenuKey(event: KeyboardEvent) {
-		if (event.key === 'Escape') {
+	/** Where nothing obviously belongs: from the keyboard, focus goes to the first choice. */
+	export function openChoice(fromKey = false) {
+		if (fromKey) focus('.mark-choice');
+	}
+
+	function closeEditor() {
+		const hadFocus = root?.contains(document.activeElement) ?? false;
+		editing = false;
+		if (hadFocus) focus('.mark-primary');
+	}
+
+	function handleKeyDown(event: KeyboardEvent) {
+		if (editing && event.key === 'Escape') {
 			event.stopPropagation();
-			chooseOpen = false;
-			root?.querySelector<HTMLElement>('.mark-primary')?.focus();
-		} else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-			// Handled here, so the arrows don't also change the volume.
-			event.preventDefault();
-			event.stopPropagation();
-			const items = [...(root?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
-			const at = items.indexOf(document.activeElement as HTMLElement);
-			items[(at + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
+			closeEditor();
 		}
 	}
 
-	function handleWindowPointerDown(event: PointerEvent) {
-		if (chooseOpen && !root?.contains(event.target as Node)) chooseOpen = false;
-	}
-
-	// Escape closes the choice wherever focus is (a tap or click leaves it on the button).
-	function handleWindowKeyDown(event: KeyboardEvent) {
-		if (chooseOpen && event.key === 'Escape') chooseOpen = false;
-	}
-
-	function typeName(markType: MarkType): string {
-		return markType === 'takeoff' ? 'takeoff' : landingLabel.toLowerCase();
-	}
+	// On a narrow phone the main button drops its verb ("Box landing") when the whole label
+	// won't fit, rather than cutting it off. 8px of slack keeps it from flickering at the
+	// edge. The accessible name always says "Mark …".
+	let labelSlot: HTMLSpanElement | null = $state(null);
+	let measure: HTMLSpanElement | null = $state(null);
+	let tight = $state(false);
+	$effect(() => {
+		if (!labelSlot || !measure) return;
+		void label;
+		const slot = labelSlot;
+		const full = measure;
+		const fit = () => {
+			const room = slot.clientWidth;
+			const need = full.offsetWidth;
+			tight = tight ? need > room - 8 : need > room;
+		};
+		fit();
+		const observer = new ResizeObserver(fit);
+		observer.observe(slot);
+		return () => observer.disconnect();
+	});
 </script>
 
-<svelte:window onpointerdown={handleWindowPointerDown} onkeydown={handleWindowKeyDown} />
+<svelte:window onkeydown={handleKeyDown} />
 
-<div class="step-marks" class:solo={!showAlt} bind:this={root}>
-	<button
-		class="mark-primary"
-		class:add={action?.kind === 'add'}
-		class:on-frame={action?.kind === 'on-frame'}
-		class:choose={action?.kind === 'choose'}
-		class:takeoff={type === 'takeoff'}
-		disabled={!ready}
-		onclick={handlePrimary}
-		aria-keyshortcuts={ready ? 'M' : undefined}
-		aria-haspopup={action?.kind === 'choose' ? 'menu' : undefined}
-		aria-expanded={action?.kind === 'choose' ? chooseOpen : undefined}
-		aria-label={action?.kind === 'on-frame' ? `${label} is on this frame. Edit it` : undefined}
-		title={!ready
-			? undefined
-			: action?.kind === 'add'
-				? `Mark ${label.toLowerCase()} on this frame (M)`
-				: action?.kind === 'on-frame'
-					? `Edit the ${label.toLowerCase()} on this frame (M)`
-					: 'Choose what to mark on this frame (M)'}
-	>
-		{#if frameRate === 'failed'}
-			<span class="mark-primary-label">Can't mark this video</span>
-		{:else if !ready}
-			<span class="mark-primary-label">Reading frame rate…</span>
-		{:else if action?.kind === 'add'}
-			<MarkGlyph type={action.type} size={17} />
-			<span class="mark-primary-label">Mark {label.toLowerCase()}</span>
+<div class="step-marks" bind:this={root}>
+	{#if !ready}
+		<button class="mark-primary mark-status" class:failed={frameRate === 'failed'} disabled>
+			{#if frameRate === 'failed'}
+				Can't mark this video
+			{:else}
+				<span class="mark-spinner" aria-hidden="true"></span>Reading frame rate…
+			{/if}
+		</button>
+	{:else if action?.kind === 'add'}
+		<button
+			class="mark-primary mark-add"
+			onclick={onPress}
+			aria-label="Mark {label.toLowerCase()}"
+			aria-keyshortcuts="M"
+			title="Mark {label.toLowerCase()} on this frame (M)"
+		>
+			<MarkArc step={action.step} />
+			<span class="mark-label" bind:this={labelSlot}>
+				{tight ? label : `Mark ${label.toLowerCase()}`}
+				<span class="mark-measure" bind:this={measure} aria-hidden="true"
+					>Mark {label.toLowerCase()}</span
+				>
+			</span>
 			<kbd>M</kbd>
-		{:else if action?.kind === 'on-frame'}
+		</button>
+		<button
+			class="mark-alt"
+			onclick={() => onMark(other)}
+			aria-label="Mark {otherLabel.toLowerCase()} instead"
+			aria-keyshortcuts={keyFor(other)}
+			title="Mark {otherLabel.toLowerCase()} instead ({keyFor(other)})"
+		>
+			<MarkArc step={otherStep} />
+			<span class="mark-label">{otherLabel}</span>
+		</button>
+	{:else if action?.kind === 'on-frame' && !editing}
+		<button
+			class="mark-primary mark-on-frame"
+			onclick={onPress}
+			aria-label="{label} is marked on this frame. Edit it"
+			aria-keyshortcuts="M"
+			title="Edit the {label.toLowerCase()} on this frame (M)"
+		>
+			<MarkArc step={action.step} />
+			<span class="mark-label">{label}</span>
 			<svg class="mark-check" viewBox="0 0 16 16" aria-hidden="true"
 				><path d="m3.5 8.5 3 3 6-7" /></svg
 			>
-			<span class="mark-primary-label">{label}</span>
-		{:else}
-			<span class="mark-primary-label">Mark…</span>
-			<kbd>M</kbd>
-		{/if}
-	</button>
-
-	{#if showAlt}
-		<button
-			class="mark-alt"
-			class:takeoff={other === 'takeoff'}
-			onclick={() => onMark(other)}
-			aria-label={action?.kind === 'on-frame'
-				? `Change to ${typeName(other)}`
-				: `Mark ${typeName(other)} instead`}
-			aria-keyshortcuts={other === 'takeoff' ? 'T' : 'L'}
-			title={action?.kind === 'on-frame'
-				? `Change to ${typeName(other)} (${other === 'takeoff' ? 'T' : 'L'})`
-				: `Mark ${typeName(other)} instead (${other === 'takeoff' ? 'T' : 'L'})`}
-		>
-			<MarkGlyph type={other} size={18} />
+			<span class="mark-edit-hint">
+				<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 3 13 5.5 6 12.5H3.5V10z" /></svg
+				>Edit
+			</span>
 		</button>
-	{/if}
-
-	{#if chooseOpen && action?.kind === 'choose'}
-		<!-- svelte-ignore a11y_interactive_supports_focus -->
-		<div class="mark-menu" role="menu" aria-label="Mark this frame as" onkeydown={handleMenuKey}>
-			<button class="mark-menu-item" role="menuitem" onclick={() => choose('landing')}>
-				<MarkGlyph type="landing" />{landingLabel}<kbd>L</kbd>
+	{:else if action?.kind === 'on-frame'}
+		{@const mark = action.mark}
+		<div class="mark-editor" role="group" aria-label="Edit the {label.toLowerCase()}">
+			<span class="mark-nudge">
+				<button
+					onclick={() => onNudge(mark.id, -1)}
+					aria-label="Move the {label.toLowerCase()} one frame earlier"
+					title="One frame earlier">−1</button
+				>
+				<button
+					onclick={() => onNudge(mark.id, 1)}
+					aria-label="Move the {label.toLowerCase()} one frame later"
+					title="One frame later">+1</button
+				>
+			</span>
+			<button
+				class="mark-swap"
+				onclick={() => onMark(other)}
+				aria-label="Change to {otherLabel.toLowerCase()}"
+				aria-keyshortcuts={keyFor(other)}
+				title="Change to {otherLabel.toLowerCase()} ({keyFor(other)})"
+			>
+				<svg viewBox="0 0 16 16" aria-hidden="true"
+					><path d="M3 5h9.5M10 2.5 12.5 5 10 7.5M13 11H3.5M6 8.5 3.5 11 6 13.5" /></svg
+				>
+				<span class="mark-label">{otherLabel}</span>
 			</button>
-			<button class="mark-menu-item takeoff" role="menuitem" onclick={() => choose('takeoff')}>
-				<MarkGlyph type="takeoff" />Takeoff<kbd>T</kbd>
+			<button
+				class="mark-remove"
+				onclick={() => onRemove(mark.id)}
+				aria-label="Remove the {label.toLowerCase()}"
+				title="Remove the {label.toLowerCase()}"
+			>
+				<svg viewBox="0 0 16 16" aria-hidden="true"
+					><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5" /></svg
+				>
 			</button>
+			<button class="mark-done" onclick={closeEditor}>Done</button>
 		</div>
+	{:else}
+		<button
+			class="mark-primary mark-choice"
+			onclick={() => onMark('landing')}
+			aria-label="Mark {landingLabel.toLowerCase()}"
+			aria-keyshortcuts="L"
+			title="Mark {landingLabel.toLowerCase()} on this frame (L)"
+		>
+			<MarkArc step={landingStep} />
+			<span class="mark-label">Mark {landingLabel.toLowerCase()}</span>
+		</button>
+		<button
+			class="mark-choice"
+			onclick={() => onMark('takeoff')}
+			aria-label="Mark takeoff"
+			aria-keyshortcuts="T"
+			title="Mark takeoff on this frame (T)"
+		>
+			<MarkArc step="takeoff" />
+			<span class="mark-label">Mark takeoff</span>
+		</button>
 	{/if}
 </div>
 
 <style>
-	/* After the frame controls, inside the transport dock. */
+	/* After the frame controls, inside the transport dock: one fixed-width row, so the
+	   frame controls beside it never shift as labels change. */
 	.step-marks {
 		grid-area: landing;
 		justify-self: start;
@@ -171,219 +237,309 @@
 		display: flex;
 		align-items: center;
 		gap: 4px;
+		width: var(--mark-slot, 372px);
 		padding-left: 8px;
 	}
 
-	.mark-primary,
-	.mark-alt {
-		--mark-color: hsl(var(--at-landing));
+	button {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
 		gap: 8px;
+		min-width: 0;
 		height: 32px;
-		border: 1px solid transparent;
-		border-radius: 7px;
+		padding: 0 12px;
+		border: none;
+		border-radius: var(--at-radius);
+		background: hsl(var(--at-fg) / 0.06);
+		color: hsl(var(--at-fg));
 		font: inherit;
 		font-size: 13px;
-		font-weight: 600;
+		font-weight: 500;
+		letter-spacing: -0.005em;
 		white-space: nowrap;
 		cursor: pointer;
 		transition:
 			background 140ms var(--at-ease),
-			border-color 140ms var(--at-ease),
+			box-shadow 140ms var(--at-ease),
 			color 140ms var(--at-ease);
 	}
 
-	.takeoff,
-	.mark-menu-item.takeoff {
-		--mark-color: hsl(var(--at-takeoff));
-	}
-
-	/* A fixed width, so the label can change step to step without moving anything. */
-	.mark-primary {
-		min-width: 196px;
-		padding: 0 8px 0 10px;
-		background: hsl(var(--at-fg) / 0.06);
-		color: hsl(var(--at-fg-muted));
-	}
-
-	.mark-primary-label {
-		flex: 1 1 auto;
-		text-align: left;
-	}
-
-	/* The step that belongs here: filled in its type's colour, the one loud thing in the bar. */
-	.mark-primary.add {
-		background: var(--mark-color);
-		color: hsl(var(--at-bg));
-	}
-
-	/* A mark is already here: quiet, outlined in its colour, and it opens its controls. */
-	.mark-primary.on-frame {
-		border-color: color-mix(in srgb, var(--mark-color) 60%, transparent);
-		background: color-mix(in srgb, var(--mark-color) 10%, hsl(var(--at-surface)));
-		color: hsl(var(--at-fg));
-	}
-
-	.mark-primary.choose {
-		border-color: hsl(var(--at-border-hover));
-		background: hsl(var(--at-surface));
-		color: hsl(var(--at-fg));
-	}
-
-	.mark-primary:disabled {
+	button:disabled {
 		cursor: default;
 	}
 
+	button:not(:disabled):active {
+		transform: translateY(1px);
+	}
+
+	/* Keyboard focus: one 2px ring drawn just inside the button's edge, so it never runs
+	   into the dock around it or doubles up with a hairline. A bright button keeps a rim
+	   of its fill outside a dark ring. */
+	button:focus-visible {
+		outline: 2px solid hsl(var(--at-fg));
+		outline-offset: -2px;
+		border-radius: var(--at-radius);
+	}
+
+	.mark-label {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		text-align: left;
+	}
+
+	/* The step that belongs here: the one bright fill in the bar. */
+	.mark-add {
+		position: relative;
+		flex: 1 1 0;
+		justify-content: flex-start;
+		background: hsl(var(--at-emphasis));
+		color: hsl(var(--at-bg));
+	}
+
+	.mark-add .mark-label {
+		flex: 1 1 0;
+	}
+
+	/* The full label, laid out off to the side, to tell whether it fits. */
+	.mark-measure {
+		position: absolute;
+		visibility: hidden;
+		pointer-events: none;
+		white-space: nowrap;
+	}
+
+	kbd {
+		margin-left: auto;
+		padding-left: 4px;
+		color: inherit;
+		opacity: 0.62;
+		font:
+			500 11px/1 var(--at-font-sans),
+			sans-serif;
+	}
+
+	/* The other type: quiet, a fixed width so the main button's edge never moves. */
+	.mark-alt {
+		flex: 0 0 152px;
+		justify-content: flex-start;
+		background: hsl(var(--at-fg) / 0.04);
+		box-shadow: inset 0 0 0 1px hsl(var(--at-fg) / 0.08);
+		color: hsl(var(--at-fg-secondary));
+	}
+
+	/* A marked frame: the whole row is one outlined button, with Edit as its hint. */
+	.mark-on-frame {
+		flex: 1 1 0;
+		justify-content: flex-start;
+		background: hsl(var(--at-fg) / 0.03);
+		box-shadow: inset 0 0 0 1px hsl(var(--at-fg) / 0.18);
+	}
+
+	.mark-alt:focus-visible,
+	.mark-on-frame:focus-visible {
+		box-shadow: none;
+	}
+
+	.mark-add:focus-visible,
+	.mark-done:focus-visible {
+		outline-color: hsl(var(--at-bg));
+		outline-offset: -4px;
+	}
+
 	.mark-check {
-		width: 15px;
-		height: 15px;
+		flex: 0 0 auto;
+		width: 14px;
+		height: 14px;
+		opacity: 0.7;
 		fill: none;
-		stroke: var(--mark-color);
-		stroke-width: 2.2;
+		stroke: currentColor;
+		stroke-width: 1.8;
 		stroke-linecap: round;
 		stroke-linejoin: round;
 	}
 
-	.mark-alt {
-		width: 32px;
-		padding: 0;
-		background: transparent;
-		color: var(--mark-color);
+	.mark-edit-hint {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin-left: auto;
+		color: hsl(var(--at-fg-secondary));
 	}
 
-	kbd {
-		min-width: 14px;
-		color: inherit;
-		opacity: 0.6;
-		font:
-			600 11px/1 var(--at-font-sans),
-			sans-serif;
+	.mark-edit-hint svg {
+		width: 13px;
+		height: 13px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.6;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	/* Nothing obviously belongs here: two equal choices. */
+	.mark-choice {
+		flex: 1 1 0;
+		background: hsl(var(--at-fg) / 0.08);
+	}
+
+	.mark-status {
+		flex: 1 1 0;
+		gap: 8px;
+		background: hsl(var(--at-fg) / 0.03);
+		color: hsl(var(--at-fg-muted));
+		font-weight: 400;
+	}
+
+	.mark-status.failed {
+		background: hsl(var(--at-warning) / 0.08);
+		color: hsl(var(--at-warning));
+	}
+
+	.mark-spinner {
+		width: 11px;
+		height: 11px;
+		border: 1.5px solid currentColor;
+		border-right-color: transparent;
+		border-radius: 50%;
+		animation: mark-spin 0.9s linear infinite;
+	}
+
+	@keyframes mark-spin {
+		to {
+			rotate: 1turn;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.mark-spinner {
+			animation: none;
+		}
+	}
+
+	/* The editor takes the row's place: nudge, change type, remove, done. */
+	.mark-editor {
+		display: flex;
+		flex: 1 1 0;
+		gap: 4px;
+		min-width: 0;
+	}
+
+	.mark-nudge {
+		display: flex;
+		flex: 0 0 auto;
+		border-radius: var(--at-radius);
+		background: hsl(var(--at-fg) / 0.06);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.mark-nudge button {
+		width: 36px;
+		padding: 0;
+		background: transparent;
+	}
+
+	.mark-nudge button + button {
+		box-shadow: inset 1px 0 0 hsl(var(--at-fg) / 0.1);
+	}
+
+	.mark-swap {
+		flex: 1 1 0;
+	}
+
+	.mark-editor svg {
+		flex: 0 0 auto;
+		width: 15px;
+		height: 15px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.7;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	.mark-remove {
+		flex: 0 0 32px;
+		padding: 0;
+		color: hsl(var(--at-fg-muted));
+	}
+
+	.mark-done {
+		flex: 0 0 64px;
+		background: hsl(var(--at-emphasis));
+		color: hsl(var(--at-bg));
 	}
 
 	@media (hover: hover) {
-		.mark-primary.add:hover {
-			background: color-mix(in srgb, var(--mark-color) 86%, hsl(var(--at-fg)));
+		.mark-add:hover,
+		.mark-done:hover {
+			background: hsl(var(--at-emphasis-strong));
 		}
-		.mark-primary.on-frame:hover,
-		.mark-primary.choose:hover {
-			border-color: var(--mark-color);
-		}
-		.mark-primary.choose:hover {
-			border-color: hsl(var(--at-fg-muted));
-		}
-		.mark-alt:hover {
+		.mark-alt:hover,
+		.mark-on-frame:hover,
+		.mark-choice:hover,
+		.mark-swap:hover,
+		.mark-nudge button:hover {
 			background: hsl(var(--at-fg) / 0.1);
 		}
-	}
-
-	.mark-primary:not(:disabled):active,
-	.mark-alt:active {
-		transform: translateY(1px);
-	}
-
-	.mark-menu {
-		position: absolute;
-		bottom: calc(100% + 8px);
-		left: 8px;
-		z-index: 40;
-		display: flex;
-		flex-direction: column;
-		min-width: 220px;
-		padding: 4px;
-		border: 1px solid hsl(var(--at-border-hover));
-		border-radius: 10px;
-		background: hsl(var(--at-bg-elevated));
-		box-shadow: 0 12px 32px hsl(var(--at-shadow) / 0.5);
-	}
-
-	.mark-menu-item {
-		--mark-color: hsl(var(--at-landing));
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		min-height: 36px;
-		padding: 0 10px;
-		border: none;
-		border-radius: 7px;
-		background: transparent;
-		color: hsl(var(--at-fg));
-		font: inherit;
-		font-size: 13px;
-		text-align: left;
-		cursor: pointer;
-	}
-
-	.mark-menu-item :global(.mark-glyph) {
-		color: var(--mark-color);
-	}
-
-	.mark-menu-item kbd {
-		margin-left: auto;
-	}
-
-	.mark-menu-item:hover,
-	.mark-menu-item:focus-visible {
-		background: hsl(var(--at-fg) / 0.08);
-		outline: none;
+		.mark-remove:hover {
+			color: hsl(var(--at-error));
+		}
 	}
 
 	@media (hover: none) and (pointer: coarse) {
 		kbd {
 			display: none;
 		}
-		.mark-primary,
-		.mark-alt {
-			min-height: 44px;
-		}
-		.mark-alt {
-			min-width: 44px;
-		}
 	}
 
-	/* A phone: one big button under the thumb, the other type a square beside it. */
+	/* A phone: one row of 52px buttons under the thumb. The main button keeps the right
+	   edge; the other type hugs its label on the left, so the main button gets the room. */
 	@container control-bar (max-width: 700px) {
+		/* Sized by the bar, never by its labels, so a long one can't widen the bar. */
 		.step-marks {
 			grid-area: marks;
 			justify-self: stretch;
-			display: grid;
-			grid-template-columns: 52px minmax(0, 1fr);
-			gap: 10px;
+			contain: inline-size;
+			gap: 8px;
+			width: auto;
 			margin-top: 6px;
 			padding: 0;
 		}
-		.mark-primary {
-			order: 2;
-			min-width: 0;
+		button {
 			height: 52px;
-			padding: 0 18px;
+			padding: 0 12px;
 			border-radius: 14px;
 			font-size: 16px;
-			justify-content: center;
 		}
-		.mark-primary-label {
-			flex: 0 1 auto;
-			overflow: hidden;
-			text-overflow: ellipsis;
+		.step-marks :global(.mark-arc) {
+			width: 32px;
+			height: 14px;
 		}
-		.step-marks.solo {
-			grid-template-columns: minmax(0, 1fr);
+		.mark-add {
+			order: 2;
 		}
 		.mark-alt {
 			order: 1;
-			width: 52px;
-			height: 52px;
-			border-radius: 14px;
-			background: hsl(var(--at-fg) / 0.07);
+			flex: 0 0 auto;
+			min-width: 128px;
+			background: hsl(var(--at-fg) / 0.06);
+			box-shadow: none;
 		}
-		.mark-menu {
-			left: 0;
-			right: 0;
+		kbd {
+			display: none;
 		}
-		.mark-menu-item {
-			min-height: 48px;
-			font-size: 15px;
+		.mark-editor {
+			gap: 8px;
+		}
+		/* Nudge and remove live in the jump strip above on a phone. */
+		.mark-nudge,
+		.mark-remove {
+			display: none;
+		}
+		.mark-done {
+			flex-basis: 96px;
 		}
 	}
 </style>
