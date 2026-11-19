@@ -128,14 +128,10 @@
 <section class="home-recent" aria-labelledby="home-recent-title">
 	<header class="home-recent-head">
 		<h2 id="home-recent-title">Recent sessions</h2>
-		<button
-			class="home-recent-all"
-			aria-label={sessions.length > RECENT
-				? `All ${sessions.length} saved sessions`
-				: 'Sessions list'}
-			onclick={() => onShowAll('list')}
-			>{sessions.length > RECENT ? `All ${sessions.length}` : 'Sessions'}</button
-		>
+		<button class="home-recent-all" onclick={() => onShowAll('list')}>
+			{sessions.length > RECENT ? `All ${sessions.length} sessions` : 'Sessions'}
+			<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5" /></svg>
+		</button>
 	</header>
 	<div class="home-recent-legend" aria-hidden="true">Best flight</div>
 	<!-- role="list" keeps the list in WebKit's accessibility tree without its bullets. -->
@@ -334,7 +330,7 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
-		padding: 0 8px;
+		padding-left: 8px;
 	}
 
 	.home-recent-head h2 {
@@ -351,10 +347,13 @@
 	}
 
 	.home-recent-all {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
 		min-width: 44px;
 		min-height: 44px;
-		padding: 4px 12px;
-		border: 1px solid hsl(var(--at-border-hover));
+		padding: 4px 8px;
+		border: 0;
 		border-radius: var(--at-radius);
 		color: hsl(var(--at-fg-secondary));
 		font-size: 0.8125rem;
@@ -437,7 +436,7 @@
 		display: none;
 	}
 
-	.home-recent-row svg {
+	.home-recent svg {
 		width: 16px;
 		height: 16px;
 		fill: none;
@@ -485,7 +484,7 @@
 	}
 
 	@media (forced-colors: active) {
-		.home-recent-row svg {
+		.home-recent svg {
 			stroke: ButtonText;
 		}
 		.home-recent button:hover {
