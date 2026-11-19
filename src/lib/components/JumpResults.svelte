@@ -100,16 +100,49 @@
 		return rsi({ takeoff: unit.takeoff, flight: unit.flight, contact: unit.contact })?.toFixed(2);
 	}
 
-	function describe(unit: JumpUnit, number: number): string {
-		if (!unit.flight) return `Jump ${number}, not finished. Open it in the video`;
-		const parts = [`Jump ${number}`, `flight ${ms(unit.flight.realSeconds)} milliseconds`];
-		if (unit.contact) parts.push(`contact ${ms(unit.contact.realSeconds)} milliseconds`);
-		else parts.push(`no ${plantName}, contact not measured`);
-		const reactive = index(unit);
-		if (reactive) parts.push(`RSI ${reactive}`);
-		if (bestFlightLabel(unit, completed, best)) parts.push(bestFlightLabel(unit, completed, best));
-		return `${parts.join(', ')}. Open it in the video`;
+	// What a jump still needs, on the row's last line. Gaps stay out of the value columns.
+	function gap(unit: JumpUnit): string {
+		if (!unit.flight) return unit.takeoff ? 'Needs landing' : 'Needs takeoff and landing';
+		return unit.contact ? '' : `Add a ${plantName} for contact and RSI`;
 	}
+
+	// The row's spoken name: what it shows, then where selecting it goes. Callers open a
+	// jump at its takeoff, otherwise at its plant.
+	function describe(unit: JumpUnit, number: number): string {
+		const parts = [`Jump ${number}`];
+		const label = bestFlightLabel(unit, completed, best);
+		if (label) parts.push(label.toLowerCase());
+		if (unit.flight) {
+			parts.push(`flight ${ms(unit.flight.realSeconds)} milliseconds`);
+			if (unit.contact) {
+				parts.push(`contact ${ms(unit.contact.realSeconds)} milliseconds`);
+				const reactive = index(unit);
+				if (reactive) parts.push(`RSI ${reactive}`);
+			} else parts.push(`no ${plantName}, contact and RSI not measured`);
+		} else {
+			parts.push(
+				unit.takeoff ? 'in progress, needs landing' : 'in progress, needs takeoff and landing'
+			);
+		}
+		const at = unit.takeoff ? 'takeoff' : `the ${plantName}`;
+		const where = originalName
+			? `Choose ${originalName} to open it at ${at}`
+			: `Open the video at ${at}`;
+		return `${parts.join(', ')}. ${where}`;
+	}
+
+	// Very long measurements, or triple-digit jump numbers, don't fit the shared columns.
+	// Those lists drop the columns and let each labelled value take its own width.
+	let wideValues = $derived(
+		units.length >= 100 ||
+			units.some(
+				(unit) =>
+					!!unit.flight &&
+					(String(ms(unit.flight.realSeconds)).length > 4 ||
+						(!!unit.contact &&
+							(String(ms(unit.contact.realSeconds)).length > 4 || (index(unit)?.length ?? 0) > 7)))
+			)
+	);
 
 	// datetime-local works in local time without a zone, so convert to and from ISO.
 	function toLocalInput(iso: string): string {
@@ -153,7 +186,8 @@
 			{#if originalName}<button
 					class="jr-back jr-original"
 					title={originalName}
-					onclick={onOriginal}>Open original video</button
+					aria-label="Open original video"
+					onclick={onOriginal}>Open <span class="jr-wide">original </span>video</button
 				>{/if}
 		</div>
 	</div>
@@ -165,11 +199,8 @@
 					<h1 id="jr-title" class="jr-title" tabindex="-1">{title.trim() || titlePlaceholder}</h1>
 					<p class="jr-meta">
 						{[
-							`${completed.length} completed ${completed.length === 1 ? 'jump' : 'jumps'}`,
-							units.length > completed.length
-								? `${units.length - completed.length} in progress`
-								: null,
-							typeLabel,
+							`${units.length} ${units.length === 1 ? 'jump' : 'jumps'}`,
+							jumpType ? typeLabel : null,
 							recordedLabel
 						]
 							.filter(Boolean)
@@ -200,79 +231,74 @@
 					</div>
 				{/if}
 
-				{#if originalName}<p class="jr-footnote">
-						Open {originalName} to inspect frames. Contact time and RSI use the saved average frame rate
-						and are estimates for variable-frame-rate video.
-					</p>{/if}
 				<section class="jr-section" aria-labelledby="jr-jumps">
 					<h2 id="jr-jumps" class="jr-heading">Jumps</h2>
 					{#if units.length}
-						<div class="jr-table">
-							<div class="jr-columns" aria-hidden="true">
+						<!-- The card is a container: rows follow its width, not the window's. A
+						     narrow card shows each jump on two lines, a wide one as a table. -->
+						<div class="jl-card" class:jl-wide-values={wideValues}>
+							<div class="jl-cols" aria-hidden="true">
 								<span>Jump</span><span>Flight</span><span>Contact</span><span>RSI</span>
 							</div>
-							<ul class="jr-list">
+							<!-- role="list" keeps the list in WebKit's accessibility tree without its bullets. -->
+							<ul class="jl-list" role="list">
 								{#each units as unit, i (unit.id)}
+									{@const label = bestFlightLabel(unit, completed, best)}
 									<li>
 										<button
-											class="jr-row"
+											class="jl-row"
 											aria-label={describe(unit, i + 1)}
 											onclick={(event) => onOpenUnit(event, unit)}
 										>
-											<span class="jr-name"
-												>Jump {i + 1}{#if bestFlightLabel(unit, completed, best)}<span
-														class="jr-badge">{bestFlightLabel(unit, completed, best)}</span
-													>{/if}</span
+											<span class="jl-name"
+												>Jump {i + 1}{#if label}<span class="jl-best">{label}</span>{/if}</span
 											>
-											{#if unit.flight}
-												<span class="jr-flight"
-													>{ms(unit.flight.realSeconds)}<span class="jr-unit">ms</span></span
-												>
-												{#if unit.contact}
-													<span class="jr-more">
-														<span class="jr-contact"
-															><span class="jr-inline-label">Contact</span>{ms(
-																unit.contact.realSeconds
-															)}<span class="jr-unit">ms</span></span
-														>
-														<span class="jr-rsi"
-															><span class="jr-inline-label">RSI</span>{index(unit) ?? '–'}</span
-														>
-													</span>
-												{:else}
-													<span class="jr-missing">Add a {plantName} for contact and RSI</span>
-												{/if}
+											{#if unit.flight}<span class="jl-flight"
+													>{ms(unit.flight.realSeconds)}<span class="jl-u">ms</span></span
+												>{/if}
+											{#if unit.flight && unit.contact}
+												<span class="jl-more">
+													<span class="jl-contact"
+														><span class="jl-local">Contact</span>{ms(
+															unit.contact.realSeconds
+														)}<span class="jl-u">ms</span></span
+													>
+													{#if index(unit)}<span class="jl-rsi"
+															><span class="jl-local">RSI</span>{index(unit)}</span
+														>{/if}
+												</span>
 											{:else}
-												<span class="jr-flight jr-none">–</span>
-												<span class="jr-missing"
-													>{unit.takeoff ? 'Mark the landing' : 'Mark the takeoff and landing'} to finish
-													this jump</span
+												<span class="jl-note">{gap(unit)}</span>
+											{/if}
+											{#if originalName}
+												<svg class="jl-go" viewBox="0 0 16 16" aria-hidden="true"
+													><path
+														d="M1.5 5V4a1 1 0 0 1 1-1h3l1.5 2h6.5a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"
+													/></svg
+												>
+											{:else}
+												<svg class="jl-go" viewBox="0 0 16 16" aria-hidden="true"
+													><path d="m6 3.5 4.5 4.5L6 12.5" /></svg
 												>
 											{/if}
-											<svg class="jr-chevron" viewBox="0 0 16 16" aria-hidden="true"
-												><path d="m6 3.5 4.5 4.5L6 12.5" /></svg
-											>
 										</button>
 									</li>
 								{/each}
 							</ul>
 						</div>
 						{#if frameMs > 0}
-							<p class="jr-footnote">
-								RSI (reactive strength index) is estimated jump height in metres divided by contact
-								time in seconds. {originalName
-									? 'Nominal precision'
-									: 'Times are read from frames'}: ±{precision} ms per frame{#if timeScale !== 1},
-									in real time{/if}.
+							<p class="jl-foot">
+								{originalName ? 'Estimated from the saved frame rate' : 'Read from frames'}: ±{precision}
+								ms per frame{#if timeScale !== 1}, in real time{/if}.
 							</p>
 						{/if}
 					{:else}
-						<div class="jr-empty">
-							<p class="jr-empty-title">No jumps yet</p>
-							<p class="jr-empty-text">
+						<div class="jl-empty">
+							<p class="jl-empty-title">No jumps yet</p>
+							<p class="jl-empty-text">
 								Mark takeoff and landing for flight time. Add a {plantName} for contact time and RSI.
 							</p>
-							<button class="jr-empty-action" onclick={originalName ? onOriginal : onBack}
+							<button class="jl-empty-action" onclick={originalName ? onOriginal : onBack}
 								>{originalName ? 'Open original video' : 'Back to the video'}</button
 							>
 						</div>
@@ -402,6 +428,10 @@
 <style>
 	.jr-original {
 		margin-left: auto;
+	}
+
+	.jr-wide {
+		display: none;
 	}
 	.jr {
 		display: flex;
@@ -618,10 +648,6 @@
 		overflow: hidden;
 	}
 
-	.jr-columns {
-		display: none;
-	}
-
 	.jr-list {
 		display: flex;
 		flex-direction: column;
@@ -634,18 +660,14 @@
 		border-top: 1px solid hsl(var(--at-border));
 	}
 
-	/* A phone: the jump and its flight on one line, contact and RSI under them. */
+	/* Unpaired marks: the mark and its time on one line. */
 	.jr-row {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) auto 18px;
-		grid-template-areas:
-			'name flight chevron'
-			'more more chevron';
 		align-items: center;
 		column-gap: 10px;
 		row-gap: 2px;
 		width: 100%;
-		min-height: 64px;
 		padding: 10px 10px 10px 16px;
 		border: none;
 		background: transparent;
@@ -668,55 +690,6 @@
 		gap: 8px;
 		font-size: 15px;
 		font-weight: 500;
-	}
-
-	.jr-badge {
-		display: inline-flex;
-		align-items: center;
-		height: 20px;
-		padding: 0 8px;
-		border-radius: 999px;
-		background: hsl(var(--at-fg) / 0.09);
-		color: hsl(var(--at-fg-secondary));
-		font-size: 11px;
-		font-weight: 600;
-	}
-
-	.jr-flight {
-		grid-area: flight;
-		font-size: 19px;
-		font-weight: 600;
-		letter-spacing: -0.01em;
-	}
-
-	.jr-none {
-		color: hsl(var(--at-fg-muted));
-	}
-
-	/* Contact and RSI share the second line. */
-	.jr-more,
-	.jr-missing {
-		grid-area: more;
-		color: hsl(var(--at-fg-muted));
-		font-size: 13px;
-		line-height: 18px;
-	}
-
-	.jr-more {
-		display: flex;
-		gap: 14px;
-	}
-
-	.jr-contact .jr-unit {
-		font-size: 1em;
-	}
-
-	.jr-inline-label {
-		margin-right: 0.3em;
-	}
-
-	.jr-missing {
-		color: hsl(var(--at-emphasis-strong));
 	}
 
 	.jr-chevron {
@@ -743,42 +716,279 @@
 		line-height: 1.5;
 	}
 
-	.jr-empty {
+	/* ---- Jumps: one card of rows ---- */
+
+	.jl-card {
+		container: jl / inline-size;
+		border: 1px solid hsl(var(--at-border-hover));
+		border-radius: var(--at-radius-lg);
+		background: hsl(var(--at-bg-elevated));
+		overflow: hidden;
+	}
+
+	.jl-cols {
+		display: none;
+	}
+
+	.jl-list {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.jl-list li + li {
+		border-top: 1px solid hsl(var(--at-border));
+	}
+
+	/* Corners follow the card, so the focus ring does too. */
+	.jl-list li:first-child .jl-row {
+		border-top-left-radius: 11px;
+		border-top-right-radius: 11px;
+	}
+
+	.jl-list li:last-child .jl-row {
+		border-bottom-left-radius: 11px;
+		border-bottom-right-radius: 11px;
+	}
+
+	/* A phone: the jump and its flight, then contact and RSI or what it still needs. */
+	.jl-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto 16px;
+		grid-template-areas:
+			'name flight go'
+			'more more   go';
+		align-items: baseline;
+		column-gap: 12px;
+		row-gap: 4px;
+		width: 100%;
+		min-height: 60px;
+		padding: 12px 12px 12px 16px;
+		border: none;
+		border-radius: 0;
+		background: transparent;
+		color: hsl(var(--at-fg));
+		font: inherit;
+		font-variant-numeric: tabular-nums;
+		text-align: left;
+		cursor: pointer;
+		transition: background 140ms var(--at-ease);
+	}
+
+	.jl-row:focus-visible {
+		outline: 2px solid hsl(var(--at-emphasis));
+		outline-offset: -2px;
+	}
+
+	.jl-name {
+		grid-area: name;
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+		min-width: 0;
+		font-size: 15px;
+		font-weight: 500;
+		line-height: 20px;
+		white-space: nowrap;
+	}
+
+	.jl-best {
+		color: hsl(var(--at-fg-muted));
+		font-size: 13px;
+		font-weight: 400;
+	}
+
+	.jl-flight {
+		grid-area: flight;
+		font-size: 17px;
+		font-weight: 600;
+		letter-spacing: -0.01em;
+		line-height: 20px;
+		white-space: nowrap;
+	}
+
+	.jl-u {
+		margin-left: 3px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
+		font-weight: 500;
+		letter-spacing: 0;
+	}
+
+	.jl-more,
+	.jl-note {
+		grid-area: more;
+		color: hsl(var(--at-fg-muted));
+		font-size: 13px;
+		line-height: 16px;
+	}
+
+	.jl-more {
+		display: flex;
+		flex-wrap: wrap;
+		column-gap: 16px;
+	}
+
+	.jl-contact,
+	.jl-rsi {
+		white-space: nowrap;
+	}
+
+	.jl-more .jl-u {
+		margin-left: 2px;
+		font-size: inherit;
+		font-weight: 400;
+	}
+
+	.jl-local {
+		margin-right: 4px;
+	}
+
+	.jl-go {
+		grid-area: go;
+		align-self: center;
+		width: 16px;
+		height: 16px;
+		color: hsl(var(--at-fg-muted));
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	/* A wide card: a table, the column names as its first row. What a jump still needs
+	   takes the empty contact and RSI cells. Very long values keep the phone layout. */
+	@container jl (min-width: 32.5em) {
+		.jl-card:not(.jl-wide-values) .jl-cols,
+		.jl-card:not(.jl-wide-values) .jl-row {
+			display: grid;
+			grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)) 16px;
+			grid-template-areas: 'name flight contact rsi go';
+			column-gap: 16px;
+			padding-right: 12px;
+			padding-left: 16px;
+		}
+
+		.jl-card:not(.jl-wide-values) .jl-cols {
+			align-items: center;
+			height: 32px;
+			border-bottom: 1px solid hsl(var(--at-border));
+			color: hsl(var(--at-fg-muted));
+			font-size: 12px;
+			font-weight: 500;
+		}
+
+		.jl-cols span:nth-child(n + 2) {
+			text-align: right;
+		}
+
+		.jl-cols span:nth-child(2) {
+			grid-area: flight;
+		}
+
+		.jl-cols span:nth-child(3) {
+			grid-area: contact;
+		}
+
+		.jl-cols span:nth-child(4) {
+			grid-area: rsi;
+		}
+
+		.jl-card:not(.jl-wide-values) .jl-list li:first-child .jl-row {
+			border-radius: 0;
+		}
+
+		.jl-card:not(.jl-wide-values) .jl-row {
+			align-items: center;
+			min-height: 52px;
+			padding-block: 8px;
+		}
+
+		.jl-card:not(.jl-wide-values) .jl-flight {
+			text-align: right;
+		}
+
+		.jl-card:not(.jl-wide-values) .jl-more {
+			display: contents;
+		}
+
+		.jl-card:not(.jl-wide-values) .jl-contact,
+		.jl-card:not(.jl-wide-values) .jl-rsi {
+			color: hsl(var(--at-fg-secondary));
+			font-size: 15px;
+			line-height: 20px;
+			text-align: right;
+		}
+
+		.jl-card:not(.jl-wide-values) .jl-contact {
+			grid-area: contact;
+		}
+
+		.jl-card:not(.jl-wide-values) .jl-rsi {
+			grid-area: rsi;
+		}
+
+		.jl-card:not(.jl-wide-values) .jl-more .jl-u {
+			font-size: 12px;
+		}
+
+		.jl-card:not(.jl-wide-values) .jl-local {
+			display: none;
+		}
+
+		.jl-card:not(.jl-wide-values) .jl-note {
+			grid-row: 1;
+			grid-column: contact-start / rsi-end;
+			text-align: right;
+		}
+	}
+
+	.jl-foot {
+		margin: 8px 2px 0;
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
+		line-height: 16px;
+	}
+
+	/* Empty: one way back to the marks. */
+	.jl-empty {
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
-		gap: 6px;
+		gap: 4px;
 		padding: 24px 20px;
 		border: 1px dashed hsl(var(--at-border-hover));
-		border-radius: 14px;
+		border-radius: var(--at-radius-lg);
 	}
 
-	.jr-empty-title {
+	.jl-empty-title {
 		margin: 0;
 		color: hsl(var(--at-fg));
 		font-size: 16px;
 		font-weight: 600;
+		line-height: 24px;
 	}
 
-	.jr-empty-text {
+	.jl-empty-text {
 		max-width: 420px;
 		margin: 0;
 		color: hsl(var(--at-fg-muted));
 		font-size: 14px;
-		line-height: 1.5;
+		line-height: 20px;
 	}
 
-	.jr-empty-action {
+	.jl-empty-action {
 		height: 44px;
-		margin-top: 10px;
-		padding: 0 18px;
+		margin-top: 12px;
+		padding: 0 16px;
 		border: 1px solid hsl(var(--at-emphasis) / 0.55);
-		border-radius: 12px;
+		border-radius: var(--at-radius-lg);
 		background: hsl(var(--at-emphasis) / 0.24);
 		color: hsl(var(--at-emphasis-fg));
 		font: inherit;
 		font-size: 15px;
-		font-weight: 600;
+		font-weight: 500;
 		cursor: pointer;
 	}
 
@@ -1034,10 +1244,25 @@
 		.jr-row:hover .jr-chevron {
 			color: hsl(var(--at-fg-secondary));
 		}
-		.jr-empty-action:hover {
+		.jl-row:hover {
+			background: hsl(var(--at-fg) / 0.04);
+		}
+		.jl-row:hover .jl-go {
+			color: hsl(var(--at-fg-secondary));
+		}
+		.jl-empty-action:hover {
 			background: hsl(var(--at-emphasis) / 0.34);
 			color: hsl(var(--at-fg));
 		}
+	}
+
+	/* Pressed, after hover so it shows under a mouse too. */
+	.jl-row:active {
+		background: hsl(var(--at-fg) / 0.08);
+	}
+
+	.jl-row:active .jl-go {
+		color: hsl(var(--at-fg));
 	}
 
 	@media (pointer: coarse) {
@@ -1048,7 +1273,7 @@
 		}
 	}
 
-	/* ---- Wider: the jumps as a table ---- */
+	/* ---- Wider ---- */
 
 	@media (min-width: 701px) and (min-height: 501px) {
 		.jr-page {
@@ -1056,6 +1281,10 @@
 			gap: 40px;
 			padding-top: 40px;
 			padding-bottom: 56px;
+		}
+
+		.jr-wide {
+			display: inline;
 		}
 
 		.jr-bar-in {
@@ -1090,64 +1319,11 @@
 			font-size: 84px;
 		}
 
-		.jr-columns,
-		.jr-row {
-			display: grid;
-			grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.7fr) 18px;
-			grid-template-areas: 'name flight contact rsi chevron';
-			column-gap: 16px;
-		}
-
-		/* The column names are the table's first row. */
-		.jr-columns {
-			align-items: center;
-			height: 40px;
-			padding: 0 10px 0 16px;
-			border-bottom: 1px solid hsl(var(--at-border));
-			background: hsl(var(--at-fg) / 0.025);
-			color: hsl(var(--at-fg-muted));
-			font-size: 13px;
-		}
-
-		.jr-row {
-			min-height: 52px;
-			padding-block: 6px;
-		}
-
-		.jr-more {
-			display: contents;
-		}
-
-		.jr-contact {
-			grid-area: contact;
-		}
-
-		.jr-rsi {
-			grid-area: rsi;
-		}
-
-		.jr-contact,
-		.jr-rsi {
-			color: hsl(var(--at-fg));
-			font-size: 16px;
-		}
-
-		.jr-contact .jr-unit {
-			font-size: 0.75em;
-		}
-
-		.jr-inline-label {
-			display: none;
-		}
-
-		.jr-missing {
-			grid-row: 1;
-			grid-column: contact-start / rsi-end;
-			font-size: 14px;
-		}
-
 		.jr-unpaired {
+			grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.7fr) 18px;
 			grid-template-areas: 'name flight . . chevron';
+			column-gap: 16px;
+			padding-block: 6px;
 		}
 
 		.jr-compare {
@@ -1209,6 +1385,7 @@
 			animation: none;
 		}
 		.jr-row,
+		.jl-row,
 		.jr-prop,
 		.jr-back {
 			transition: none;
