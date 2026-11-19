@@ -178,9 +178,12 @@
 				<div>
 					<h2 id="sessions-title" class="dialog-title">Saved sessions</h2>
 					<p class="dialog-subtitle">
-						{view === 'list'
-							? 'View saved results here. Open the original video to edit marks.'
-							: 'Compare recorded sessions. Select a date to inspect its jumps.'}
+						<span class:inactive={view !== 'list'}
+							>View saved results here. Open the original video to edit marks.</span
+						>
+						<span class:inactive={view !== 'trends'}
+							>Compare recorded sessions. Select a date to inspect its jumps.</span
+						>
 					</p>
 					<div class="dialog-tabs" role="tablist" aria-label="Show">
 						<button
@@ -394,7 +397,7 @@
 		flex-direction: column;
 		width: 100%;
 		max-width: 560px;
-		max-height: 85dvh;
+		height: min(48rem, 85dvh);
 		overflow: hidden;
 		background: hsl(var(--at-popover));
 		border: 1px solid hsl(var(--at-border-hover));
@@ -449,11 +452,21 @@
 	}
 
 	.dialog-subtitle {
+		display: grid;
 		max-width: 480px;
 		margin-top: 4px;
 		color: hsl(var(--at-fg-muted));
 		font-size: 13px;
 		line-height: 1.5;
+	}
+
+	/* Reserve the taller description so wrapping cannot move the tabs. */
+	.dialog-subtitle span {
+		grid-area: 1 / 1;
+	}
+
+	.dialog-subtitle .inactive {
+		visibility: hidden;
 	}
 
 	.close-btn {
