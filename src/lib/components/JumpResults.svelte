@@ -100,16 +100,49 @@
 		return rsi({ takeoff: unit.takeoff, flight: unit.flight, contact: unit.contact })?.toFixed(2);
 	}
 
-	function describe(unit: JumpUnit, number: number): string {
-		if (!unit.flight) return `Jump ${number}, not finished. Open it in the video`;
-		const parts = [`Jump ${number}`, `flight ${ms(unit.flight.realSeconds)} milliseconds`];
-		if (unit.contact) parts.push(`contact ${ms(unit.contact.realSeconds)} milliseconds`);
-		else parts.push(`no ${plantName}, contact not measured`);
-		const reactive = index(unit);
-		if (reactive) parts.push(`RSI ${reactive}`);
-		if (bestFlightLabel(unit, completed, best)) parts.push(bestFlightLabel(unit, completed, best));
-		return `${parts.join(', ')}. Open it in the video`;
+	// What a jump still needs, on the row's last line. Gaps stay out of the value columns.
+	function gap(unit: JumpUnit): string {
+		if (!unit.flight) return unit.takeoff ? 'Needs landing' : 'Needs takeoff and landing';
+		return unit.contact ? '' : `Add a ${plantName} for contact and RSI`;
 	}
+
+	// The row's spoken name: what it shows, then where selecting it goes. Callers open a
+	// jump at its takeoff, otherwise at its plant.
+	function describe(unit: JumpUnit, number: number): string {
+		const parts = [`Jump ${number}`];
+		const label = bestFlightLabel(unit, completed, best);
+		if (label) parts.push(label.toLowerCase());
+		if (unit.flight) {
+			parts.push(`flight ${ms(unit.flight.realSeconds)} milliseconds`);
+			if (unit.contact) {
+				parts.push(`contact ${ms(unit.contact.realSeconds)} milliseconds`);
+				const reactive = index(unit);
+				if (reactive) parts.push(`RSI ${reactive}`);
+			} else parts.push(`no ${plantName}, contact and RSI not measured`);
+		} else {
+			parts.push(
+				unit.takeoff ? 'in progress, needs landing' : 'in progress, needs takeoff and landing'
+			);
+		}
+		const at = unit.takeoff ? 'takeoff' : `the ${plantName}`;
+		const where = originalName
+			? `Choose ${originalName} to open it at ${at}`
+			: `Open the video at ${at}`;
+		return `${parts.join(', ')}. ${where}`;
+	}
+
+	// Very long measurements, or triple-digit jump numbers, don't fit the shared columns.
+	// Those lists drop the columns and let each labelled value take its own width.
+	let wideValues = $derived(
+		units.length >= 100 ||
+			units.some(
+				(unit) =>
+					!!unit.flight &&
+					(String(ms(unit.flight.realSeconds)).length > 4 ||
+						(!!unit.contact &&
+							(String(ms(unit.contact.realSeconds)).length > 4 || (index(unit)?.length ?? 0) > 7)))
+			)
+	);
 
 	// datetime-local works in local time without a zone, so convert to and from ISO.
 	function toLocalInput(iso: string): string {
@@ -205,60 +238,79 @@
 						and are estimates for variable-frame-rate video.
 					</p>{/if}
 				<section class="jr-section" aria-labelledby="jr-jumps">
-					<h2 id="jr-jumps" class="jr-heading">Jumps</h2>
+					<!-- The heading says where a jump opens: the video, or the original's chooser. -->
+					<div class="jl-head">
+						<h2 id="jr-jumps" class="jr-heading">Jumps</h2>
+						{#if units.length}<span class="jl-dest"
+								>{originalName
+									? 'Select a jump to choose the original video'
+									: 'Select a jump to open it in the video'}</span
+							>{/if}
+					</div>
 					{#if units.length}
-						<div class="jr-table">
-							<div class="jr-columns" aria-hidden="true">
-								<span>Jump</span><span>Flight</span><span>Contact</span><span>RSI</span>
+						<!-- The card is a container: rows follow its width, not the window's. -->
+						<div class="jl-card" class:jl-wide-values={wideValues}>
+							<div class="jl-cols" aria-hidden="true">
+								<span class="jl-col-name">Jump</span><span class="jl-col-flight">Flight</span><span
+									class="jl-col-contact">Contact</span
+								><span class="jl-col-rsi">RSI</span>
 							</div>
-							<ul class="jr-list">
+							<!-- role="list" keeps the list in WebKit's accessibility tree without its bullets. -->
+							<ul class="jl-list" role="list">
 								{#each units as unit, i (unit.id)}
+									{@const label = bestFlightLabel(unit, completed, best)}
+									{@const reactive = unit.contact ? index(unit) : undefined}
+									{@const missing = gap(unit)}
 									<li>
 										<button
-											class="jr-row"
+											class="jl-row"
 											aria-label={describe(unit, i + 1)}
 											onclick={(event) => onOpenUnit(event, unit)}
 										>
-											<span class="jr-name"
-												>Jump {i + 1}{#if bestFlightLabel(unit, completed, best)}<span
-														class="jr-badge">{bestFlightLabel(unit, completed, best)}</span
+											<span class="jl-id"
+												><span class="jl-name">Jump {i + 1}</span>{#if label}<span class="jl-badge"
+														>{label}</span
 													>{/if}</span
 											>
-											{#if unit.flight}
-												<span class="jr-flight"
-													>{ms(unit.flight.realSeconds)}<span class="jr-unit">ms</span></span
+											<span class="jl-measures">
+												<span class="jl-v jl-flight"
+													><span class="jl-local">Flight</span>{#if unit.flight}{ms(
+															unit.flight.realSeconds
+														)}<span class="jl-u">ms</span>{:else}<span class="jl-none">—</span
+														>{/if}</span
 												>
-												{#if unit.contact}
-													<span class="jr-more">
-														<span class="jr-contact"
-															><span class="jr-inline-label">Contact</span>{ms(
-																unit.contact.realSeconds
-															)}<span class="jr-unit">ms</span></span
-														>
-														<span class="jr-rsi"
-															><span class="jr-inline-label">RSI</span>{index(unit) ?? '–'}</span
-														>
-													</span>
-												{:else}
-													<span class="jr-missing">Add a {plantName} for contact and RSI</span>
-												{/if}
+												<span class="jl-v jl-contact"
+													><span class="jl-local">Contact</span
+													>{#if unit.flight && unit.contact}{ms(unit.contact.realSeconds)}<span
+															class="jl-u">ms</span
+														>{:else}<span class="jl-none">—</span>{/if}</span
+												>
+												<span class="jl-v jl-rsi"
+													><span class="jl-local">RSI</span
+													>{#if unit.flight && reactive}{reactive}{:else}<span class="jl-none"
+															>—</span
+														>{/if}</span
+												>
+											</span>
+											{#if missing}<span class="jl-note">{missing}</span>{/if}
+											{#if originalName}
+												<svg class="jl-go" viewBox="0 0 16 16" aria-hidden="true"
+													><path
+														d="M1.5 5V4a1 1 0 0 1 1-1h3l1.5 2h6.5a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"
+													/></svg
+												>
 											{:else}
-												<span class="jr-flight jr-none">–</span>
-												<span class="jr-missing"
-													>{unit.takeoff ? 'Mark the landing' : 'Mark the takeoff and landing'} to finish
-													this jump</span
+												<svg class="jl-go" viewBox="0 0 16 16" aria-hidden="true"
+													><path d="m6 3.5 4.5 4.5L6 12.5" /></svg
 												>
 											{/if}
-											<svg class="jr-chevron" viewBox="0 0 16 16" aria-hidden="true"
-												><path d="m6 3.5 4.5 4.5L6 12.5" /></svg
-											>
 										</button>
 									</li>
 								{/each}
 							</ul>
 						</div>
 						{#if frameMs > 0}
-							<p class="jr-footnote">
+							<p class="jl-foot">
 								RSI (reactive strength index) is estimated jump height in metres divided by contact
 								time in seconds. {originalName
 									? 'Nominal precision'
@@ -267,12 +319,12 @@
 							</p>
 						{/if}
 					{:else}
-						<div class="jr-empty">
-							<p class="jr-empty-title">No jumps yet</p>
-							<p class="jr-empty-text">
+						<div class="jl-empty">
+							<p class="jl-empty-title">No jumps yet</p>
+							<p class="jl-empty-text">
 								Mark takeoff and landing for flight time. Add a {plantName} for contact time and RSI.
 							</p>
-							<button class="jr-empty-action" onclick={originalName ? onOriginal : onBack}
+							<button class="jl-empty-action" onclick={originalName ? onOriginal : onBack}
 								>{originalName ? 'Open original video' : 'Back to the video'}</button
 							>
 						</div>
@@ -618,10 +670,6 @@
 		overflow: hidden;
 	}
 
-	.jr-columns {
-		display: none;
-	}
-
 	.jr-list {
 		display: flex;
 		flex-direction: column;
@@ -634,18 +682,14 @@
 		border-top: 1px solid hsl(var(--at-border));
 	}
 
-	/* A phone: the jump and its flight on one line, contact and RSI under them. */
+	/* Unpaired marks: the mark and its time on one line. */
 	.jr-row {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) auto 18px;
-		grid-template-areas:
-			'name flight chevron'
-			'more more chevron';
 		align-items: center;
 		column-gap: 10px;
 		row-gap: 2px;
 		width: 100%;
-		min-height: 64px;
 		padding: 10px 10px 10px 16px;
 		border: none;
 		background: transparent;
@@ -668,55 +712,6 @@
 		gap: 8px;
 		font-size: 15px;
 		font-weight: 500;
-	}
-
-	.jr-badge {
-		display: inline-flex;
-		align-items: center;
-		height: 20px;
-		padding: 0 8px;
-		border-radius: 999px;
-		background: hsl(var(--at-fg) / 0.09);
-		color: hsl(var(--at-fg-secondary));
-		font-size: 11px;
-		font-weight: 600;
-	}
-
-	.jr-flight {
-		grid-area: flight;
-		font-size: 19px;
-		font-weight: 600;
-		letter-spacing: -0.01em;
-	}
-
-	.jr-none {
-		color: hsl(var(--at-fg-muted));
-	}
-
-	/* Contact and RSI share the second line. */
-	.jr-more,
-	.jr-missing {
-		grid-area: more;
-		color: hsl(var(--at-fg-muted));
-		font-size: 13px;
-		line-height: 18px;
-	}
-
-	.jr-more {
-		display: flex;
-		gap: 14px;
-	}
-
-	.jr-contact .jr-unit {
-		font-size: 1em;
-	}
-
-	.jr-inline-label {
-		margin-right: 0.3em;
-	}
-
-	.jr-missing {
-		color: hsl(var(--at-emphasis-strong));
 	}
 
 	.jr-chevron {
@@ -743,43 +738,417 @@
 		line-height: 1.5;
 	}
 
-	.jr-empty {
+	/* ---- Jumps: the heading, then one card of rows ---- */
+
+	.jl-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		min-height: 20px;
+		margin: 0 0 8px;
+	}
+
+	.jl-head .jr-heading {
+		flex: 0 0 auto;
+		margin: 0;
+		padding: 0;
+	}
+
+	.jl-dest {
+		min-width: 0;
+		color: hsl(var(--at-fg-muted));
+		font-size: 13px;
+		line-height: 16px;
+		text-align: right;
+	}
+
+	.jl-card {
+		container: jl / inline-size;
+		border: 1px solid hsl(var(--at-border-hover));
+		border-radius: var(--at-radius-lg);
+		background: hsl(var(--at-bg-elevated));
+		overflow: hidden;
+	}
+
+	/* One grid serves the column names and every row, so the values line up. RSI keeps
+	   68px so a four-digit index stays on one line. */
+	.jl-cols,
+	.jl-row {
+		display: grid;
+		grid-template-columns:
+			minmax(64px, 1fr) minmax(0, 1.12fr) minmax(0, 1.08fr) minmax(68px, 1fr)
+			16px;
+		column-gap: 8px;
+		padding-right: 12px;
+		padding-left: 16px;
+	}
+
+	.jl-cols {
+		grid-template-areas: 'name flight contact rsi .';
+		align-items: center;
+		height: 32px;
+		border-bottom: 1px solid hsl(var(--at-border));
+		background: hsl(var(--at-fg) / 0.025);
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
+		font-weight: 500;
+		line-height: 16px;
+	}
+
+	.jl-col-name {
+		grid-area: name;
+	}
+
+	.jl-col-flight {
+		grid-area: flight;
+	}
+
+	.jl-col-contact {
+		grid-area: contact;
+	}
+
+	.jl-col-rsi {
+		grid-area: rsi;
+	}
+
+	.jl-col-flight,
+	.jl-col-contact,
+	.jl-col-rsi {
+		text-align: right;
+	}
+
+	.jl-list {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.jl-list li + li {
+		border-top: 1px solid hsl(var(--at-border));
+	}
+
+	/* Corners follow the card, so the focus ring does too. */
+	.jl-list li:last-child .jl-row {
+		border-radius: 0 0 11px 11px;
+	}
+
+	.jl-row {
+		grid-template-areas:
+			'name  flight contact rsi  go'
+			'badge badge  badge   badge go'
+			'note  note   note    note go';
+		align-items: baseline;
+		width: 100%;
+		min-height: 56px;
+		padding-top: 16px;
+		padding-bottom: 16px;
+		border: none;
+		border-radius: 0;
+		background: transparent;
+		color: hsl(var(--at-fg));
+		font: inherit;
+		font-variant-numeric: tabular-nums;
+		text-align: left;
+		cursor: pointer;
+		transition: background 140ms var(--at-ease);
+	}
+
+	.jl-row:focus-visible {
+		outline: 2px solid hsl(var(--at-emphasis));
+		outline-offset: -2px;
+	}
+
+	/* The name and badge share the name's cell; the badge drops under it until wide. */
+	.jl-id {
+		display: contents;
+	}
+
+	.jl-name {
+		grid-area: name;
+		font-size: 15px;
+		font-weight: 500;
+		line-height: 20px;
+		white-space: nowrap;
+	}
+
+	.jl-badge {
+		grid-area: badge;
+		justify-self: start;
+		display: inline-flex;
+		align-items: center;
+		height: 20px;
+		margin-top: 4px;
+		padding: 0 8px;
+		border-radius: 4px;
+		background: hsl(var(--at-fg) / 0.09);
+		color: hsl(var(--at-fg-secondary));
+		font-size: 12px;
+		font-weight: 500;
+		line-height: 16px;
+		white-space: nowrap;
+	}
+
+	.jl-measures {
+		display: contents;
+	}
+
+	.jl-v {
+		min-width: 0;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 15px;
+		line-height: 20px;
+		text-align: right;
+		white-space: nowrap;
+	}
+
+	.jl-flight {
+		grid-area: flight;
+		color: hsl(var(--at-fg));
+		font-size: 16px;
+		font-weight: 500;
+		letter-spacing: -0.01em;
+	}
+
+	.jl-contact {
+		grid-area: contact;
+	}
+
+	.jl-rsi {
+		grid-area: rsi;
+	}
+
+	/* Each value's own name, shown only where the column names aren't. */
+	.jl-local {
+		display: none;
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
+		font-weight: 500;
+		line-height: 16px;
+	}
+
+	.jl-u {
+		display: inline-block;
+		margin-left: 4px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
+		font-weight: 500;
+		letter-spacing: 0;
+	}
+
+	.jl-none {
+		color: hsl(var(--at-fg-muted));
+		font-weight: 400;
+	}
+
+	.jl-note {
+		grid-area: note;
+		margin-top: 4px;
+		color: hsl(var(--at-fg-secondary));
+		font-size: 13px;
+		line-height: 16px;
+	}
+
+	.jl-go {
+		grid-area: go;
+		align-self: center;
+		width: 16px;
+		height: 16px;
+		color: hsl(var(--at-fg-muted));
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	/* A wide card: the badge joins the name, and the columns spread. */
+	@container jl (min-width: 32.5em) {
+		.jl-cols,
+		.jl-row {
+			grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)) 16px;
+			column-gap: 16px;
+		}
+
+		.jl-row {
+			grid-template-areas:
+				'name flight contact rsi go'
+				'note note   note    note go';
+		}
+
+		.jl-id {
+			grid-area: name;
+			display: flex;
+			flex-wrap: wrap;
+			align-items: baseline;
+			gap: 8px;
+			min-width: 0;
+		}
+
+		.jl-badge {
+			margin-top: 0;
+		}
+
+		.jl-v {
+			font-size: 16px;
+		}
+	}
+
+	/* A narrow card (a 320px phone): the name over three values, each named. */
+	@container jl (width < 21.75em) {
+		.jl-cols {
+			display: none;
+		}
+
+		.jl-row {
+			grid-template-columns: repeat(3, minmax(0, 1fr)) 16px;
+			grid-template-areas:
+				'name   name    name go'
+				'flight contact rsi  go'
+				'note   note    note go';
+			row-gap: 4px;
+		}
+
+		.jl-list li:first-child .jl-row {
+			border-radius: 11px 11px 0 0;
+		}
+
+		.jl-list li:only-child .jl-row {
+			border-radius: 11px;
+		}
+
+		.jl-v {
+			margin-top: 4px;
+			text-align: left;
+		}
+
+		.jl-local {
+			display: block;
+		}
+
+		.jl-id {
+			grid-area: name;
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 8px;
+		}
+
+		.jl-badge {
+			margin-top: 0;
+		}
+	}
+
+	/* Long measurements take their own width: each named value moves to a new line whole,
+	   with its unit, rather than being cut or shrunk. */
+	.jl-wide-values .jl-cols {
+		display: none;
+	}
+
+	.jl-wide-values .jl-row {
+		grid-template-columns: minmax(0, 1fr) 16px;
+		grid-template-areas:
+			'name     go'
+			'measures go'
+			'note     go';
+		row-gap: 4px;
+	}
+
+	.jl-wide-values li:first-child .jl-row {
+		border-top-left-radius: 11px;
+		border-top-right-radius: 11px;
+	}
+
+	.jl-wide-values .jl-id {
+		grid-area: name;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.jl-wide-values .jl-badge {
+		margin: 0;
+	}
+
+	.jl-wide-values .jl-measures {
+		grid-area: measures;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 8px 12px;
+		margin-top: 4px;
+	}
+
+	.jl-wide-values .jl-v {
+		flex: 1 0 max-content;
+		margin: 0;
+		text-align: left;
+	}
+
+	.jl-wide-values .jl-local {
+		display: block;
+	}
+
+	.jl-foot {
+		margin: 8px 0 0;
+		color: hsl(var(--at-fg-muted));
+		font-size: 12px;
+		line-height: 16px;
+	}
+
+	/* Empty: one way back to the marks. */
+	.jl-empty {
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
-		gap: 6px;
+		gap: 4px;
 		padding: 24px 20px;
 		border: 1px dashed hsl(var(--at-border-hover));
-		border-radius: 14px;
+		border-radius: var(--at-radius-lg);
 	}
 
-	.jr-empty-title {
+	.jl-empty-title {
 		margin: 0;
 		color: hsl(var(--at-fg));
 		font-size: 16px;
 		font-weight: 600;
+		line-height: 24px;
 	}
 
-	.jr-empty-text {
+	.jl-empty-text {
 		max-width: 420px;
 		margin: 0;
 		color: hsl(var(--at-fg-muted));
 		font-size: 14px;
-		line-height: 1.5;
+		line-height: 20px;
 	}
 
-	.jr-empty-action {
+	.jl-empty-action {
 		height: 44px;
-		margin-top: 10px;
-		padding: 0 18px;
+		margin-top: 12px;
+		padding: 0 16px;
 		border: 1px solid hsl(var(--at-emphasis) / 0.55);
-		border-radius: 12px;
+		border-radius: var(--at-radius-lg);
 		background: hsl(var(--at-emphasis) / 0.24);
 		color: hsl(var(--at-emphasis-fg));
 		font: inherit;
 		font-size: 15px;
-		font-weight: 600;
+		font-weight: 500;
 		cursor: pointer;
+	}
+
+	/* A 320px phone: the destination goes under the heading. */
+	@media (max-width: 359px) {
+		.jl-head {
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 4px;
+		}
+
+		.jl-dest {
+			text-align: left;
+		}
 	}
 
 	/* ---- The session's details ---- */
@@ -1034,10 +1403,25 @@
 		.jr-row:hover .jr-chevron {
 			color: hsl(var(--at-fg-secondary));
 		}
-		.jr-empty-action:hover {
+		.jl-row:hover {
+			background: hsl(var(--at-fg) / 0.04);
+		}
+		.jl-row:hover .jl-go {
+			color: hsl(var(--at-fg-secondary));
+		}
+		.jl-empty-action:hover {
 			background: hsl(var(--at-emphasis) / 0.34);
 			color: hsl(var(--at-fg));
 		}
+	}
+
+	/* Pressed, after hover so it shows under a mouse too. */
+	.jl-row:active {
+		background: hsl(var(--at-fg) / 0.08);
+	}
+
+	.jl-row:active .jl-go {
+		color: hsl(var(--at-fg));
 	}
 
 	@media (pointer: coarse) {
@@ -1048,7 +1432,7 @@
 		}
 	}
 
-	/* ---- Wider: the jumps as a table ---- */
+	/* ---- Wider ---- */
 
 	@media (min-width: 701px) and (min-height: 501px) {
 		.jr-page {
@@ -1090,64 +1474,11 @@
 			font-size: 84px;
 		}
 
-		.jr-columns,
-		.jr-row {
-			display: grid;
-			grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.7fr) 18px;
-			grid-template-areas: 'name flight contact rsi chevron';
-			column-gap: 16px;
-		}
-
-		/* The column names are the table's first row. */
-		.jr-columns {
-			align-items: center;
-			height: 40px;
-			padding: 0 10px 0 16px;
-			border-bottom: 1px solid hsl(var(--at-border));
-			background: hsl(var(--at-fg) / 0.025);
-			color: hsl(var(--at-fg-muted));
-			font-size: 13px;
-		}
-
-		.jr-row {
-			min-height: 52px;
-			padding-block: 6px;
-		}
-
-		.jr-more {
-			display: contents;
-		}
-
-		.jr-contact {
-			grid-area: contact;
-		}
-
-		.jr-rsi {
-			grid-area: rsi;
-		}
-
-		.jr-contact,
-		.jr-rsi {
-			color: hsl(var(--at-fg));
-			font-size: 16px;
-		}
-
-		.jr-contact .jr-unit {
-			font-size: 0.75em;
-		}
-
-		.jr-inline-label {
-			display: none;
-		}
-
-		.jr-missing {
-			grid-row: 1;
-			grid-column: contact-start / rsi-end;
-			font-size: 14px;
-		}
-
 		.jr-unpaired {
+			grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.7fr) 18px;
 			grid-template-areas: 'name flight . . chevron';
+			column-gap: 16px;
+			padding-block: 6px;
 		}
 
 		.jr-compare {
@@ -1209,6 +1540,7 @@
 			animation: none;
 		}
 		.jr-row,
+		.jl-row,
 		.jr-prop,
 		.jr-back {
 			transition: none;
