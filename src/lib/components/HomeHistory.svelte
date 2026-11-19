@@ -4,7 +4,7 @@
 
 	interface Props {
 		sessions: Session[];
-		/** Asks for the session's video; its marks come back once the matching file is opened. */
+		/** Opens the session's saved results; no video is needed. */
 		onOpenSession: (session: Session) => void;
 		/** Opens the Saved sessions dialog on its list or its trends. */
 		onShowAll: (view: 'list' | 'trends') => void;
@@ -67,7 +67,7 @@
 
 	function recorded(session: Session): string {
 		const time = Date.parse(session.recordedAt);
-		return Number.isNaN(time) ? 'No date' : day(time);
+		return Number.isNaN(time) ? 'No date' : `Recorded ${day(time)}`;
 	}
 </script>
 
@@ -125,36 +125,44 @@
 	</section>
 {/if}
 
-<section class="home-card home-recent" aria-labelledby="home-recent-title">
-	<header class="home-card-head">
+<section class="home-recent" aria-labelledby="home-recent-title">
+	<header class="home-recent-head">
 		<h2 id="home-recent-title">Recent sessions</h2>
-		<button class="home-more" onclick={() => onShowAll('list')}>
-			{sessions.length > RECENT ? `All ${sessions.length}` : 'Sessions'}<svg
-				viewBox="0 0 16 16"
-				aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5" /></svg
-			>
-		</button>
+		<button
+			class="home-recent-all"
+			aria-label={sessions.length > RECENT
+				? `All ${sessions.length} saved sessions`
+				: 'Sessions list'}
+			onclick={() => onShowAll('list')}
+			>{sessions.length > RECENT ? `All ${sessions.length}` : 'Sessions'}</button
+		>
 	</header>
-	<ul>
+	<div class="home-recent-legend" aria-hidden="true">Best flight</div>
+	<!-- role="list" keeps the list in WebKit's accessibility tree without its bullets. -->
+	<ul role="list">
 		{#each recent as { session, jumps, bestFlightMs } (session.id)}
+			{@const when = recorded(session)}
+			{@const count = `${jumps} jump${jumps === 1 ? '' : 's'}`}
 			<li>
 				<button
-					class="home-session"
+					class="home-recent-row"
 					onclick={() => onOpenSession(session)}
 					title="View results for {session.title}"
+					aria-label="View results for {session.title}. {when}, {count}. {bestFlightMs === null
+						? 'No best flight'
+						: `Best flight ${Math.round(bestFlightMs)} milliseconds`}"
 				>
-					<span class="home-session-text">
-						<span class="home-session-title">{session.title}</span>
-						<span class="home-session-meta"
-							>Recorded {recorded(session)} · {jumps} jump{jumps === 1 ? '' : 's'}</span
-						>
+					<span>
+						<span class="home-recent-title">{session.title}</span>
+						<span class="home-recent-meta">{when} · {count}</span>
 					</span>
-					<span class="home-session-best" class:none={bestFlightMs === null}>
-						{#if bestFlightMs !== null}{Math.round(bestFlightMs)}<small>ms</small>{:else}—{/if}
-					</span>
-					<svg class="home-session-chevron" viewBox="0 0 16 16" aria-hidden="true"
-						><path d="m6 3.5 4.5 4.5L6 12.5" /></svg
+					<span class="home-recent-value"
+						><span class="home-recent-label">Best flight</span
+						>{#if bestFlightMs !== null}{Math.round(bestFlightMs)}<span class="home-recent-unit"
+								>ms</span
+							>{:else}<span class="home-recent-none">None</span>{/if}</span
 					>
+					<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5" /></svg>
 				</button>
 			</li>
 		{/each}
@@ -213,8 +221,7 @@
 		}
 	}
 
-	.home-more svg,
-	.home-session-chevron {
+	.home-more svg {
 		width: 14px;
 		height: 14px;
 		fill: none;
@@ -309,92 +316,187 @@
 		padding-bottom: 16px;
 	}
 
-	.home-recent ul {
-		margin: 8px 0 0;
-		padding: 0 0 6px;
-		list-style: none;
+	/* Recent sessions: rows aligned on one Best flight column, which each row
+	   labels for itself once the card is too narrow for a shared legend. */
+	.home-recent {
+		container: home-recent / inline-size;
+		padding: 8px;
+		border: 1px solid hsl(var(--at-border-hover));
+		border-radius: var(--at-radius-lg);
+		background: hsl(var(--at-bg-elevated));
+		color: hsl(var(--at-fg));
+		line-height: 1.4;
 	}
 
-	/* Dividers inset to the text; each row's hover still runs edge to edge. */
-	.home-recent li + li {
-		position: relative;
-	}
-
-	.home-recent li + li::before {
-		content: '';
-		position: absolute;
-		top: 0;
-		right: 20px;
-		left: 20px;
-		height: 1px;
-		background: hsl(var(--at-border));
-	}
-
-	.home-session {
+	.home-recent-head {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
+		justify-content: space-between;
 		gap: 12px;
-		width: 100%;
-		padding: 10px 14px 10px 20px;
-		border: none;
-		background: none;
-		color: inherit;
-		font: inherit;
-		text-align: left;
+		padding: 0 8px;
+	}
+
+	.home-recent-head h2 {
+		margin: 0;
+		color: hsl(var(--at-fg));
+		font-size: 1rem;
+		font-weight: 500;
+		line-height: 1.5;
+	}
+
+	/* Preflight already resets button font, colour and background. */
+	.home-recent button {
 		cursor: pointer;
 	}
 
-	@media (hover: hover) {
-		.home-session:hover {
-			background: hsl(var(--at-fg) / 0.035);
-		}
-	}
-
-	.home-session-text {
-		display: flex;
-		flex: 1;
-		flex-direction: column;
-		gap: 2px;
-		min-width: 0;
-	}
-
-	.home-session-title {
-		overflow: hidden;
-		color: hsl(var(--at-fg));
-		font-size: 13px;
+	.home-recent-all {
+		min-width: 44px;
+		min-height: 44px;
+		padding: 4px 12px;
+		border: 1px solid hsl(var(--at-border-hover));
+		border-radius: var(--at-radius);
+		color: hsl(var(--at-fg-secondary));
+		font-size: 0.8125rem;
 		font-weight: 500;
-		text-overflow: ellipsis;
+	}
+
+	.home-recent-legend {
+		margin: 8px 36px 0 8px;
+		color: hsl(var(--at-fg-muted));
+		font-size: 0.75rem;
+		line-height: 1.3334;
+		text-align: right;
+	}
+
+	.home-recent ul {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.home-recent li + li {
+		border-top: 1px solid hsl(var(--at-border));
+	}
+
+	.home-recent-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto 16px;
+		align-items: center;
+		gap: 12px;
+		width: 100%;
+		min-height: 60px;
+		padding: 8px;
+		border: 0;
+		border-radius: var(--at-radius);
+		text-align: left;
+	}
+
+	.home-recent-title,
+	.home-recent-meta {
+		display: block;
+		overflow-wrap: anywhere;
+	}
+
+	.home-recent-title {
+		color: hsl(var(--at-fg));
+		font-size: 0.875rem;
+		font-weight: 500;
+		line-height: 1.43;
+	}
+
+	.home-recent-meta,
+	.home-recent-unit,
+	.home-recent-none,
+	.home-recent-label {
+		color: hsl(var(--at-fg-muted));
+		font-size: 0.75rem;
+		font-weight: 400;
+		line-height: 1.3334;
+	}
+
+	.home-recent-meta {
+		margin-top: 4px;
+	}
+
+	.home-recent-value {
+		color: hsl(var(--at-fg));
+		font-size: 1rem;
+		font-weight: 500;
+		font-variant-numeric: tabular-nums;
+		line-height: 1.25;
+		text-align: right;
 		white-space: nowrap;
 	}
 
-	.home-session-meta {
-		color: hsl(var(--at-fg-muted));
-		font-size: 12px;
+	.home-recent-unit {
+		margin-left: 4px;
 	}
 
-	.home-session-best {
-		flex: 0 0 auto;
-		color: hsl(var(--at-fg));
-		font-size: 15px;
-		font-weight: 600;
-		font-variant-numeric: tabular-nums;
+	.home-recent-label {
+		display: none;
 	}
 
-	.home-session-best small {
-		margin-left: 2px;
-		color: hsl(var(--at-fg-muted));
-		font-size: 11px;
-		font-weight: 500;
+	.home-recent-row svg {
+		width: 16px;
+		height: 16px;
+		fill: none;
+		stroke: hsl(var(--at-fg-muted));
+		stroke-width: 1.5;
+		stroke-linecap: round;
+		stroke-linejoin: round;
 	}
 
-	.home-session-best.none {
-		color: hsl(var(--at-fg-muted));
-		font-weight: 500;
+	@media (hover: hover) {
+		.home-recent button:hover {
+			background: hsl(var(--at-surface));
+		}
 	}
 
-	.home-session-chevron {
-		flex: 0 0 auto;
-		color: hsl(var(--at-fg-muted));
+	.home-recent button:active {
+		background: hsl(var(--at-surface-hover));
+	}
+
+	.home-recent button:focus-visible {
+		outline: 2px solid hsl(var(--at-emphasis));
+		outline-offset: -2px;
+		background: hsl(var(--at-surface));
+	}
+
+	@container home-recent (max-width: 20rem) {
+		.home-recent-legend {
+			display: none;
+		}
+		.home-recent-row {
+			grid-template-columns: minmax(0, 1fr) 16px;
+			gap: 4px 8px;
+		}
+		.home-recent-row svg {
+			grid-area: 1 / 2 / 3 / 3;
+		}
+		.home-recent-value {
+			grid-area: 2 / 1;
+			text-align: left;
+		}
+		.home-recent-label {
+			display: inline;
+			margin-right: 4px;
+		}
+	}
+
+	@media (forced-colors: active) {
+		.home-recent-row svg {
+			stroke: ButtonText;
+		}
+		.home-recent button:hover {
+			outline: 1px dashed Highlight;
+			outline-offset: -2px;
+		}
+		.home-recent button:active,
+		.home-recent button:focus-visible {
+			outline: 2px solid Highlight;
+			outline-offset: -2px;
+		}
 	}
 
 	@media (max-width: 640px) {
@@ -404,14 +506,6 @@
 		.home-progress-body,
 		.home-chart {
 			padding-inline: 16px;
-		}
-		.home-recent li + li::before {
-			right: 16px;
-			left: 16px;
-		}
-		.home-session {
-			min-height: 56px;
-			padding: 10px 10px 10px 16px;
 		}
 	}
 </style>
