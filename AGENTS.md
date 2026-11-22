@@ -20,6 +20,13 @@ These rules apply to every agent working in this repo, whatever the provider.
   one. Fix failures rather than retrying them. Report the result it prints; only that
   run counts as an iOS Simulator pass.
 
+## Desktop app (`macos/`)
+
+- A native SwiftUI + AVFoundation port with the same features; see `macos/README.md`. Its domain logic is checked against the web app's TypeScript through `macos/Tests/AirtimeKitTests/golden.json`.
+- If you change frame, mark, guide, export or trends logic in `src/lib`, run `bun macos/scripts/golden.ts`, then `cd macos && swift test`, and port the change if a test fails. Commit the regenerated golden file.
+- Before a PR that touches `macos/`, run `swift test` and `swift run -c release frame-check` in `macos/`.
+- Check its UI with `AIRTIME_SCRIPT` and `AIRTIME_DATA_DIR` (see its README), not by launching it in front of the user.
+
 ## Dev server
 
 - Start it with `scripts/dev.sh <port>`. It installs dependencies if they're missing, starts the server with `nohup` (background tool tasks are killed at their time limit, and the server with them), waits until it answers and prints the URL. The log is `/tmp/airtime-<port>.log`.
