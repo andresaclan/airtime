@@ -30,3 +30,7 @@ tmpvids/
 /.agents/
 /.claude/
 skills-lock.json
+
+# Desktop app (macos/) build output
+/macos/.build/
+/macos/build/

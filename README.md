@@ -18,6 +18,8 @@ Airtime turns a clip of a jump into flight time, contact time and jump height. O
 - Correct when each video was recorded, so sessions sort in the right order.
 - Zoom into the video up to 5x and pan around the frame.
 
+> **On a Mac?** [`macos/`](macos/README.md) has a native desktop app with the same features. It remembers where each video is, keeps sessions as files no browser can clear, and steps backward through long-GOP footage about 40× faster.
+
 ## Quick start
 
 ### Use the hosted app
